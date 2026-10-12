@@ -1,0 +1,12 @@
+# zdlc: Discreet Log Contracts on Zcash
+
+zdlc is oracle-settled contracts on Zcash, entered and exited through Ironwood. Two parties lock ZEC in a transparent 2-of-2 for the life of one contract, pre-sign one payout per outcome and a refund, and normally close straight back to Ironwood. Every transaction is v6, built through pczt.
+
+## Docs
+
+| File | What it covers |
+| --- | --- |
+| [docs/design.md](docs/design.md) | The contract, what Zcash changes, privacy model, architecture tiers |
+| [docs/core.md](docs/core.md) | rust-dlc reuse map, TEE oracle network, Ironwood payout spike |
+| [docs/applications.md](docs/applications.md) | Shielded payments, private markets, cross-chain, Zcash-native extensions |
+| [docs/plan.md](docs/plan.md) | Phased plan with gates, open questions, sources |
