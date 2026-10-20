@@ -51,6 +51,8 @@ Six phases, each ending at a gate. A phase starts when the gates it depends on p
 
 **Gate:** a mainnet contract settles on enclave attestations alone.
 
+**Built and run 2026-10-20; the mainnet gate is ready but not run.** Two oracle services (2-of-2) settled contracts on regtest and Zcash testnet, including Bob-silent CETs on the two attestations alone. zdlc now uses dlcspecs-tagged messages and interoperates with kormir. The oracles run as processes with a file sealing key, not yet in hardware enclaves. The mainnet run moves real funds and is left to the operator. Results: [phase3.md](phase3.md).
+
 ### Phase 4: products (after Phase 2, beside Phase 3)
 
 - RFQ desk over G8 or Nostr, with memo invitations and self-expiring quotes. It runs on the operator oracle until Phase 3's gate passes.

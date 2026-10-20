@@ -1,0 +1,110 @@
+[
+  {
+    "result": {
+      "a": {
+        "next_nonce": 0,
+        "pubkey": "c736f2f6c31db5ae626dd314bebbf2cc39ce62ec6cb93806d5807852d2ce6278",
+        "sealer": "dev (file key, ChaCha20-Poly1305)"
+      },
+      "b": {
+        "next_nonce": 0,
+        "pubkey": "dc7bf0dc6d677831f2b79d7942f069d55a12c6b39140b32f20861d207c6c6fca",
+        "sealer": "dev (file key, ChaCha20-Poly1305)"
+      }
+    },
+    "step": "oracles"
+  },
+  {
+    "result": {
+      "a": {
+        "price_cents": 113638,
+        "quotes": [
+          {
+            "close_cents": 113566,
+            "source": "coinbase"
+          },
+          {
+            "close_cents": 113735,
+            "source": "kraken"
+          },
+          {
+            "close_cents": 113663,
+            "source": "bitstamp"
+          },
+          {
+            "close_cents": 113638,
+            "source": "binance"
+          }
+        ],
+        "value": 1136
+      },
+      "b": {
+        "price_cents": 113638,
+        "quotes": [
+          {
+            "close_cents": 113566,
+            "source": "coinbase"
+          },
+          {
+            "close_cents": 113735,
+            "source": "kraken"
+          },
+          {
+            "close_cents": 113663,
+            "source": "bitstamp"
+          },
+          {
+            "close_cents": 113638,
+            "source": "binance"
+          }
+        ],
+        "value": 1136
+      },
+      "minute": 1792497240
+    },
+    "step": "ZEC/USD attested"
+  },
+  {
+    "result": {
+      "adaptor_sigs_each_way": 485,
+      "cet_index": 56,
+      "mined_at": 213,
+      "of": 98,
+      "outputs_zat": [
+        176000000,
+        224000000
+      ],
+      "owed_alice_bob": [
+        176000000,
+        224000000
+      ],
+      "price_usd": 1136,
+      "txid": "4f61813c34d802f86ccaf20b011c7dcf5f42858c2d9c4ca7431de2060c26ef10"
+    },
+    "step": "ZEC/USD CET on two attestations"
+  },
+  {
+    "result": {
+      "a": {
+        "received_zat": 50000000
+      },
+      "b": {
+        "received_zat": 50000000
+      },
+      "cet_mined_at": 221,
+      "cet_outputs_zat": [
+        400000000
+      ],
+      "deadline": 220,
+      "repay_mined_at": 217
+    },
+    "step": "shielded payment: repaid, collateral returned"
+  },
+  {
+    "result": {
+      "next_nonce": 15,
+      "replay_identical": true
+    },
+    "step": "restart"
+  }
+]

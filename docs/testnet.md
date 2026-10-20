@@ -6,7 +6,7 @@ On 2026-10-20 the stable-value contract ran three times on Zcash testnet and set
 
 | Item | Value |
 | --- | --- |
-| Wallet | One 32-byte seed outside the repo (`examples/testnet_wallet.rs`); index 0 is the treasury, each run takes two fresh indices for Alice and Bob |
+| Wallet | One 32-byte seed outside the repo (`examples/wallet.rs`); index 0 is the treasury, each run takes two fresh indices for Alice and Bob |
 | Funding | 0.125 TAZ from the Valar testnet faucet to the treasury's transparent address |
 | Contract | Alice is owed $0.50 and holds 0.01 TAZ at $50.00; Bob hedges with 0.01 TAZ; floor $25.00 |
 | Collateral cap | 0.05 TAZ a side (`params::TESTNET_CAP`), checked before setup |
@@ -33,7 +33,7 @@ Of the 0.125 TAZ, 0.1024 is back in the treasury. About 0.0203 sits in Ironwood 
 - `Node::utxos` (`getaddressutxos`), `wait_height` and `wait_mined`: testnet has no `generate`.
 - `Node::ironwood_anchor`: a current anchor from `z_gettreestate` replaces the empty-tree root (open issue 5 of the Phase 0–1 review).
 - `Terms::check_cap`: a per-contract collateral cap.
-- `zdlc-testnet status | run --settle close|cet|refund | sweep`. The RPC endpoint comes from `--node` or `ZDLC_TESTNET_RPC` and is never stored.
+- `zdlc-testnet status | run --settle close|cet|refund | sweep` (since renamed `zdlc-live`, which also runs mainnet and two-oracle events). The RPC endpoint comes from `--node` or an environment variable and is never stored.
 
 ## Limits
 

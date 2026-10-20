@@ -24,17 +24,21 @@ cargo run -p zdlc --release --bin zdlc-demo -- --settle refund                # 
 
 Each run uses fresh keys and coins, so they can follow each other on one chain.
 
-## Testnet
+## Live networks and oracles
 
-`zdlc-testnet` runs the same contract on Zcash testnet through any Zakura testnet JSON-RPC endpoint, given as `--node URL` or `ZDLC_TESTNET_RPC` (never stored in the repo). Collateral is 0.01 TAZ a side, capped at 0.05.
+`zdlc-live` runs the contract on Zcash testnet or mainnet through any Zakura JSON-RPC endpoint, given as `--node URL` or `ZDLC_RPC` (never stored in the repo). The network and its upgrade heights come from the node; mainnet needs `--mainnet`. Collateral is capped at 0.05 TAZ (testnet) and 0.01 ZEC (mainnet) a side.
+
+`zdlc-oracled` is one oracle of a 2-of-2 pair, built to run in a TEE: it attests ZEC/USD (the median close of one minute across four exchanges) and shielded payments (by viewing key), with its keys and nonce counter in sealed state.
 
 ```sh
-export ZDLC_TESTNET_RPC=<your testnet Zakura RPC URL>
-cargo run -p zdlc --release --example testnet_wallet          # seed at ~/.zdlc/testnet-seed.hex; prints the address to fund
-cargo run -p zdlc --release --bin zdlc-testnet -- status
-cargo run -p zdlc --release --bin zdlc-testnet -- run --settle refund   # seed-only refund recovery
-cargo run -p zdlc --release --bin zdlc-testnet -- run --settle close --price 60.00
-cargo run -p zdlc --release --bin zdlc-testnet -- sweep         # return transparent payouts to the treasury
+export ZDLC_RPC=<your Zakura RPC URL>
+cargo run -p zdlc --release --example wallet -- testnet          # seed at ~/.zdlc/testnet-seed.hex; prints the address to fund
+cargo run -p zdlc --release --bin zdlc-oracled -- --listen 127.0.0.1:7801 --state a.sealed --sealing-key a.key --node $ZDLC_RPC
+cargo run -p zdlc --release --bin zdlc-oracled -- --listen 127.0.0.1:7802 --state b.sealed --sealing-key b.key --node $ZDLC_RPC
+cargo run -p zdlc --release --bin zdlc-live -- status
+cargo run -p zdlc --release --bin zdlc-live -- run --settle cet --oracles http://127.0.0.1:7801,http://127.0.0.1:7802
+cargo run -p zdlc --release --bin zdlc-live -- run --settle refund    # seed-only refund recovery
+cargo run -p zdlc --release --bin zdlc-live -- sweep                 # return transparent payouts to the treasury
 ```
 
 ## Build and test
@@ -47,8 +51,9 @@ infra/zakura/scripts/down.sh; infra/zakura/scripts/up.sh             # fresh Zak
 cargo test -p zdlc --release --test regtest -- --ignored --nocapture # Phase 0 gate (needs a fresh chain)
 cargo test -p zdlc --release --test phase1 -- --ignored --nocapture  # Phase 1 gate
 cargo test -p zdlc --release --test phase2 -- --ignored --nocapture  # Phase 2 gate (needs a fresh chain)
+cargo test -p zdlc --release --test phase3 -- --ignored --nocapture  # two oracle daemons, 2-of-2 (needs internet)
 cargo run -p zdlc --release --bin zdlc-oracle -- announce zecusd-1    # dev oracle
 cargo run -p zdlc --release --bin zdlc-watch -- kit.json              # refund watcher
 ```
 
-Results: [Phase 0](docs/spikes/phase0.md), [Phase 1](docs/phase1.md), [Phase 2](docs/phase2.md), [testnet](docs/testnet.md).
+Results: [Phase 0](docs/spikes/phase0.md), [Phase 1](docs/phase1.md), [Phase 2](docs/phase2.md), [testnet](docs/testnet.md), [Phase 3](docs/phase3.md).

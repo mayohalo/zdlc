@@ -1,0 +1,132 @@
+[
+  {
+    "result": {
+      "alice_index": 7,
+      "bob_index": 8,
+      "branch": "77190ad9",
+      "collateral": "0.01000000 ZEC",
+      "network": "testnet",
+      "oracles": 2,
+      "settle": "cet",
+      "tip": 4522016,
+      "treasury": "0.10240000 ZEC"
+    },
+    "step": "start"
+  },
+  {
+    "result": {
+      "fee": 20000,
+      "height": 4522018,
+      "txid": "dca453f24d69d37fb7f087303b1f5183dcc565428d61665153570535f23d9a1a"
+    },
+    "step": "split"
+  },
+  {
+    "result": {
+      "event": "zecusd-1792497720",
+      "minute_utc": 1792497720,
+      "oracle_keys": [
+        "0f4f2ddda088cd7183bdbb7f1c00dbcf47b7476c59af21a514675f18af0615d5",
+        "3046b16a09d0be5306f81eed462732152a6dddc18ccdb289c6c156caeabe44ef"
+      ]
+    },
+    "step": "announced"
+  },
+  {
+    "result": {
+      "adaptor_sigs_each_way": 481,
+      "cets": 98,
+      "floor_usd_cents": 56750,
+      "maturity": 4522024,
+      "ms": 1599,
+      "owed_usd_cents": 1135,
+      "p2sh": "t2TkxJTUiiRWHpe4tyWzieDuKPUH7pZNVng",
+      "refund_height": 4522058,
+      "spot_usd_cents": 113589
+    },
+    "step": "setup"
+  },
+  {
+    "result": {
+      "branch": "77190ad9",
+      "funding_height": 4522029,
+      "funding_txid": "5b2e85b27634da4f613a990cedda0cad3454afc8f77e349d08b779235a3f40fa",
+      "record_height": 4522025,
+      "record_txid": "8401c36070a41eb40a4a40854cae5419b75679f5bd811da70e290b6cbbc5eebf"
+    },
+    "step": "funded"
+  },
+  {
+    "result": {
+      "detail": {
+        "price_cents": 113870,
+        "quotes": [
+          {
+            "close_cents": 113832,
+            "source": "coinbase"
+          },
+          {
+            "close_cents": 113870,
+            "source": "kraken"
+          },
+          {
+            "close_cents": 113941,
+            "source": "bitstamp"
+          },
+          {
+            "close_cents": 114077,
+            "source": "binance"
+          }
+        ],
+        "value": 1138
+      },
+      "oracle": "0f4f2ddda088cd7183bdbb7f1c00dbcf47b7476c59af21a514675f18af0615d5"
+    },
+    "step": "attestation"
+  },
+  {
+    "result": {
+      "detail": {
+        "price_cents": 113870,
+        "quotes": [
+          {
+            "close_cents": 113832,
+            "source": "coinbase"
+          },
+          {
+            "close_cents": 113870,
+            "source": "kraken"
+          },
+          {
+            "close_cents": 113941,
+            "source": "bitstamp"
+          },
+          {
+            "close_cents": 114077,
+            "source": "binance"
+          }
+        ],
+        "value": 1138
+      },
+      "oracle": "3046b16a09d0be5306f81eed462732152a6dddc18ccdb289c6c156caeabe44ef"
+    },
+    "step": "attestation"
+  },
+  {
+    "result": {
+      "agree": true,
+      "alice": "0.00980000 ZEC",
+      "bob": "0.01020000 ZEC",
+      "price_usd": 1138
+    },
+    "step": "attested"
+  },
+  {
+    "result": {
+      "index": 51,
+      "mined_at": 4522041,
+      "txid": "612ba745f15539691117b2264335d0da24872bfa9fab8b0c10bfab49f45822fe"
+    },
+    "step": "CET"
+  }
+]
