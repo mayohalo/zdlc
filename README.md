@@ -11,6 +11,19 @@ zdlc is oracle-settled contracts on Zcash, entered and exited through Ironwood. 
 | [docs/applications.md](docs/applications.md) | Shielded payments, private markets, cross-chain, Zcash-native extensions |
 | [docs/plan.md](docs/plan.md) | Phased plan with gates, open questions, sources |
 
+## Demo
+
+A stable-value ZEC payment on the local regtest node: Alice is owed $100 and holds 2 ZEC at $50.00, Bob hedges with 2 ZEC, and an oracle attests the ZEC/USD price at maturity.
+
+```sh
+infra/zakura/scripts/up.sh
+cargo run -p zdlc --release --bin zdlc-demo -- --price 60.00 --settle close   # cooperative close to Ironwood
+cargo run -p zdlc --release --bin zdlc-demo -- --price 40.00 --settle cet     # Bob goes silent, Alice uses the CET
+cargo run -p zdlc --release --bin zdlc-demo -- --settle refund                # the oracle never attests
+```
+
+Each run uses fresh keys and coins, so they can follow each other on one chain.
+
 ## Build and test
 
 Rust 1.97.1 (pinned in `rust-toolchain.toml`), Docker for the regtest node.
@@ -18,8 +31,8 @@ Rust 1.97.1 (pinned in `rust-toolchain.toml`), Docker for the regtest node.
 ```sh
 cargo test -p zdlc --release                                         # unit + offline contract tests
 infra/zakura/scripts/down.sh; infra/zakura/scripts/up.sh             # fresh Zakura regtest, NU7 at 200
-cargo test -p zdlc --release --test regtest -- --ignored --nocapture # Phase 0 gate
-cargo test -p zdlc --release --test phase1 -- --ignored --nocapture  # Phase 1 gate (fresh chain)
+cargo test -p zdlc --release --test regtest -- --ignored --nocapture # Phase 0 gate (needs a fresh chain)
+cargo test -p zdlc --release --test phase1 -- --ignored --nocapture  # Phase 1 gate
 cargo run -p zdlc --release --bin zdlc-oracle -- announce zecusd-1    # dev oracle
 ```
 

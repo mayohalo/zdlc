@@ -12,6 +12,7 @@ pub mod node;
 pub mod oracle;
 pub mod params;
 pub mod payout;
+pub mod regtest;
 pub mod script;
 pub mod tx;
 

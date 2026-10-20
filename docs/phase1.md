@@ -43,6 +43,20 @@ Every contract was funded by a two-party transaction in which each side signed o
 | 5. Upgrade guard | `Terms::validate` | A contract whose refund height reaches the next activation is refused, for example "refund height 210 is at or after the activation at 200". |
 | 6. Demo | `tests/phase1.rs` | The hedger funds from transparent on regtest. With shielded funds each party deshields first (three transactions; the deshields are linkable to the 2-of-2). That path is described, not built. |
 
+## Demo
+
+`zdlc-demo` runs the same contract on the regtest node with a chosen price and settlement path (`--settle close|cet|refund`) and narrates each step; see the README.
+
+## Fixes after the Phase 0–1 review
+
+| Issue | Fix | Test |
+| --- | --- | --- |
+| The close check trusted PCZT metadata: a builder could claim the agreed recipient and value while the note commitment paid someone else | `check_close` re-derives every Ironwood output's `cmx` from its note (`verify_note_commitment`) and trial-decrypts the checker's own output with its viewing key | `close_check_binds_metadata_to_the_note` forges the recipient metadata of a close through the PCZT encoding; it is refused with `InvalidExtractedNoteCommitment` |
+| The close check ignored output index, expiry and lock time | Checks the funding outpoint (txid and index), no transparent outputs, lock time 0 and the agreed expiry | Same test: a close with another expiry is refused |
+| Oracle nonces derived from the event: losing the CLI state then attesting again would leak the key | Nonces are random per announcement and stored by `zdlc-oracle announce`; `attest` refuses unannounced events and marks the event attested before printing signatures | `numeric_prefix_scalar_opens_prefix_point` checks fresh nonces; the CLI refuses an unannounced event and a second attestation |
+
+Still open from the review: payouts round to the nearest grid point, so the recipient can receive slightly more than D (1.68 ZEC, $100.80, at $60.00); the close uses the empty-tree anchor; only regtest parameters exist.
+
 ## What this does not show yet
 
 - **Trust:** one dev oracle signs everything, and parties trust it until Phase 3's two-enclave oracle.
