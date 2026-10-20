@@ -29,6 +29,8 @@ Six phases, each ending at a gate. A phase starts when the gates it depends on p
 
 **Gate:** on regtest the stable-value demo settles at three prices, refunds once, and its cooperative close lands in Ironwood.
 
+**Passed 2026-10-20.** Results: [phase1.md](phase1.md).
+
 ### Phase 2: safety and recovery (after Phase 1)
 
 - Adversarial tests: a refund racing a late CET, a wrong branch ID, dust payouts, high-S signatures, a counterparty who stops mid-setup.

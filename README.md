@@ -19,6 +19,8 @@ Rust 1.97.1 (pinned in `rust-toolchain.toml`), Docker for the regtest node.
 cargo test -p zdlc --release                                         # unit + offline contract tests
 infra/zakura/scripts/down.sh; infra/zakura/scripts/up.sh             # fresh Zakura regtest, NU7 at 200
 cargo test -p zdlc --release --test regtest -- --ignored --nocapture # Phase 0 gate
+cargo test -p zdlc --release --test phase1 -- --ignored --nocapture  # Phase 1 gate (fresh chain)
+cargo run -p zdlc --release --bin zdlc-oracle -- announce zecusd-1    # dev oracle
 ```
 
-Phase 0 results: [docs/spikes/phase0.md](docs/spikes/phase0.md).
+Results: [Phase 0](docs/spikes/phase0.md), [Phase 1](docs/phase1.md).
