@@ -1,0 +1,46 @@
+{
+  "alice": {
+    "attested": "1216",
+    "counterparty": "038567ff979135736ef4a56b8d0670162979693abf523c622aae0fc8ed6b8d03a2",
+    "deposit": null,
+    "eventId": "zdlc-5716347d56ac0f20",
+    "funding": "treasury",
+    "fundingTxid": "2e87080e08859a46c8d8f697bdef429bac661d4c6c90c79b6288e33ea864c1bb",
+    "id": "5716347d56ac0f20",
+    "maturity": 221,
+    "note": null,
+    "refundHeight": 513,
+    "role": "offerer",
+    "settlement": {
+      "height": 237,
+      "how": "close",
+      "txid": "7a24a43f5a687e4885ff16b1cf86fdc6bcedcb640e3d9a99dc74d0608f353017"
+    },
+    "shieldedPayout": null,
+    "state": "settled",
+    "summary": {
+      "collateral_zec": "0.1",
+      "premium_zec": "0.0005",
+      "template": "stable_payment",
+      "usd": "50.00",
+      "you": "recipient: owed the dollar amount in ZEC",
+      "you_put_in_zec": "0.1005"
+    },
+    "template": {
+      "collateral_zat": 10000000,
+      "maturity_blocks": 8,
+      "premium_zat": 50000,
+      "price_minute": 1792516560,
+      "refund_blocks": 300,
+      "template": "stable_payment",
+      "usd_cents": 5000
+    }
+  },
+  "bob": {
+    "height": 237,
+    "how": "close",
+    "txid": "7a24a43f5a687e4885ff16b1cf86fdc6bcedcb640e3d9a99dc74d0608f353017"
+  },
+  "id": "5716347d56ac0f20",
+  "price_usd": "1216"
+}

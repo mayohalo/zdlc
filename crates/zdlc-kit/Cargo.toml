@@ -1,0 +1,30 @@
+[package]
+name = "zdlc-kit"
+description = "The zDLC developer kit: one Zdlc object over pluggable transport, storage, oracle and chain; zdlc-node (REST) and zdlc-cli"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+zdlc = { path = "../zdlc" }
+# Same versions as zdlc, so the Zcash stack is built once.
+zcash_protocol = { version = "=0.11.0-pre.0", features = ["local-consensus"] }
+zcash_transparent = { version = "=0.11.0-pre.1", features = ["transparent-inputs"] }
+pczt = { version = "=0.10.0-pre.1", features = ["orchard", "transparent", "io-finalizer", "prover", "signer", "spend-finalizer", "tx-extractor", "zcp-builder"] }
+orchard = { version = "=0.16.0", features = ["circuit"] }
+secp256k1 = { version = "0.33", features = ["alloc"] }
+async-trait = "0.1"
+rusqlite = { version = "0.37", features = ["bundled"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "time", "net", "sync", "process", "signal"] }
+axum = "0.8"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+hex = "0.4"
+rand10 = { package = "rand", version = "0.10" }
+thiserror = "2"
+secp256k1-zkp = { version = "0.11.2", features = ["std"] }
+
+[dev-dependencies]

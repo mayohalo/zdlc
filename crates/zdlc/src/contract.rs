@@ -346,6 +346,21 @@ pub struct TxSet {
 }
 
 impl TxSet {
+    /// The Ironwood funder's own unredacted funding PCZT, if this side built one. It
+    /// holds note witnesses and the binding key: store it as secretly as the seed.
+    pub fn own_funding(&self) -> Option<&Pczt> {
+        self.own_funding.as_ref()
+    }
+
+    /// Puts back a stored [`TxSet::own_funding`] after a restart.
+    pub fn with_own_funding(mut self, full: Pczt) -> Result<Self> {
+        if tx::txid(&full)? != self.funding_txid {
+            return Err(Error::Build("stored funding PCZT is not this contract's".into()));
+        }
+        self.own_funding = Some(full);
+        Ok(self)
+    }
+
     fn has_legs(&self) -> bool {
         self.funding_inputs.iter().any(|c| matches!(c.spend, Spend::Leg(_)))
     }
@@ -1166,6 +1181,38 @@ impl Party {
             their_refund_sig: sign.refund_sig,
         };
         Ok((f, contract))
+    }
+}
+
+impl Party {
+    /// Rebuilds this side's contract from the setup messages (after a restart): derives
+    /// the transactions again and checks the counterparty's signatures, without the
+    /// tip check that guards a fresh setup.
+    pub fn restore(&self, p: &LocalNetwork, is_offerer: bool, offer: &Offer, accept: &Accept, sign: &SignMsg) -> Result<Contract> {
+        let given = match (&offer.funding, &accept.funding) {
+            (Some(b), None) | (None, Some(b)) => Some(parse_pczt(b)?),
+            (None, None) => None,
+            (Some(_), Some(_)) => return Err(Error::Build("both parties fund from Ironwood".into())),
+        };
+        let txs = build_txs_with(p, &offer.terms, &offer.offer, &accept.accept, given.as_ref())?;
+        let (them, adaptors, refund_sig) = if is_offerer {
+            (&accept.accept, &accept.cet_adaptors, accept.refund_sig)
+        } else {
+            (&offer.offer, &sign.cet_adaptors, sign.refund_sig)
+        };
+        check_adaptors(&txs, adaptors, &them.funding_pubkey)?;
+        check_sig(&refund_sig, txs.refund_sighash, &them.funding_pubkey)?;
+        Ok(Contract {
+            is_offerer,
+            terms: offer.terms.clone(),
+            offer: offer.offer.clone(),
+            accept: accept.accept.clone(),
+            txs,
+            funding_sk: self.funding_sk,
+            close_ivk: self.close_ivk(),
+            their_adaptors: adaptors.clone(),
+            their_refund_sig: refund_sig,
+        })
     }
 }
 

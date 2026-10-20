@@ -1,0 +1,168 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "zdlc-node",
+    "version": "0.1.0",
+    "description": "Discreet Log Contracts on Zcash. Offer and accept contracts from templates, fund them from a treasury or a shielded deposit link, and follow them to settlement through events. Every route except this spec needs `Authorization: Bearer <token>`; the token is in the node's token file. Amounts are zatoshis (1 ZEC = 100,000,000)."
+  },
+  "servers": [{ "url": "http://127.0.0.1:7950" }],
+  "security": [{ "bearer": [] }],
+  "paths": {
+    "/v1/info": {
+      "get": {
+        "operationId": "info",
+        "summary": "This node: its identity (what counterparties offer to), network, tip, treasury address and oracles",
+        "responses": { "200": { "description": "Node info", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Info" } } } }, "401": { "$ref": "#/components/responses/Error" } }
+      }
+    },
+    "/v1/balance": {
+      "get": {
+        "operationId": "balance",
+        "summary": "Treasury, shielded balance and collateral locked in live contracts",
+        "responses": { "200": { "description": "Balance", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Balance" } } } }, "401": { "$ref": "#/components/responses/Error" } }
+      }
+    },
+    "/v1/contracts": {
+      "get": {
+        "operationId": "listContracts",
+        "summary": "Every contract, newest first",
+        "responses": { "200": { "description": "Contracts", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Contract" } } } } } }
+      },
+      "post": {
+        "operationId": "offer",
+        "summary": "Offer a contract to a counterparty, from a template",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/OfferRequest" } } } },
+        "responses": { "200": { "description": "The new contract's id", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Id" } } } }, "400": { "$ref": "#/components/responses/Error" } }
+      }
+    },
+    "/v1/contracts/{id}": {
+      "get": {
+        "operationId": "getContract",
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
+        "responses": { "200": { "description": "The contract", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Contract" } } } }, "404": { "$ref": "#/components/responses/Error" } }
+      }
+    },
+    "/v1/contracts/{id}/accept": {
+      "post": {
+        "operationId": "accept",
+        "summary": "Accept an incoming offer. With deposit funding the node emits awaitingDeposit with a ZIP 321 link any wallet can pay",
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["funding"], "properties": { "funding": { "$ref": "#/components/schemas/Funding" } } } } } },
+        "responses": { "200": { "description": "Accepted", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Id" } } } }, "400": { "$ref": "#/components/responses/Error" } }
+      }
+    },
+    "/v1/contracts/{id}/decline": {
+      "post": {
+        "operationId": "decline",
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
+        "responses": { "200": { "description": "Declined", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Id" } } } }, "400": { "$ref": "#/components/responses/Error" } }
+      }
+    },
+    "/v1/contracts/{id}/qr.svg": {
+      "get": {
+        "operationId": "depositQr",
+        "summary": "The deposit link as a QR code",
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
+        "responses": { "200": { "description": "SVG", "content": { "image/svg+xml": { "schema": { "type": "string" } } } }, "404": { "$ref": "#/components/responses/Error" } }
+      }
+    },
+    "/v1/events": {
+      "get": {
+        "operationId": "events",
+        "summary": "Events after a sequence number; long-polls up to `wait` seconds (max 60)",
+        "parameters": [
+          { "name": "after", "in": "query", "schema": { "type": "integer", "minimum": 0, "default": 0 } },
+          { "name": "wait", "in": "query", "schema": { "type": "integer", "minimum": 0, "maximum": 60, "default": 0 } },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 1000, "default": 100 } }
+        ],
+        "responses": { "200": { "description": "Events", "content": { "application/json": { "schema": { "type": "object", "required": ["events", "next"], "properties": { "events": { "type": "array", "items": { "$ref": "#/components/schemas/Event" } }, "next": { "type": "integer" } } } } } } }
+      }
+    },
+    "/v1/withdraw": {
+      "post": {
+        "operationId": "withdraw",
+        "summary": "Send the whole shielded balance to a unified address (its Ironwood receiver)",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["to"], "properties": { "to": { "type": "string" } } } } } },
+        "responses": { "200": { "description": "Transactions sent", "content": { "application/json": { "schema": { "type": "object", "required": ["txids"], "properties": { "txids": { "type": "array", "items": { "type": "string" } } } } } } }, "400": { "$ref": "#/components/responses/Error" } }
+      }
+    },
+    "/v1/openapi.json": {
+      "get": { "operationId": "spec", "security": [], "responses": { "200": { "description": "This document" } } }
+    }
+  },
+  "components": {
+    "securitySchemes": { "bearer": { "type": "http", "scheme": "bearer" } },
+    "parameters": { "Id": { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } } },
+    "responses": { "Error": { "description": "Error", "content": { "application/json": { "schema": { "type": "object", "required": ["error"], "properties": { "error": { "type": "string" } } } } } } },
+    "schemas": {
+      "Id": { "type": "object", "required": ["id"], "properties": { "id": { "type": "string" } } },
+      "Funding": { "type": "string", "enum": ["treasury", "deposit"] },
+      "Role": { "type": "string", "enum": ["offerer", "accepter"] },
+      "State": { "type": "string", "enum": ["offered", "incoming", "awaiting_deposit", "refreshing", "accepted", "signed", "funded", "closing", "settled", "declined", "failed"] },
+      "Info": {
+        "type": "object",
+        "required": ["identity", "network", "tip", "treasury", "oracles"],
+        "properties": {
+          "identity": { "type": "string" }, "network": { "type": "string" }, "tip": { "type": "integer" }, "treasury": { "type": "string" },
+          "oracles": { "type": "array", "items": { "type": "object", "properties": { "url": { "type": "string" }, "pubkey": { "type": "string" } } } },
+          "transport": { "type": "string" }, "storage": { "type": "string" }, "chain": { "type": "string" }
+        }
+      },
+      "Balance": {
+        "type": "object",
+        "required": ["treasuryZat", "shieldedZat", "shieldedNotes", "inContractsZat"],
+        "properties": { "treasuryZat": { "type": "integer" }, "shieldedZat": { "type": "integer" }, "shieldedNotes": { "type": "integer" }, "inContractsZat": { "type": "integer" } }
+      },
+      "Payee": {
+        "type": "object",
+        "required": ["label", "address", "bps"],
+        "properties": { "label": { "type": "string" }, "address": { "type": "string", "description": "Transparent address" }, "shielded": { "type": "string", "description": "Unified address paid on a cooperative close" }, "bps": { "type": "integer" } }
+      },
+      "Template": {
+        "oneOf": [
+          {
+            "type": "object", "title": "StablePayment", "description": "The offerer is owed usdCents in ZEC at the price minute; the accepter hedges with the same collateral and earns the premium",
+            "required": ["template", "usd_cents", "collateral_zat", "maturity_blocks", "refund_blocks"],
+            "properties": { "template": { "const": "stable_payment" }, "usd_cents": { "type": "integer" }, "collateral_zat": { "type": "integer" }, "premium_zat": { "type": "integer" }, "maturity_blocks": { "type": "integer" }, "refund_blocks": { "type": "integer" }, "price_minute": { "type": ["integer", "null"] } }
+          },
+          {
+            "type": "object", "title": "Escrow", "description": "The offerer (contractor) is paid amount_zat on \"delivered\"; the accepter (client) funds it alone",
+            "required": ["template", "amount_zat", "question", "maturity_blocks", "refund_blocks"],
+            "properties": { "template": { "const": "escrow" }, "amount_zat": { "type": "integer" }, "question": { "type": "string" }, "payees": { "type": "array", "items": { "$ref": "#/components/schemas/Payee" } }, "maturity_blocks": { "type": "integer" }, "refund_blocks": { "type": "integer" } }
+          },
+          {
+            "type": "object", "title": "Bet", "description": "Both stake stake_zat; the winner takes both",
+            "required": ["template", "question", "outcomes", "offerer_wins", "stake_zat", "maturity_blocks", "refund_blocks"],
+            "properties": { "template": { "const": "bet" }, "question": { "type": "string" }, "outcomes": { "type": "array", "items": { "type": "string" } }, "offerer_wins": { "type": "array", "items": { "type": "string" } }, "stake_zat": { "type": "integer" }, "maturity_blocks": { "type": "integer" }, "refund_blocks": { "type": "integer" } }
+          }
+        ],
+        "discriminator": { "propertyName": "template" }
+      },
+      "OfferRequest": { "type": "object", "required": ["counterparty", "template"], "properties": { "counterparty": { "type": "string", "description": "The counterparty's identity (its /v1/info identity)" }, "template": { "$ref": "#/components/schemas/Template" } } },
+      "Settlement": { "type": "object", "required": ["how"], "properties": { "how": { "type": "string", "enum": ["close", "cet", "refund", "counterparty"] }, "txid": { "type": ["string", "null"] }, "height": { "type": ["integer", "null"] } } },
+      "Contract": {
+        "type": "object",
+        "required": ["id", "role", "state", "counterparty", "template", "summary", "eventId"],
+        "properties": {
+          "id": { "type": "string" }, "role": { "$ref": "#/components/schemas/Role" }, "state": { "$ref": "#/components/schemas/State" }, "counterparty": { "type": "string" },
+          "template": { "$ref": "#/components/schemas/Template" }, "summary": { "type": "object" }, "eventId": { "type": "string" },
+          "funding": { "oneOf": [{ "$ref": "#/components/schemas/Funding" }, { "type": "null" }] },
+          "deposit": { "oneOf": [{ "type": "object", "properties": { "uri": { "type": "string" }, "zat": { "type": "integer" }, "from": { "type": "integer" } } }, { "type": "null" }] },
+          "fundingTxid": { "type": ["string", "null"] }, "maturity": { "type": ["integer", "null"] }, "refundHeight": { "type": ["integer", "null"] },
+          "attested": { "type": ["string", "null"] }, "settlement": { "oneOf": [{ "$ref": "#/components/schemas/Settlement" }, { "type": "null" }] },
+          "shieldedPayout": { "type": ["string", "null"] }, "note": { "type": ["string", "null"] }
+        }
+      },
+      "Event": {
+        "type": "object",
+        "required": ["seq", "kind", "id"],
+        "description": "kind: offered (incoming, counterparty, summary) | awaitingDeposit (uri, zat) | accepted | signed | funded (txid, height) | attested (outcome) | settled (how, txid, height) | payoutShielded (txid) | warning (message) | declined | failed (reason)",
+        "properties": {
+          "seq": { "type": "integer" }, "kind": { "type": "string", "enum": ["offered", "awaitingDeposit", "accepted", "signed", "funded", "attested", "settled", "payoutShielded", "warning", "declined", "failed"] }, "id": { "type": "string" },
+          "incoming": { "type": "boolean" }, "counterparty": { "type": "string" }, "summary": { "type": "object" }, "uri": { "type": "string" }, "zat": { "type": "integer" },
+          "txid": { "type": ["string", "null"] }, "height": { "type": ["integer", "null"] }, "outcome": { "type": "string" }, "how": { "type": "string" }, "reason": { "type": "string" }
+        }
+      }
+    }
+  }
+}

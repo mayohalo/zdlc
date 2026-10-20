@@ -1,0 +1,22 @@
+{
+  "id": "66f3897a28480708",
+  "alice": {
+    "height": 231,
+    "how": "close",
+    "txid": "90a0fb1add5c25e71438b032a572cbe1cd711bcea82a8404bad8a425add1e348"
+  },
+  "bob_events": [
+    "offered",
+    "accepted",
+    "signed",
+    "funded",
+    "attested",
+    "settled"
+  ],
+  "bob_balance": {
+    "inContractsZat": 0,
+    "shieldedNotes": 1,
+    "shieldedZat": 19995000,
+    "treasuryZat": 89987500
+  }
+}

@@ -11,6 +11,7 @@ zdlc is oracle-settled contracts on Zcash, entered and exited through Ironwood. 
 | [docs/applications.md](docs/applications.md) | Shielded payments, private markets, cross-chain, Zcash-native extensions |
 | [docs/plan.md](docs/plan.md) | Phased plan with gates, open questions, sources |
 | [docs/beneficiaries.md](docs/beneficiaries.md) | Multi-beneficiary payouts: splits, per-outcome overrides, multi-output CETs and closes |
+| [docs/kit.md](docs/kit.md) | Developer kit: the `Zdlc` object, templates, `zdlc-node` REST API, `zdlc-cli`, `@zdlc/client` |
 | [docs/funding.md](docs/funding.md) | Shielded funding by QR: deposit links (path A), legs paid from any wallet (path B), auto-shield and withdraw |
 
 ## Demo
@@ -59,6 +60,21 @@ cargo run -p zdlc --release --bin zdlc-trader -- taker ... --invitations-from <h
 cargo run -p zdlc --release --bin zdlc-trader -- taker ... --split self:6000,<tm address>+<raw Ironwood hex>:4000
 ```
 
+## Developer kit
+
+Build apps on zDLC without touching the protocol ([docs/kit.md](docs/kit.md)):
+
+- **Rust:** one `Zdlc` object ([crates/zdlc-kit](crates/zdlc-kit)).
+- **Any language:** `zdlc-node`, a REST node ([OpenAPI spec](crates/zdlc-kit/openapi.json)), driven by `zdlc-cli`.
+- **TypeScript:** [`@zdlc/client`](sdk/ts).
+
+Templates: stable payment, escrow, bet.
+
+```sh
+cargo run -p zdlc-kit --release --bin zdlc-node -- --seed alice.seed --node $ZDLC_RPC --desk http://127.0.0.1:7900 --oracles $ORACLES
+cargo run -p zdlc-kit --release --bin zdlc-cli -- --token-file alice.seed.token offer escrow --to <identity> --amount 1.5 --question "Delivered?"
+```
+
 ## Funding by QR
 
 A user funds a contract from any Zcash wallet by scanning a ZIP 321 link (see [docs/funding.md](docs/funding.md)):
@@ -91,8 +107,9 @@ cargo test -p zdlc --release --test phase4 -- --ignored --nocapture  # maker and
 cargo test -p zdlc --release --test products -- --ignored --nocapture --test-threads=1  # invitation, escrow, payroll roll
 cargo test -p zdlc --release --test beneficiaries -- --ignored --nocapture  # team escrow: 3 payees by CET and by close
 cargo test -p zdlc --release --test funding -- --ignored --nocapture --test-threads=1  # funding by QR: deposits, legs, desk trade
+cargo test -p zdlc-kit --release --test kit -- --ignored --nocapture --test-threads=1   # two zdlc-nodes via zdlc-cli and @zdlc/client
 cargo run -p zdlc --release --bin zdlc-oracle -- announce zecusd-1    # dev oracle
 cargo run -p zdlc --release --bin zdlc-watch -- kit.json              # refund watcher
 ```
 
-Results: [Phase 0](docs/spikes/phase0.md), [Phase 1](docs/phase1.md), [Phase 2](docs/phase2.md), [testnet](docs/testnet.md), [Phase 3](docs/phase3.md), [Phase 4](docs/phase4.md), [beneficiaries](docs/beneficiaries.md), [funding by QR](docs/funding.md).
+Results: [Phase 0](docs/spikes/phase0.md), [Phase 1](docs/phase1.md), [Phase 2](docs/phase2.md), [testnet](docs/testnet.md), [Phase 3](docs/phase3.md), [Phase 4](docs/phase4.md), [beneficiaries](docs/beneficiaries.md), [funding by QR](docs/funding.md), [developer kit](docs/kit.md).

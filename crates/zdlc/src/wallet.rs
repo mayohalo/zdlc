@@ -68,11 +68,15 @@ impl Wallet {
         keys::p2pkh(&keys::pubkey(&self.payout_key(i)))
     }
 
-    pub fn close_fvk(&self, i: u32) -> FullViewingKey {
-        let sk = (0u8..=255)
+    /// Spends what the cooperative close paid contract `i`'s Ironwood address.
+    pub fn close_sk(&self, i: u32) -> SpendingKey {
+        (0u8..=255)
             .find_map(|n| Option::<SpendingKey>::from(SpendingKey::from_bytes(self.derive("close", i, n))))
-            .expect("a valid spending key");
-        FullViewingKey::from(&sk)
+            .expect("a valid spending key")
+    }
+
+    pub fn close_fvk(&self, i: u32) -> FullViewingKey {
+        FullViewingKey::from(&self.close_sk(i))
     }
 
     /// Contract `i`'s Ironwood address: the cooperative close and the recovery record pay it.

@@ -1,0 +1,53 @@
+[
+  {
+    "alice": {
+      "height": 233,
+      "how": "close",
+      "txid": "c06956df8ee86a72a6cc1ee4f8732ccd07bb89572cab22066fda88daab76b6cf"
+    },
+    "bob": {
+      "height": 233,
+      "how": "close",
+      "txid": "c06956df8ee86a72a6cc1ee4f8732ccd07bb89572cab22066fda88daab76b6cf"
+    },
+    "deposit_uri": "zcash:utest1gzq0hkthzsvlyztfat84kqpegr9y5sh4pg69x32uvu5v9rud4d4yv2k57wv8jqgrj565vjq7aly8z3fqr7druxlyvflzd2cxfsv2x2wv?amount=1.5002&label=zDLC%202f1d2f823bc1ca79&memo=ekRMQzE6MmYxZDJmODIzYmMxY2E3OQ",
+    "deposit_zat": 150020000,
+    "funding_txid": "8a4e8ca1b0bebb4e1fb96f8a1633364ea9ee24937f28f4aef1b3b743edd9bb4d",
+    "id": "2f1d2f823bc1ca79",
+    "run": "escrow by deposit, closed"
+  },
+  {
+    "alice": {
+      "height": 307,
+      "how": "cet",
+      "txid": "304d62ba0c7b6c6b253f1fff2c2dc67ed35a69860f4aa8c807846c502f5f4ea4"
+    },
+    "alice_balance": {
+      "inContractsZat": 0,
+      "shieldedNotes": 2,
+      "shieldedZat": 189985000,
+      "treasuryZat": 79987500
+    },
+    "alice_events": [
+      "offered",
+      "signed",
+      "funded",
+      "attested",
+      "settled",
+      "offered",
+      "signed",
+      "funded",
+      "attested",
+      "settled",
+      "payoutShielded"
+    ],
+    "bob_after_restart": {
+      "height": 307,
+      "how": "cet",
+      "txid": "304d62ba0c7b6c6b253f1fff2c2dc67ed35a69860f4aa8c807846c502f5f4ea4"
+    },
+    "id": "2a386cbe9a413120",
+    "payout_shield_txid": "544811da2ac2d02690e9dc10a49c910c79d1d9f3bbd508a59dd9b7a516195ada",
+    "run": "bet from treasuries, CET while the loser was down"
+  }
+]

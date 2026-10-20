@@ -1,0 +1,17 @@
+{
+  "name": "@zdlc/client",
+  "version": "0.1.0",
+  "description": "TypeScript client for zdlc-node: Discreet Log Contracts on Zcash",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" } },
+  "files": ["dist", "README.md"],
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "build": "tsc -p .",
+    "test": "node --test test/unit.test.mjs",
+    "live": "node scripts/live.mjs"
+  },
+  "license": "MIT"
+}
