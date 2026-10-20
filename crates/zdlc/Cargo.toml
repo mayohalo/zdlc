@@ -25,6 +25,7 @@ secp256k1-zkp = { version = "0.11.2", features = ["std"] }
 # 8e6a75fbc9685e6eafa348edd45a793fcb63fa4d (also its HEAD as of 2026-10-20). Pulls in
 # dlc 0.8.0, bitcoin 0.32 and miniscript 12; shares secp256k1-zkp 0.11 with the adaptor.
 dlc-trie = "=0.8.0"
+dlc = "=0.8.0"
 sha2 = "0.10"
 rand10 = { package = "rand", version = "0.10" }
 hex = "0.4"

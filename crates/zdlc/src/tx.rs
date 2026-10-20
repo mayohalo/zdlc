@@ -23,6 +23,7 @@ use secp256k1::{ecdsa, PublicKey, SecretKey};
 use zcash_primitives::transaction::{
     builder::{BuildConfig, Builder, BundlePadding, PcztResult},
     fees::zip317,
+    txid::{to_txid, TxIdDigester},
 };
 use zcash_protocol::{
     consensus::BlockHeight, local_consensus::LocalNetwork, memo::MemoBytes, value::Zatoshis,
@@ -241,6 +242,17 @@ fn relock(t: tpczt::Bundle, h: u32) -> Result<tpczt::Bundle> {
         );
     }
     tpczt::Bundle::parse(inputs, outputs).map_err(|e| Error::Build(format!("relock: {e:?}")))
+}
+
+/// The txid of an unsigned PCZT. v5/v6 txids do not commit to signatures, so CETs and
+/// the refund can spend the funding output before anyone signs it.
+pub fn txid(pczt: &Pczt) -> Result<[u8; 32]> {
+    let data = pczt
+        .clone()
+        .into_effects()
+        .map_err(|e| Error::Pczt(format!("effects: {e:?}")))?;
+    let digests = data.digest(TxIdDigester);
+    Ok(*to_txid(data.version(), data.consensus_branch_id(), &digests).as_ref())
 }
 
 /// The v6 sighash of transparent input `index` (SIGHASH_ALL): what the adaptor signs.

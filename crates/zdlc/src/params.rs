@@ -44,6 +44,14 @@ pub fn spans_upgrade(params: &LocalNetwork, from: u32, to: u32) -> bool {
         .is_some_and(|next| to >= u32::from(next))
 }
 
+/// The activation height of the next network upgrade after `height`, if scheduled.
+pub fn next_activation(params: &LocalNetwork, height: u32) -> Option<u32> {
+    BranchId::for_height(params, BlockHeight::from_u32(height))
+        .height_bounds(params)
+        .and_then(|(_, next)| next)
+        .map(u32::from)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

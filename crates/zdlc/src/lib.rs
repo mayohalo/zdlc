@@ -6,10 +6,12 @@
 //! Ironwood. See `docs/design.md`.
 
 pub mod adaptor;
+pub mod contract;
 pub mod keys;
 pub mod node;
 pub mod oracle;
 pub mod params;
+pub mod payout;
 pub mod script;
 pub mod tx;
 

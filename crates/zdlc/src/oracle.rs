@@ -150,6 +150,141 @@ pub fn zkp_key(label: &str) -> SecretKey {
     }
 }
 
+/// A numeric event: one nonce per binary digit, attested digit by digit (rust-dlc's
+/// scheme: each digit's message is SHA-256 of the digit as a decimal string, signed with
+/// `dlc::secp_utils::schnorrsig_sign_with_nonce`).
+#[derive(Clone, Debug)]
+pub struct NumericAnnouncement {
+    pub pubkey: XOnlyPublicKey,
+    pub nonces: Vec<XOnlyPublicKey>,
+    pub event_id: String,
+    pub nb_digits: usize,
+    /// Price per unit of the attested value, in cents.
+    pub unit_cents: u64,
+}
+
+#[derive(Clone, Debug)]
+pub struct NumericAttestation {
+    pub event_id: String,
+    pub value: usize,
+    pub digits: Vec<usize>,
+    pub signatures: Vec<schnorr::Signature>,
+    /// The signature scalars `s_i`: a CET prefix of length `n` decrypts with their sum
+    /// over the first `n` digits.
+    pub scalars: Vec<SecretKey>,
+}
+
+pub struct NumericOracle {
+    secp: Secp256k1<secp256k1_zkp::All>,
+    keypair: Keypair,
+    nonces: Vec<[u8; 32]>,
+    announcement: NumericAnnouncement,
+    attested: bool,
+}
+
+pub fn digit_message(d: usize) -> Message {
+    Message::from_digest(Sha256::digest(d.to_string().as_bytes()).into())
+}
+
+impl NumericOracle {
+    /// A deterministic dev oracle for `event_id`, keyed by `label`.
+    pub fn new(label: &str, event_id: &str, nb_digits: usize, unit_cents: u64) -> Self {
+        let secp = Secp256k1::new();
+        let keypair = Keypair::from_secret_key(&secp, &zkp_key(&format!("oracle/{label}")));
+        let nonces: Vec<[u8; 32]> = (0..nb_digits)
+            .map(|i| zkp_key(&format!("oracle/{label}/nonce/{event_id}/{i}")).secret_bytes())
+            .collect();
+        let announcement = NumericAnnouncement {
+            pubkey: keypair.x_only_public_key().0,
+            nonces: nonces
+                .iter()
+                .map(|k| {
+                    SecretKey::from_slice(k)
+                        .expect("valid")
+                        .x_only_public_key(&secp)
+                        .0
+                })
+                .collect(),
+            event_id: event_id.into(),
+            nb_digits,
+            unit_cents,
+        };
+        Self {
+            secp,
+            keypair,
+            nonces,
+            announcement,
+            attested: false,
+        }
+    }
+
+    pub fn announcement(&self) -> &NumericAnnouncement {
+        &self.announcement
+    }
+
+    /// Attests `value`, clamped to the largest value the digits can carry. Once only.
+    pub fn attest(&mut self, value: usize) -> Result<NumericAttestation> {
+        if self.attested {
+            return Err(Error::Crypto("event already attested".into()));
+        }
+        let n = self.announcement.nb_digits;
+        let value = value.min((1 << n) - 1);
+        let digits = dlc_trie::digit_decomposition::decompose_value(value, 2, n);
+        let mut signatures = vec![];
+        let mut scalars = vec![];
+        for (i, d) in digits.iter().enumerate() {
+            let msg = digit_message(*d);
+            let sig = dlc::secp_utils::schnorrsig_sign_with_nonce(
+                &self.secp,
+                &msg,
+                &self.keypair,
+                &self.nonces[i],
+            );
+            self.secp
+                .verify_schnorr(&sig, &msg, &self.announcement.pubkey)
+                .map_err(|e| Error::Crypto(format!("digit {i}: {e}")))?;
+            let (r, s) = dlc::secp_utils::schnorrsig_decompose(&sig)
+                .map_err(|e| Error::Crypto(format!("decompose: {e:?}")))?;
+            if r != self.announcement.nonces[i] {
+                return Err(Error::Crypto(format!("digit {i}: nonce mismatch")));
+            }
+            scalars.push(SecretKey::from_slice(s).map_err(|e| Error::Crypto(e.to_string()))?);
+            signatures.push(sig);
+        }
+        self.attested = true;
+        Ok(NumericAttestation {
+            event_id: self.announcement.event_id.clone(),
+            value,
+            digits,
+            signatures,
+            scalars,
+        })
+    }
+}
+
+/// The adaptor point a digit prefix unlocks: the sum of the oracle's signature points for
+/// those digits (`dlc::get_adaptor_point_from_oracle_info`).
+pub fn prefix_point(a: &NumericAnnouncement, prefix: &[usize]) -> Result<PublicKey> {
+    if prefix.is_empty() || prefix.len() > a.nb_digits {
+        return Err(Error::Crypto("prefix length".into()));
+    }
+    let info = dlc::OracleInfo {
+        public_key: a.pubkey,
+        nonces: a.nonces[..prefix.len()].to_vec(),
+    };
+    let msgs = prefix.iter().map(|d| digit_message(*d)).collect::<Vec<_>>();
+    dlc::get_adaptor_point_from_oracle_info(&Secp256k1::verification_only(), &[info], &[msgs])
+        .map_err(|e| Error::Crypto(format!("adaptor point: {e:?}")))
+}
+
+/// The scalar for a prefix of length `len` of an attestation's digits.
+pub fn prefix_scalar(att: &NumericAttestation, len: usize) -> Result<SecretKey> {
+    let mut it = att.scalars[..len].iter();
+    let first = *it.next().ok_or(Error::Crypto("empty prefix".into()))?;
+    it.try_fold(first, |acc, s| acc.add_tweak(&Scalar::from(*s)))
+        .map_err(|e| Error::Crypto(format!("sum of scalars: {e}")))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -165,5 +300,24 @@ mod tests {
         let s = o.attest("heads").unwrap();
         assert_eq!(PublicKey::from_secret_key(&secp, &s), s_heads);
         assert!(o.attest("tails").is_err(), "second attestation refused");
+    }
+
+    #[test]
+    fn numeric_prefix_scalar_opens_prefix_point() {
+        let secp = Secp256k1::new();
+        let mut o = NumericOracle::new("t", "zecusd-1", 12, 10);
+        let a = o.announcement().clone();
+        let att = o.attest(600).unwrap();
+        assert_eq!(att.digits.len(), 12);
+        for len in [1, 5, 12] {
+            let p = prefix_point(&a, &att.digits[..len]).unwrap();
+            let s = prefix_scalar(&att, len).unwrap();
+            assert_eq!(PublicKey::from_secret_key(&secp, &s), p);
+        }
+        let mut other = att.digits[..4].to_vec();
+        other[3] ^= 1;
+        let s = prefix_scalar(&att, 4).unwrap();
+        assert_ne!(PublicKey::from_secret_key(&secp, &s), prefix_point(&a, &other).unwrap());
+        assert!(o.attest(601).is_err());
     }
 }
