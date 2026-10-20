@@ -110,6 +110,7 @@ async fn run() -> zdlc::Result<()> {
         maturity: tip + 3,
         refund_height: tip + 8,
         sign_height: tip + 1,
+        dual_sign: false,
     };
 
     step(5, "Offer, accept, sign: every CET and the refund before funding");
@@ -174,7 +175,7 @@ async fn run() -> zdlc::Result<()> {
                 println!("   txid {}", txid_hex(&close.txid));
             } else {
                 step(8, "Bob stops answering: Alice settles alone with the CET");
-                let (cet, i) = alice_c.cet_numeric(&att)?;
+                let (cet, i) = alice_c.cet_numeric(&att, rt.tip().await? + 1)?;
                 println!("   CET #{i}: Bob's adaptor signature for the matching prefix, decrypted with");
                 println!("   the oracle's digit signatures, plus Alice's own");
                 let h = rt.send_confirm(&cet).await?;

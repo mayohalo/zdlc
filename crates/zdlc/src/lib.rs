@@ -12,9 +12,12 @@ pub mod node;
 pub mod oracle;
 pub mod params;
 pub mod payout;
+pub mod recovery;
 pub mod regtest;
 pub mod script;
 pub mod tx;
+pub mod wallet;
+pub mod watch;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {

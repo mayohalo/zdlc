@@ -79,13 +79,19 @@ impl Coin {
 pub enum Pay {
     Transparent(TransparentAddress, u64),
     Ironwood(orchard::Address, u64),
+    /// An Ironwood output with a memo (at most 512 bytes), encrypted to the recipient.
+    IronwoodMemo(orchard::Address, u64, Vec<u8>),
 }
 
 impl Pay {
     pub fn value(&self) -> u64 {
         match self {
-            Pay::Transparent(_, v) | Pay::Ironwood(_, v) => *v,
+            Pay::Transparent(_, v) | Pay::Ironwood(_, v) | Pay::IronwoodMemo(_, v, _) => *v,
         }
+    }
+
+    fn is_ironwood(&self) -> bool {
+        !matches!(self, Pay::Transparent(..))
     }
 }
 
@@ -134,6 +140,12 @@ fn builder(params: &LocalNetwork, spec: &Spec) -> Result<Builder<LocalNetwork, (
             Pay::Ironwood(a, v) => b
                 .add_ironwood_output::<Infallible>(None, *a, zat(*v)?, MemoBytes::empty())
                 .map_err(|e| Error::Build(format!("ironwood output: {e:?}")))?,
+            Pay::IronwoodMemo(a, v, memo) => {
+                let memo = MemoBytes::from_bytes(memo)
+                    .map_err(|e| Error::Build(format!("memo: {e:?}")))?;
+                b.add_ironwood_output::<Infallible>(None, *a, zat(*v)?, memo)
+                    .map_err(|e| Error::Build(format!("ironwood output: {e:?}")))?
+            }
         }
     }
     Ok(b)
@@ -179,11 +191,7 @@ pub fn build(params: &LocalNetwork, spec: &Spec) -> Result<Pczt> {
     let pczt = IoFinalizer::new(pczt)
         .finalize_io(rand10::rng())
         .map_err(|e| Error::Pczt(format!("IoFinalizer: {e:?}")))?;
-    if spec
-        .outputs
-        .iter()
-        .any(|o| matches!(o, Pay::Ironwood(..)))
-    {
+    if spec.outputs.iter().any(Pay::is_ironwood) {
         return Ok(Prover::new(pczt)
             .create_ironwood_proof(rand10::rng(), proving_key())
             .map_err(|e| Error::Pczt(format!("Prover: {e:?}")))?

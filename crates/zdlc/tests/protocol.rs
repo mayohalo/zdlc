@@ -46,6 +46,7 @@ fn enumerated_contract_end_to_end() {
         maturity: tip + 10,
         refund_height: tip + 30,
         sign_height: tip + 1,
+        dual_sign: false,
     };
     let offer = alice.offer(terms);
     let (accept, bob_txs) = bob.accept(&p, tip, &offer).unwrap();
@@ -58,8 +59,8 @@ fn enumerated_contract_end_to_end() {
         assert_eq!(a.2, b.2, "CET sighashes agree");
     }
     let s = o.attest("draw").unwrap();
-    let cet = bob_c.cet_outcome("draw", &s).unwrap();
-    let cet_a = alice_c.cet_outcome("draw", &s).unwrap();
+    let cet = bob_c.cet_outcome("draw", &s, tip + 11).unwrap();
+    let cet_a = alice_c.cet_outcome("draw", &s, tip + 11).unwrap();
     assert_eq!(cet.txid, cet_a.txid, "either side can complete the CET");
     let refund = alice_c.refund().unwrap();
     assert_eq!(refund.lock_time, tip + 30);
@@ -80,6 +81,7 @@ fn stable_value_contract_end_to_end() {
         maturity: tip + 50,
         refund_height: tip + 100,
         sign_height: tip + 1,
+        dual_sign: false,
     };
     let offer = alice.offer(terms.clone());
     let t0 = Instant::now();
@@ -104,8 +106,8 @@ fn stable_value_contract_end_to_end() {
 
     // $40.00: the recipient is owed 2.5 ZEC (2.48 on the 0.08 grid).
     let att = o.attest(400).unwrap();
-    let (cet, i) = alice_c.cet_numeric(&att).unwrap();
-    let (cet_b, j) = bob_c.cet_numeric(&att).unwrap();
+    let (cet, i) = alice_c.cet_numeric(&att, tip + 51).unwrap();
+    let (cet_b, j) = bob_c.cet_numeric(&att, tip + 51).unwrap();
     assert_eq!((cet.txid, i), (cet_b.txid, j));
     assert_eq!(alice_c.txs.cets[i].0.offer, terms.payout_at(400).unwrap().0);
     println!("CET at $40.00: index {i}, offer {} zat, accept {} zat", alice_c.txs.cets[i].0.offer, alice_c.txs.cets[i].0.accept);
@@ -135,6 +137,7 @@ fn upgrade_guard_refuses_a_contract_spanning_nu7() {
         maturity: 150,
         refund_height: NU7_AT + 10,
         sign_height: 121,
+        dual_sign: false,
     };
     let err = bob.accept(&p, 120, &alice.offer(terms.clone())).err().unwrap();
     println!("guard: {err}");
@@ -189,6 +192,7 @@ fn close_check_binds_metadata_to_the_note() {
         maturity: tip + 5,
         refund_height: tip + 50,
         sign_height: tip + 1,
+        dual_sign: false,
     };
     let offer = alice.offer(terms.clone());
     let (accept, bob_txs) = bob.accept(&p, tip, &offer).unwrap();
@@ -231,4 +235,88 @@ fn close_check_binds_metadata_to_the_note() {
     let honest = tx::build(&p, &alice_c.close_spec(&p, tip + 5, payout, anchor).unwrap()).unwrap();
     bob_c.check_close(&honest, &agreed).unwrap();
     alice_c.check_close(&honest, &agreed).unwrap();
+}
+
+fn wallet_parties(tag: &str) -> (zdlc::wallet::Wallet, Party, Party) {
+    use zdlc::wallet::Wallet;
+    let wa = Wallet::from_seed(*blake(&format!("{tag}/alice")));
+    let wb = Wallet::from_seed(*blake(&format!("{tag}/bob")));
+    let coin = |w: &Wallet, b: u8| tx::Coin {
+        txid: [b; 32],
+        index: 0,
+        value: 3_0000_0000,
+        spend: tx::Spend::P2pkh(zdlc::keys::pubkey(&w.coin_key(0))),
+    };
+    let (a, b) = (wa.party(0, vec![coin(&wa, 11)]), wb.party(0, vec![coin(&wb, 12)]));
+    (wa, a, b)
+}
+
+fn blake(s: &str) -> Box<[u8; 32]> {
+    use sha2::Digest;
+    Box::new(sha2::Sha256::digest(s.as_bytes()).into())
+}
+
+#[test]
+fn dual_signed_contract_covers_both_eras() {
+    let p = params::regtest(Some(NU7_AT));
+    let tip = 120;
+    let (alice, bob) = (party("dual/alice", 13), party("dual/bob", 14));
+    let mut o = oracle::NumericOracle::new("dual", "e", 12, 10);
+    let mut terms = Terms {
+        event: Event::Numeric(o.announcement().clone()),
+        payouts: Payouts::StableValue(curve()),
+        offer_collateral: COLLATERAL,
+        accept_collateral: COLLATERAL,
+        maturity: 190,
+        refund_height: NU7_AT + 15,
+        sign_height: tip + 1,
+        dual_sign: false,
+    };
+    assert!(terms.validate(&p, tip).is_err(), "spanning refused without dual signing");
+    terms.dual_sign = true;
+    let offer = alice.offer(terms.clone());
+    let (accept, bob_txs) = bob.accept(&p, tip, &offer).unwrap();
+    let (sign, a) = alice.sign(&p, tip, &offer, &accept).unwrap();
+    let (_, _b) = bob.finish(&offer, bob_txs, &sign).unwrap();
+    assert_eq!(a.txs.cets.len(), 2 * 48, "one CET set per era");
+    println!("dual: {} CETs, {} adaptor signatures each way", a.txs.cets.len(), a.adaptor_count());
+    let refund = a.refund().unwrap();
+    assert_eq!(refund.branch_id, params::BRANCH_NU7, "refund signed for the era it confirms in");
+    let att = o.attest(400).unwrap();
+    let (pre, _) = a.cet_numeric(&att, 195).unwrap();
+    let (post, _) = a.cet_numeric(&att, NU7_AT + 1).unwrap();
+    assert_eq!((pre.branch_id, post.branch_id), (params::BRANCH_NU6_3, params::BRANCH_NU7));
+    terms.refund_height = 10_000;
+    let _ = terms;
+}
+
+#[test]
+fn recovery_record_rebuilds_the_refund() {
+    use zdlc::recovery::{rebuild_refund, Record};
+    let p = params::regtest(Some(NU7_AT));
+    let tip = 210;
+    let (wa, alice, bob) = wallet_parties("rec");
+    let o = oracle::NumericOracle::new("rec", "e", 12, 10);
+    let terms = Terms {
+        event: Event::Numeric(o.announcement().clone()),
+        payouts: Payouts::StableValue(curve()),
+        offer_collateral: COLLATERAL,
+        accept_collateral: COLLATERAL,
+        maturity: tip + 5,
+        refund_height: tip + 20,
+        sign_height: tip + 1,
+        dual_sign: false,
+    };
+    let offer = alice.offer(terms);
+    let (accept, bob_txs) = bob.accept(&p, tip, &offer).unwrap();
+    let (sign, a) = alice.sign(&p, tip, &offer, &accept).unwrap();
+    let (_, b) = bob.finish(&offer, bob_txs, &sign).unwrap();
+    let rec = Record::from_contract(&a, 0).unwrap();
+    let bytes = rec.encode();
+    assert!(bytes.len() <= 512);
+    assert_eq!(Record::decode(&bytes).unwrap(), rec);
+    let rebuilt = rebuild_refund(&p, &wa, &rec).unwrap();
+    assert_eq!(rebuilt.txid, a.refund().unwrap().txid, "seed + record = the same refund");
+    assert_eq!(rebuilt.raw, b.refund().unwrap().raw);
+    println!("record: {} bytes of a 512-byte memo", bytes.len());
 }

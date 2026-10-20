@@ -4,6 +4,7 @@
 use orchard::keys::{FullViewingKey, Scope, SpendingKey};
 use serde_json::json;
 use zcash_protocol::local_consensus::LocalNetwork;
+use zcash_transparent::address::TransparentAddress;
 
 use crate::{
     contract::{Party, PartyInfo},
@@ -64,9 +65,9 @@ impl Regtest {
             .unwrap_or_default())
     }
 
-    /// Pays the most recently matured coinbase to fresh P2PKH coins of `amount` for two
-    /// dev parties, mines it, and returns the parties (keys derived from `tag`).
-    pub async fn faucet(&self, tag: &str, amount: u64) -> Result<(Party, Party)> {
+    /// Pays the most recently matured coinbase to `outputs` (change to the miner), mines
+    /// it, and returns the txid. Output `k` is coin `k` of that transaction.
+    pub async fn pay(&self, outputs: &[(TransparentAddress, u64)]) -> Result<[u8; 32]> {
         let tip = self.tip().await?;
         if tip < COINBASE_MATURITY {
             self.node.mine_to(COINBASE_MATURITY).await?;
@@ -80,7 +81,8 @@ impl Regtest {
             .ok_or(Error::Rpc("coinbase value".into()))?;
         let miner = keys::miner();
         let to_miner = keys::p2pkh(&keys::pubkey(&miner));
-        let (a, b) = (dev_party(tag, "alice", 0xA1), dev_party(tag, "bob", 0xB0));
+        let mut outs: Vec<Pay> = outputs.iter().map(|(a, v)| Pay::Transparent(*a, *v)).collect();
+        outs.push(Pay::Transparent(to_miner, 1));
         let mut spec = Spec {
             target_height: tip + 1,
             expiry_height: tip + 20,
@@ -91,23 +93,28 @@ impl Regtest {
                 value,
                 spend: Spend::P2pkh(keys::pubkey(&miner)),
             }],
-            outputs: vec![
-                Pay::Transparent(a.change, amount),
-                Pay::Transparent(b.change, amount),
-                Pay::Transparent(to_miner, 1),
-            ],
+            outputs: outs,
             ironwood_anchor: None,
         };
         let fee = tx::fee(&self.p, &spec)?;
-        spec.outputs[2] = Pay::Transparent(
+        let paid: u64 = outputs.iter().map(|(_, v)| v).sum();
+        let last = spec.outputs.len() - 1;
+        spec.outputs[last] = Pay::Transparent(
             to_miner,
             value
-                .checked_sub(2 * amount + fee)
+                .checked_sub(paid + fee)
                 .ok_or(Error::Build("coinbase too small".into()))?,
         );
         let f = tx::extract(tx::sign(tx::build(&self.p, &spec)?, 0, &miner)?)?;
         self.send_confirm(&f).await?;
-        Ok((a.into_party(f.txid, 0, amount), b.into_party(f.txid, 1, amount)))
+        Ok(f.txid)
+    }
+
+    /// Fresh P2PKH coins of `amount` for two dev parties (keys derived from `tag`).
+    pub async fn faucet(&self, tag: &str, amount: u64) -> Result<(Party, Party)> {
+        let (a, b) = (dev_party(tag, "alice", 0xA1), dev_party(tag, "bob", 0xB0));
+        let txid = self.pay(&[(a.change, amount), (b.change, amount)]).await?;
+        Ok((a.into_party(txid, 0, amount), b.into_party(txid, 1, amount)))
     }
 }
 
@@ -116,8 +123,8 @@ pub struct DevParty {
     funding_sk: secp256k1::SecretKey,
     input_sk: secp256k1::SecretKey,
     close_fvk: FullViewingKey,
-    pub change: zcash_transparent::address::TransparentAddress,
-    payout: zcash_transparent::address::TransparentAddress,
+    pub change: TransparentAddress,
+    payout: TransparentAddress,
 }
 
 pub fn dev_party(tag: &str, who: &str, close_seed: u8) -> DevParty {

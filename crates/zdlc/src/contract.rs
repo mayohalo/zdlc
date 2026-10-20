@@ -62,6 +62,9 @@ pub struct Terms {
     pub refund_height: u32,
     /// Target height of every transaction built at setup: fixes their branch ID.
     pub sign_height: u32,
+    /// Allow a contract that spans one network upgrade: every CET is signed once per era
+    /// (two adaptor signatures per unlock) and the refund for the era it confirms in.
+    pub dual_sign: bool,
 }
 
 /// What unlocks a CET: a digit prefix (numeric) or an outcome (enumerated), and the
@@ -115,13 +118,15 @@ pub struct SignMsg {
 }
 
 pub struct TxSet {
+    pub params: LocalNetwork,
     pub redeem: FromChain,
     pub funding: Pczt,
     pub funding_txid: [u8; 32],
     pub funding_coin: Coin,
     /// Part of the funding output set aside for the CET or refund fee.
     pub reserve: u64,
-    pub cets: Vec<(CetTerms, Pczt, [u8; 32])>,
+    /// (terms, PCZT, sighash, target height): one entry per CET per era.
+    pub cets: Vec<(CetTerms, Pczt, [u8; 32], u32)>,
     pub refund: Pczt,
     pub refund_sighash: [u8; 32],
 }
@@ -129,6 +134,18 @@ pub struct TxSet {
 impl Terms {
     pub fn total(&self) -> u64 {
         self.offer_collateral + self.accept_collateral
+    }
+
+    /// The target heights CETs are signed for: the current era, plus the next one when a
+    /// dual-signed contract spans its activation.
+    pub fn eras(&self, p: &LocalNetwork) -> Vec<u32> {
+        let mut eras = vec![self.sign_height];
+        if self.dual_sign && params::spans_upgrade(p, self.sign_height, self.refund_height) {
+            if let Some(act) = params::next_activation(p, self.sign_height) {
+                eras.push(act);
+            }
+        }
+        eras
     }
 
     /// The checks both sides run on the terms at `tip`, including the upgrade guard:
@@ -148,11 +165,16 @@ impl Terms {
             return Err(Error::Build("need tip < maturity < refund height".into()));
         }
         if params::spans_upgrade(p, next, self.refund_height) {
-            return Err(Error::Build(format!(
-                "contract spans a network upgrade: refund height {} is at or after the activation at {}",
-                self.refund_height,
-                params::next_activation(p, next).unwrap_or(0)
-            )));
+            let act = params::next_activation(p, next).unwrap_or(0);
+            if !self.dual_sign {
+                return Err(Error::Build(format!(
+                    "contract spans a network upgrade: refund height {} is at or after the activation at {act}",
+                    self.refund_height
+                )));
+            }
+            if params::spans_upgrade(p, act, self.refund_height + 1) {
+                return Err(Error::Build("contract spans two network upgrades".into()));
+            }
         }
         self.cet_terms().map(|_| ())
     }
@@ -258,6 +280,37 @@ fn payout_spec(
     Ok(spec)
 }
 
+/// The height the refund signs for: the era of the first block it can be mined in.
+pub fn refund_target(p: &LocalNetwork, sign_height: u32, refund_height: u32) -> u32 {
+    if params::spans_upgrade(p, sign_height, refund_height + 1) {
+        params::next_activation(p, sign_height).unwrap_or(sign_height)
+    } else {
+        sign_height
+    }
+}
+
+/// The refund spec: each party's collateral back, locked to `refund_height`. Public so a
+/// wallet restored from its seed can rebuild the exact transaction (`recovery`).
+#[allow(clippy::too_many_arguments)]
+pub fn refund_spec(
+    p: &LocalNetwork,
+    funding: &Coin,
+    reserve: u64,
+    sign_height: u32,
+    refund_height: u32,
+    offer: (TransparentAddress, u64),
+    accept: (TransparentAddress, u64),
+) -> Result<Spec> {
+    payout_spec(
+        p,
+        funding,
+        reserve,
+        refund_target(p, sign_height, refund_height),
+        Some(refund_height),
+        [offer, accept],
+    )
+}
+
 /// Derives the whole transaction set from the terms and both parties' info.
 pub fn build_txs(
     p: &LocalNetwork,
@@ -330,33 +383,37 @@ pub fn build_txs(
     };
 
     let mut cets = vec![];
-    for ct in terms.cet_terms()? {
-        let spec = payout_spec(
+    let all = terms.cet_terms()?;
+    for era in terms.eras(p) {
+        for ct in &all {
+            let spec = payout_spec(
+                p,
+                &funding_coin,
+                reserve,
+                era,
+                None,
+                [(offer.payout, ct.offer), (accept.payout, ct.accept)],
+            )?;
+            let pczt = tx::build(p, &spec)?;
+            let sighash = tx::sighash(&pczt, 0)?;
+            cets.push((ct.clone(), pczt, sighash, era));
+        }
+    }
+    let refund = tx::build(
+        p,
+        &refund_spec(
             p,
             &funding_coin,
             reserve,
             terms.sign_height,
-            None,
-            [(offer.payout, ct.offer), (accept.payout, ct.accept)],
-        )?;
-        let pczt = tx::build(p, &spec)?;
-        let sighash = tx::sighash(&pczt, 0)?;
-        cets.push((ct, pczt, sighash));
-    }
-    let refund_spec = payout_spec(
-        p,
-        &funding_coin,
-        reserve,
-        terms.sign_height,
-        Some(terms.refund_height),
-        [
+            terms.refund_height,
             (offer.payout, terms.offer_collateral),
             (accept.payout, terms.accept_collateral),
-        ],
+        )?,
     )?;
-    let refund = tx::build(p, &refund_spec)?;
     let refund_sighash = tx::sighash(&refund, 0)?;
     Ok(TxSet {
+        params: *p,
         redeem,
         funding,
         funding_txid,
@@ -371,7 +428,7 @@ pub fn build_txs(
 fn adaptors(txs: &TxSet, sk: &SecretKey) -> Vec<Vec<AdaptorSignature>> {
     txs.cets
         .iter()
-        .map(|(ct, _, sighash)| {
+        .map(|(ct, _, sighash, _)| {
             ct.unlocks
                 .iter()
                 .map(|u| adaptor::encrypt(sk, *sighash, &u.point))
@@ -385,7 +442,7 @@ fn check_adaptors(txs: &TxSet, sigs: &[Vec<AdaptorSignature>], pk: &PublicKey) -
         return Err(Error::Crypto("adaptor signature count".into()));
     }
     let mut n = 0;
-    for ((ct, _, sighash), row) in txs.cets.iter().zip(sigs) {
+    for ((ct, _, sighash, _), row) in txs.cets.iter().zip(sigs) {
         if row.len() != ct.unlocks.len() {
             return Err(Error::Crypto("adaptor signature count".into()));
         }
@@ -524,6 +581,11 @@ impl Party {
 }
 
 impl Contract {
+    /// The counterparty's signature on the refund: what the recovery record stores.
+    pub fn their_refund_sig(&self) -> ecdsa::Signature {
+        self.their_refund_sig
+    }
+
     pub fn adaptor_count(&self) -> usize {
         self.their_adaptors.iter().map(Vec::len).sum()
     }
@@ -534,11 +596,19 @@ impl Contract {
         tx::extract(tx::sign(pczt, 0, &self.funding_sk)?)
     }
 
-    /// The CET for an attested numeric value: decrypts the counterparty's adaptor
-    /// signature for the matching prefix with the oracle's scalars. Returns the
-    /// transaction and the CET index.
-    pub fn cet_numeric(&self, att: &NumericAttestation) -> Result<(tx::Final, usize)> {
-        for (i, (ct, pczt, _)) in self.txs.cets.iter().enumerate() {
+    /// Whether CET entry `i` is valid in the block at `height` (its era's branch ID).
+    fn in_era(&self, era: u32, height: u32) -> bool {
+        params::branch_at(&self.txs.params, era) == params::branch_at(&self.txs.params, height)
+    }
+
+    /// The CET for an attested numeric value, for a block at `height`: decrypts the
+    /// counterparty's adaptor signature for the matching prefix with the oracle's scalars.
+    /// Returns the transaction and the CET index.
+    pub fn cet_numeric(&self, att: &NumericAttestation, height: u32) -> Result<(tx::Final, usize)> {
+        for (i, (ct, pczt, _, era)) in self.txs.cets.iter().enumerate() {
+            if !self.in_era(*era, height) {
+                continue;
+            }
             for (j, u) in ct.unlocks.iter().enumerate() {
                 if !u.prefix.is_empty() && att.digits.starts_with(&u.prefix) {
                     let s = oracle::prefix_scalar(att, u.prefix.len())?;
@@ -551,10 +621,15 @@ impl Contract {
         Err(Error::Build("no CET covers the attested value".into()))
     }
 
-    /// The CET for an attested outcome of an enumerated event.
-    pub fn cet_outcome(&self, outcome: &str, s: &secp256k1_zkp::SecretKey) -> Result<tx::Final> {
-        for (i, (ct, pczt, _)) in self.txs.cets.iter().enumerate() {
-            if ct.unlocks[0].outcome.as_deref() == Some(outcome) {
+    /// The CET for an attested outcome of an enumerated event, for a block at `height`.
+    pub fn cet_outcome(
+        &self,
+        outcome: &str,
+        s: &secp256k1_zkp::SecretKey,
+        height: u32,
+    ) -> Result<tx::Final> {
+        for (i, (ct, pczt, _, era)) in self.txs.cets.iter().enumerate() {
+            if self.in_era(*era, height) && ct.unlocks[0].outcome.as_deref() == Some(outcome) {
                 let d = adaptor::decrypt(&self.their_adaptors[i][0], s)?;
                 let pczt = tx::append(pczt.clone(), 0, d.signature)?;
                 return tx::extract(tx::sign(pczt, 0, &self.funding_sk)?);
@@ -625,7 +700,7 @@ impl Contract {
             .iter()
             .map(|o| match o {
                 Pay::Ironwood(a, v) => Ok((a.to_raw_address_bytes(), *v)),
-                Pay::Transparent(..) => Err(bad("the agreed close pays transparent".into())),
+                _ => Err(bad("the agreed close pays something other than plain Ironwood".into())),
             })
             .collect::<Result<_>>()?;
         let effects = pczt

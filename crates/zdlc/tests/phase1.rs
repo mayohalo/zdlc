@@ -64,6 +64,7 @@ impl Run {
             maturity: tip + maturity_in,
             refund_height: tip + refund_in,
             sign_height: tip + 1,
+            dual_sign: false,
         };
         let offer = alice.offer(terms.clone());
         let (accept, bob_txs) = bob.accept(&self.rt.p, tip, &offer).unwrap();
@@ -122,7 +123,7 @@ async fn phase1_gate() {
     let (a, _b, mut o, terms) = r.setup("p40", 3, 40).await;
     r.rt.node.mine_to(a.terms.maturity).await.unwrap();
     let att = o.attest(400).unwrap();
-    let (cet, i) = a.cet_numeric(&att).unwrap();
+    let (cet, i) = a.cet_numeric(&att, r.rt.tip().await.unwrap() + 1).unwrap();
     let h = r.rt.send_confirm(&cet).await.unwrap();
     let outs = r.rt.outputs(&cet).await.unwrap();
     r.note("p40: CET", json!({"price": price(att.value), "payout_alice_bob_zat": terms.payout_at(att.value).unwrap(),
@@ -133,7 +134,7 @@ async fn phase1_gate() {
     let (a, _b, mut o, terms) = r.setup("p20", 3, 40).await;
     r.rt.node.mine_to(a.terms.maturity).await.unwrap();
     let att = o.attest(200).unwrap();
-    let (cet, i) = a.cet_numeric(&att).unwrap();
+    let (cet, i) = a.cet_numeric(&att, r.rt.tip().await.unwrap() + 1).unwrap();
     let h = r.rt.send_confirm(&cet).await.unwrap();
     let outs = r.rt.outputs(&cet).await.unwrap();
     r.note("p20: CET", json!({"price": price(att.value), "payout_alice_bob_zat": terms.payout_at(att.value).unwrap(),
