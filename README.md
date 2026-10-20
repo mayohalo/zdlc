@@ -33,7 +33,9 @@ cargo test -p zdlc --release                                         # unit + of
 infra/zakura/scripts/down.sh; infra/zakura/scripts/up.sh             # fresh Zakura regtest, NU7 at 200
 cargo test -p zdlc --release --test regtest -- --ignored --nocapture # Phase 0 gate (needs a fresh chain)
 cargo test -p zdlc --release --test phase1 -- --ignored --nocapture  # Phase 1 gate
+cargo test -p zdlc --release --test phase2 -- --ignored --nocapture  # Phase 2 gate (needs a fresh chain)
 cargo run -p zdlc --release --bin zdlc-oracle -- announce zecusd-1    # dev oracle
+cargo run -p zdlc --release --bin zdlc-watch -- kit.json              # refund watcher
 ```
 
-Results: [Phase 0](docs/spikes/phase0.md), [Phase 1](docs/phase1.md).
+Results: [Phase 0](docs/spikes/phase0.md), [Phase 1](docs/phase1.md), [Phase 2](docs/phase2.md).

@@ -41,6 +41,8 @@ Six phases, each ending at a gate. A phase starts when the gates it depends on p
 
 **Gate:** a wallet restored from its seed alone recovers its collateral at the refund height while the other party is offline.
 
+**Gate passed 2026-10-20 on regtest.** Results: [phase2.md](phase2.md). Testnet and mainnet are not started.
+
 ### Phase 3: oracle network (after Phase 2)
 
 - Two TEE enclaves as a 2-of-2 multi-oracle, each with a sealed nonce counter.

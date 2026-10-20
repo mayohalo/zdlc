@@ -1,0 +1,77 @@
+[
+  {
+    "result": {
+      "adaptor_sigs_each_way": 450,
+      "cets": 96,
+      "height": 112,
+      "refund_height": 215,
+      "without_dual_sign": "build: contract spans a network upgrade: refund height 215 is at or after the activation at 200"
+    },
+    "step": "dual: funded under NU6.3, refund after NU7"
+  },
+  {
+    "result": {
+      "late_cet": "rpc: sendrawtransaction: {\"code\":-25,\"message\":\"any transaction with the same effects will be rejected from the mempool until the next chain tip block: transaction rejected because another transaction in the mempool has already spent some of its inputs",
+      "refund": "accepted 54606195d718e5927e0bc124c30b583bb1d26d01691725127fcacc1a42edd8b7",
+      "refund_mined_at": 120
+    },
+    "step": "race: refund and a late CET both valid"
+  },
+  {
+    "result": {
+      "cet_outputs_zat": [
+        400000000
+      ],
+      "mined_height": 123,
+      "plain_30_zat_output": "rpc: sendrawtransaction: {\"code\":-25,\"message\":\"transaction is non-standard"
+    },
+    "step": "dust: Bob's 30 zat payout"
+  },
+  {
+    "result": {
+      "expiry_height": 167,
+      "reply": "transaction did not pass consensus validation: transaction must not be mined at a block Height(168) greater than its expiry Height(167), failing transaction transaction::Hash(\\\"73f4575cb813e22f6d12d8f1aaa63d22751795a02236e7a64f6f09ec850def8f",
+      "tip": 167
+    },
+    "step": "free option: Bob sends funding after its expiry"
+  },
+  {
+    "result": {
+      "reply": "transaction did not pass consensus validation: could not find transparent input UTXO in the best chain or mempool"
+    },
+    "step": "free option: Alice spends her input, then Bob sends funding"
+  },
+  {
+    "result": {
+      "by_refund": true,
+      "passes": 9,
+      "refund_height": 178,
+      "settled_at": 179
+    },
+    "step": "watcher: abandoned contract"
+  },
+  {
+    "result": {
+      "branch": "77190ad9",
+      "nu6.3_cet": "transaction did not pass consensus validation: transaction uses an incorrect consensus branch id",
+      "nu7_cet_mined_at": 200
+    },
+    "step": "dual: CET after activation"
+  },
+  {
+    "result": {
+      "alice_payout_address": "tmJo2ZJoGyQ4wPeQAKFDxrySvQ4ynbR5icY",
+      "blocks_scanned": 14,
+      "early": "transaction did not pass consensus validation: transaction is locked until after block height 213",
+      "funding_mined_at": 203,
+      "record_bytes": 215,
+      "record_mined_at": 202,
+      "refund_height": 213,
+      "refund_mined_at": 214,
+      "scan_ms": 28,
+      "to_alice_zat": 200000000,
+      "txid": "2741fdbc06273520416a1d329cc9b886855c327d1e2f26b6e2678b91c00ac1bc"
+    },
+    "step": "GATE: seed-only recovery"
+  }
+]
