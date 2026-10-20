@@ -1,0 +1,16 @@
+# zdlc regtest node (Zakura). scripts/up.sh, scripts/mine.sh N, scripts/down.sh.
+# RPC on 127.0.0.1:${ZDLC_NODE_RPC_PORT:-18252}.
+name: zdlc-zakura
+
+services:
+  zakura:
+    # zakurad 1.6.0 (2026-10-01), multi-arch index pinned by digest.
+    image: zakuracore/zakura:1.6.0@sha256:bf53c178e9549217fce7cfaa21efc85c478129ba6dc5307d55640514affeb0ac
+    container_name: zdlc-zakura
+    environment:
+      CONFIG_FILE_PATH: /etc/zakura/regtest.toml
+    volumes:
+      - ./regtest.toml:/etc/zakura/regtest.toml:ro
+    ports:
+      - "127.0.0.1:${ZDLC_NODE_RPC_PORT:-18252}:18232"
+    restart: "no"
