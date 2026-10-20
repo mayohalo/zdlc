@@ -99,6 +99,7 @@ async fn phase3_two_oracles() {
         unit_cents: 100,
         nb_digits: 14,
         rounding: 400_0000, // 1% of the pot
+        premium: 0,
     };
     let (alice, bob) = rt.faucet("phase3-price", 3_0000_0000).await.unwrap();
     let tip = rt.tip().await.unwrap();
@@ -111,6 +112,7 @@ async fn phase3_two_oracles() {
         refund_height: tip + 40,
         sign_height: tip + 1,
         dual_sign: false,
+        roll: None,
     };
     let (ca, _cb, funding) = setup(&rt, &alice, &bob, terms.clone(), tip);
     rt.send_confirm(&funding).await.unwrap();
@@ -149,6 +151,7 @@ async fn phase3_two_oracles() {
         refund_height: tip + 40,
         sign_height: tip + 1,
         dual_sign: false,
+        roll: None,
     };
     let (ca, _cb, funding) = setup(&rt, &alice, &bob, terms, tip);
     rt.send_confirm(&funding).await.unwrap();

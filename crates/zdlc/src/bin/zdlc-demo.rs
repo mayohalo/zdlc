@@ -85,6 +85,7 @@ async fn run() -> zdlc::Result<()> {
         unit_cents: UNIT_CENTS,
         nb_digits: DIGITS,
         rounding: 800_0000,
+        premium: 0,
     };
     println!("   Alice (recipient) is owed $100.00 and puts up {} (worth $100.00 at $50.00)", zec(COLLATERAL));
     println!("   Bob (hedger) puts up {}; pot {}", zec(COLLATERAL), zec(curve.total()));
@@ -111,6 +112,7 @@ async fn run() -> zdlc::Result<()> {
         refund_height: tip + 8,
         sign_height: tip + 1,
         dual_sign: false,
+        roll: None,
     };
 
     step(5, "Offer, accept, sign: every CET and the refund before funding");

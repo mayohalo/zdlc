@@ -35,6 +35,7 @@ fn btc_curve() -> StableValue {
         unit_cents: 100,
         nb_digits: DIGITS,
         rounding: 2_000_0000, // 5% of the pot: a coarse curve keeps the test fast
+        premium: 0,
     }
 }
 
@@ -76,6 +77,7 @@ fn terms(event: Event, tip: u32) -> Terms {
         refund_height: tip + 50,
         sign_height: tip + 1,
         dual_sign: false,
+        roll: None,
     }
 }
 

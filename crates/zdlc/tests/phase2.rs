@@ -32,6 +32,7 @@ fn curve() -> StableValue {
         unit_cents: 10,
         nb_digits: 12,
         rounding: 800_0000,
+        premium: 0,
     }
 }
 
@@ -60,6 +61,7 @@ impl Run {
             refund_height: refund,
             sign_height: tip + 1,
             dual_sign: dual,
+            roll: None,
         }
     }
 

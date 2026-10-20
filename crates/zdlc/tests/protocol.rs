@@ -25,6 +25,7 @@ pub fn curve() -> StableValue {
         unit_cents: 10,
         nb_digits: 12,
         rounding: 800_0000,
+        premium: 0,
     }
 }
 
@@ -47,6 +48,7 @@ fn enumerated_contract_end_to_end() {
         refund_height: tip + 30,
         sign_height: tip + 1,
         dual_sign: false,
+        roll: None,
     };
     let offer = alice.offer(terms);
     let (accept, bob_txs) = bob.accept(&p, tip, &offer).unwrap();
@@ -82,6 +84,7 @@ fn stable_value_contract_end_to_end() {
         refund_height: tip + 100,
         sign_height: tip + 1,
         dual_sign: false,
+        roll: None,
     };
     let offer = alice.offer(terms.clone());
     let t0 = Instant::now();
@@ -138,6 +141,7 @@ fn upgrade_guard_refuses_a_contract_spanning_nu7() {
         refund_height: NU7_AT + 10,
         sign_height: 121,
         dual_sign: false,
+        roll: None,
     };
     let err = bob.accept(&p, 120, &alice.offer(terms.clone())).err().unwrap();
     println!("guard: {err}");
@@ -193,6 +197,7 @@ fn close_check_binds_metadata_to_the_note() {
         refund_height: tip + 50,
         sign_height: tip + 1,
         dual_sign: false,
+        roll: None,
     };
     let offer = alice.offer(terms.clone());
     let (accept, bob_txs) = bob.accept(&p, tip, &offer).unwrap();
@@ -271,6 +276,7 @@ fn dual_signed_contract_covers_both_eras() {
         refund_height: NU7_AT + 15,
         sign_height: tip + 1,
         dual_sign: false,
+        roll: None,
     };
     assert!(terms.validate(&p, tip).is_err(), "spanning refused without dual signing");
     terms.dual_sign = true;
@@ -306,6 +312,7 @@ fn recovery_record_rebuilds_the_refund() {
         refund_height: tip + 20,
         sign_height: tip + 1,
         dual_sign: false,
+        roll: None,
     };
     let offer = alice.offer(terms);
     let (accept, bob_txs) = bob.accept(&p, tip, &offer).unwrap();

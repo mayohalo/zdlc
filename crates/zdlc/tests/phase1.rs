@@ -37,6 +37,7 @@ fn curve() -> StableValue {
         unit_cents: UNIT_CENTS,
         nb_digits: DIGITS,
         rounding: 800_0000,
+        premium: 0,
     }
 }
 
@@ -65,6 +66,7 @@ impl Run {
             refund_height: tip + refund_in,
             sign_height: tip + 1,
             dual_sign: false,
+            roll: None,
         };
         let offer = alice.offer(terms.clone());
         let (accept, bob_txs) = bob.accept(&self.rt.p, tip, &offer).unwrap();

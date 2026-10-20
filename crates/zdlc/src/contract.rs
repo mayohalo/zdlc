@@ -34,6 +34,8 @@ use crate::{
 
 /// Outputs below this are dropped (to the other side), as relay rejects them as dust.
 pub const DUST: u64 = 54;
+/// How many blocks old a contract's sign height may be when a party checks the terms.
+pub const SIGN_SLACK: u32 = 10;
 /// Expiry delta for the funding and close transactions (not pre-signed).
 pub const EXPIRY_DELTA: u32 = 40;
 
@@ -90,6 +92,21 @@ pub struct Terms {
     /// Allow a contract that spans one network upgrade: every CET is signed once per era
     /// (two adaptor signatures per unlock) and the refund for the era it confirms in.
     pub dual_sign: bool,
+    /// Roll from a previous contract: its funding output, settled at `credit`, funds this
+    /// one in the same transaction (see [`Roll`]).
+    pub roll: Option<Roll>,
+}
+
+/// One transaction closes the previous contract and opens this one: the new funding spends
+/// the old 2-of-2 output, each party's old payout (`credit`) counts toward its new
+/// collateral, any surplus is paid to the party's payout address, and a shortfall comes
+/// from the party's fresh inputs. Both parties sign the old output with their previous
+/// funding keys (`Party::roll_key`).
+#[derive(Clone, Debug)]
+pub struct Roll {
+    pub coin: Coin,
+    /// (offer, accept) payouts of the old contract at its attested outcome.
+    pub credit: (u64, u64),
 }
 
 /// What unlocks a CET: a digit prefix (numeric) or an outcome (enumerated), and the
@@ -186,7 +203,9 @@ impl Terms {
     /// pre-signed transaction would be invalid when the refund comes due.
     pub fn validate(&self, p: &LocalNetwork, tip: u32) -> Result<()> {
         let next = tip + 1;
-        if self.sign_height < next
+        // Setup spans a few messages; a sign height up to SIGN_SLACK blocks old is fine
+        // as long as it is in the same era as the next block.
+        if self.sign_height + SIGN_SLACK < next
             || params::branch_at(p, self.sign_height) != params::branch_at(p, next)
         {
             return Err(Error::Build(format!(
@@ -238,7 +257,7 @@ impl Terms {
                 .collect(),
             (Event::Numeric(anns), Payouts::StableValue(c)) => {
                 if anns.is_empty()
-                    || c.q_recipient != self.offer_collateral
+                    || c.q_recipient + c.premium != self.offer_collateral
                     || c.q_hedger != self.accept_collateral
                     || anns
                         .iter()
@@ -387,35 +406,66 @@ pub fn build_txs(
 
     let fund_value = total + reserve;
     let p2sh = script::p2sh(&redeem);
-    let inputs: Vec<Coin> = offer.inputs.iter().chain(&accept.inputs).cloned().collect();
+    let roll = terms.roll.as_ref();
+    let inputs: Vec<Coin> = roll
+        .map(|r| r.coin.clone())
+        .into_iter()
+        .chain(offer.inputs.iter().cloned())
+        .chain(accept.inputs.iter().cloned())
+        .collect();
+    let (credit_o, credit_a) = roll.map(|r| r.credit).unwrap_or((0, 0));
+    // The old output's remainder beyond both credits (its unused reserve) pays fees first.
+    let old_extra = match roll {
+        Some(r) => r.coin.value.checked_sub(credit_o + credit_a).ok_or(Error::Build("roll credits exceed the old output".into()))?,
+        None => 0,
+    };
+    // A party funds if it brings inputs, a credit or collateral. Either party may fund
+    // alone (an escrow client): a party with collateral must bring the value for it.
+    // Each funder's leftover goes to its change address, or on a roll to its payout address.
+    let funders: Vec<(&PartyInfo, u64, u64)> = [(offer, terms.offer_collateral, credit_o), (accept, terms.accept_collateral, credit_a)]
+        .into_iter()
+        .filter(|(info, collateral, credit)| !info.inputs.is_empty() || *collateral > 0 || *credit > 0)
+        .collect();
+    if funders.is_empty() {
+        return Err(Error::Build("nobody funds the contract".into()));
+    }
+    let rest_to = |info: &PartyInfo| if roll.is_some() { info.payout } else { info.change };
     let mut spec = Spec {
         target_height: terms.sign_height,
         expiry_height: terms.sign_height + EXPIRY_DELTA,
         lock_height: None,
         inputs,
-        outputs: vec![
-            Pay::Transparent(p2sh, fund_value),
-            Pay::Transparent(offer.change, 1),
-            Pay::Transparent(accept.change, 1),
-        ],
+        outputs: std::iter::once(Pay::Transparent(p2sh, fund_value))
+            .chain(funders.iter().map(|(info, _, _)| Pay::Transparent(rest_to(info), 1)))
+            .collect(),
         ironwood_anchor: None,
     };
     let fee = tx::fee(p, &spec)?;
-    let change = |info: &PartyInfo, collateral: u64, fee_share: u64| -> Result<u64> {
-        let have: u64 = info.inputs.iter().map(|c| c.value).sum();
-        let c = have
-            .checked_sub(collateral + reserve / 2 + fee_share)
+    let owed = (reserve + fee).checked_sub(old_extra).ok_or(Error::Build("old reserve exceeds the new costs".into()))?;
+    let n = funders.len() as u64;
+    let mut live = vec![Pay::Transparent(p2sh, fund_value)];
+    for (k, (info, collateral, credit)) in funders.iter().enumerate() {
+        let share = owed / n + if k == 0 { owed % n } else { 0 };
+        let have: u64 = info.inputs.iter().map(|c| c.value).sum::<u64>() + credit;
+        let rest = have
+            .checked_sub(collateral + share)
             .ok_or(Error::Build("funding inputs too small".into()))?;
-        if c < DUST {
+        if rest >= DUST {
+            live.push(Pay::Transparent(rest_to(info), rest));
+        } else if rest > 0 && roll.is_none() {
             return Err(Error::Build("change below dust; use other inputs".into()));
         }
-        Ok(c)
-    };
-    spec.outputs[1] = Pay::Transparent(
-        offer.change,
-        change(offer, terms.offer_collateral, fee - fee / 2)?,
-    );
-    spec.outputs[2] = Pay::Transparent(accept.change, change(accept, terms.accept_collateral, fee / 2)?);
+    }
+    if live.len() != spec.outputs.len() {
+        // A funder's leftover was dust (a roll that nets to nothing): the fee absorbs it.
+        spec.outputs = live;
+        let refee = tx::fee(p, &spec)?;
+        if refee > fee {
+            return Err(Error::Build("fee changed after dropping dust".into()));
+        }
+    } else {
+        spec.outputs = live;
+    }
     let funding = tx::build(p, &spec)?;
     let funding_txid = tx::txid(&funding)?;
     let funding_coin = Coin {
@@ -509,6 +559,8 @@ pub struct Party {
     pub input_keys: Vec<SecretKey>,
     /// Viewing key of `info.close`: used to trial-decrypt this party's close output.
     pub close_fvk: FullViewingKey,
+    /// This party's funding key in the contract being rolled from, if any.
+    pub roll_key: Option<SecretKey>,
     pub info: PartyInfo,
 }
 
@@ -526,6 +578,19 @@ pub struct Contract {
 }
 
 impl Party {
+    /// Signs the rolled-over input (index 0) with the previous funding key; returns the
+    /// index of the first ordinary input.
+    fn sign_roll(&self, terms: &Terms, funding: &mut Pczt) -> Result<usize> {
+        match &terms.roll {
+            None => Ok(0),
+            Some(_) => {
+                let k = self.roll_key.ok_or(Error::Build("rolling needs the previous funding key".into()))?;
+                *funding = tx::sign(funding.clone(), 0, &k)?;
+                Ok(1)
+            }
+        }
+    }
+
     fn close_ivk(&self) -> PreparedIncomingViewingKey {
         PreparedIncomingViewingKey::new(&self.close_fvk.to_ivk(Scope::External))
     }
@@ -564,8 +629,9 @@ impl Party {
         check_adaptors(&txs, &accept.cet_adaptors, &accept.accept.funding_pubkey)?;
         check_sig(&accept.refund_sig, txs.refund_sighash, &accept.accept.funding_pubkey)?;
         let mut funding = txs.funding.clone();
+        let base = self.sign_roll(&offer.terms, &mut funding)?;
         for (i, k) in self.input_keys.iter().enumerate() {
-            funding = tx::sign(funding, i, k)?;
+            funding = tx::sign(funding, base + i, k)?;
         }
         let msg = SignMsg {
             cet_adaptors: adaptors(&txs, &self.funding_sk),
@@ -603,7 +669,8 @@ impl Party {
         if tx::txid(&funding)? != txs.funding_txid {
             return Err(Error::Build("funding PCZT is not the agreed transaction".into()));
         }
-        let first = offer.offer.inputs.len();
+        let base = self.sign_roll(&offer.terms, &mut funding)?;
+        let first = base + offer.offer.inputs.len();
         for (i, k) in self.input_keys.iter().enumerate() {
             funding = tx::sign(funding, first + i, k)?;
         }

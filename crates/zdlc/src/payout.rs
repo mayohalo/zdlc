@@ -3,7 +3,8 @@
 //!
 //! The recipient's ZEC `q_r` and a hedger's `q_h` fund the contract. At price `p` the
 //! recipient receives ZEC worth `D` dollars, capped by the pot:
-//! `recipient(p) = min(q_r + q_h, D / p)`; the hedger receives the rest.
+//! `recipient(p) = min(q_r + q_h, D / p)`; the hedger receives the rest. A quoted premium
+//! is paid by the recipient on top of `q_r` and always goes to the hedger.
 
 use dlc_trie::digit_decomposition::group_by_ignoring_digits;
 
@@ -21,6 +22,9 @@ pub struct StableValue {
     pub nb_digits: usize,
     /// Payouts are rounded to this many zatoshis; wider rounding, fewer CETs.
     pub rounding: u64,
+    /// The hedger's price for the hedge, paid by the recipient at funding (inside the
+    /// recipient's collateral) and paid back to the hedger in every outcome.
+    pub premium: u64,
 }
 
 /// Outcomes `start..=end` all pay the recipient `recipient` zatoshis.
@@ -32,7 +36,13 @@ pub struct Range {
 }
 
 impl StableValue {
+    /// The whole pot, premium included.
     pub fn total(&self) -> u64 {
+        self.cap() + self.premium
+    }
+
+    /// The most the recipient can receive: `q_r + q_h`.
+    pub fn cap(&self) -> u64 {
         self.q_recipient + self.q_hedger
     }
 
@@ -44,10 +54,10 @@ impl StableValue {
     pub fn exact(&self, v: usize) -> u64 {
         let price = v as u128 * self.unit_cents as u128;
         if price == 0 {
-            return self.total();
+            return self.cap();
         }
         let zat = self.d_cents as u128 * 100_000_000 / price;
-        zat.min(self.total() as u128) as u64
+        zat.min(self.cap() as u128) as u64
     }
 
     /// The payout the contract pays at outcome `v`: rounded down to `rounding`, so the
@@ -55,7 +65,7 @@ impl StableValue {
     pub fn at(&self, v: usize) -> u64 {
         let e = self.exact(v.min(self.max_outcome()));
         let r = self.rounding.max(1);
-        ((e / r) * r).min(self.total())
+        ((e / r) * r).min(self.cap())
     }
 
     /// Consecutive outcomes with equal payouts, covering `0..=max_outcome`.
@@ -78,7 +88,7 @@ impl StableValue {
     /// The protection floor: the lowest price, in cents, at which the recipient is still
     /// paid in full (`D / pot`).
     pub fn floor_cents(&self) -> u64 {
-        self.d_cents * 100_000_000 / self.total()
+        self.d_cents * 100_000_000 / self.cap()
     }
 }
 
@@ -99,6 +109,7 @@ mod tests {
             unit_cents: 10,
             nb_digits: 12,
             rounding: 800_0000,
+            premium: 0,
         }
     }
 

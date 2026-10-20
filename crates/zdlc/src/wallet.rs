@@ -39,6 +39,12 @@ impl Wallet {
             .expect("a valid key")
     }
 
+    /// The wallet's identity on the desk: it signs RFQs, quotes and envelopes, and the
+    /// mailbox encrypts to it.
+    pub fn identity_key(&self) -> SecretKey {
+        self.secp_key("identity", 0)
+    }
+
     /// The key in contract `i`'s 2-of-2.
     pub fn funding_key(&self, i: u32) -> SecretKey {
         self.secp_key("funding", i)
@@ -86,6 +92,7 @@ impl Wallet {
             funding_sk,
             input_keys: vec![self.coin_key(i); inputs.len()],
             close_fvk: self.close_fvk(i),
+            roll_key: None,
             info: PartyInfo {
                 funding_pubkey: keys::pubkey(&funding_sk),
                 inputs,

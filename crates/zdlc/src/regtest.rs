@@ -154,6 +154,7 @@ impl DevParty {
             funding_sk: self.funding_sk,
             input_keys: vec![self.input_sk],
             close_fvk: self.close_fvk,
+            roll_key: None,
             info: PartyInfo {
                 funding_pubkey: keys::pubkey(&self.funding_sk),
                 inputs: vec![Coin {
