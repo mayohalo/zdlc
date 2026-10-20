@@ -11,7 +11,10 @@
 
 use std::convert::Infallible;
 
-use orchard::Address as IronwoodAddress;
+use orchard::{
+    keys::{FullViewingKey, PreparedIncomingViewingKey, Scope},
+    Address as IronwoodAddress,
+};
 use pczt::{roles::verifier::Verifier, Pczt};
 use secp256k1::{ecdsa, Message, PublicKey, SecretKey};
 use secp256k1_zkp::PublicKey as Point;
@@ -404,6 +407,8 @@ pub struct Party {
     pub funding_sk: SecretKey,
     /// Keys for `info.inputs`, in order.
     pub input_keys: Vec<SecretKey>,
+    /// Viewing key of `info.close`: used to trial-decrypt this party's close output.
+    pub close_fvk: FullViewingKey,
     pub info: PartyInfo,
 }
 
@@ -415,11 +420,16 @@ pub struct Contract {
     pub accept: PartyInfo,
     pub txs: TxSet,
     funding_sk: SecretKey,
+    close_ivk: PreparedIncomingViewingKey,
     their_adaptors: Vec<Vec<AdaptorSignature>>,
     their_refund_sig: ecdsa::Signature,
 }
 
 impl Party {
+    fn close_ivk(&self) -> PreparedIncomingViewingKey {
+        PreparedIncomingViewingKey::new(&self.close_fvk.to_ivk(Scope::External))
+    }
+
     pub fn offer(&self, terms: Terms) -> Offer {
         Offer {
             terms,
@@ -471,6 +481,7 @@ impl Party {
             accept: accept.accept.clone(),
             txs,
             funding_sk: self.funding_sk,
+            close_ivk: self.close_ivk(),
             their_adaptors: accept.cet_adaptors.clone(),
             their_refund_sig: accept.refund_sig,
         };
@@ -504,6 +515,7 @@ impl Party {
             accept: self.info.clone(),
             txs,
             funding_sk: self.funding_sk,
+            close_ivk: self.close_ivk(),
             their_adaptors: sign.cet_adaptors.clone(),
             their_refund_sig: sign.refund_sig,
         };
@@ -596,43 +608,98 @@ impl Contract {
         Ok(spec)
     }
 
-    /// The other side's check of a close PCZT before signing: it spends only the funding
-    /// output and pays exactly the agreed Ironwood outputs.
+    /// The other side's check of a close PCZT before signing. The close is built by one
+    /// party, so the other checks what the transaction will actually do, not what the
+    /// PCZT's metadata claims:
+    /// - it spends exactly the funding outpoint, pays nothing transparent, has no lock
+    ///   time and the agreed expiry;
+    /// - every Ironwood output's note (recipient, value, rho, rseed) re-derives its `cmx`,
+    ///   so the claimed recipient and value are what the chain commits to;
+    /// - the outputs are exactly the agreed (recipient, value) pairs;
+    /// - this party's own output trial-decrypts with its viewing key, so its wallet will
+    ///   find the note.
     pub fn check_close(&self, pczt: &Pczt, spec: &Spec) -> Result<()> {
+        let bad = |m: String| Error::Build(format!("close PCZT refused: {m}"));
         let mut want: Vec<([u8; 43], u64)> = spec
             .outputs
             .iter()
             .map(|o| match o {
                 Pay::Ironwood(a, v) => Ok((a.to_raw_address_bytes(), *v)),
-                Pay::Transparent(..) => Err(Error::Build("close pays transparent".into())),
+                Pay::Transparent(..) => Err(bad("the agreed close pays transparent".into())),
             })
             .collect::<Result<_>>()?;
+        let effects = pczt
+            .clone()
+            .into_effects()
+            .map_err(|e| bad(format!("effects: {e:?}")))?;
+        if effects.lock_time() != 0 {
+            return Err(bad(format!("lock time {}", effects.lock_time())));
+        }
+        if u32::from(effects.expiry_height()) != spec.expiry_height {
+            return Err(bad(format!("expiry {}", u32::from(effects.expiry_height()))));
+        }
+        let me = if self.is_offerer { &self.offer } else { &self.accept };
+        let mine = me.close.to_raw_address_bytes();
+        let my_value = want.iter().find(|(a, _)| *a == mine).map(|(_, v)| *v);
+        let funding = (self.txs.funding_txid, self.txs.funding_coin.index);
+        let ivk = &self.close_ivk;
+        let mut transparent: std::result::Result<(), String> = Err("not checked".into());
         let mut got = vec![];
-        let mut t_ok = false;
-        let funding = self.txs.funding_txid;
+        let mut my_note = None;
+        let mut ironwood: std::result::Result<(), String> = Ok(());
         Verifier::new(pczt.clone())
             .with_transparent::<Infallible, _>(|t| {
-                t_ok = t.inputs().len() == 1
-                    && *t.inputs()[0].prevout_txid().as_ref() == funding
-                    && t.outputs().is_empty();
+                transparent = if t.inputs().len() != 1 {
+                    Err(format!("{} transparent inputs", t.inputs().len()))
+                } else if (*t.inputs()[0].prevout_txid().as_ref(), *t.inputs()[0].prevout_index())
+                    != funding
+                {
+                    Err("input is not the funding output".into())
+                } else if !t.outputs().is_empty() {
+                    Err("transparent outputs".into())
+                } else {
+                    Ok(())
+                };
                 Ok(())
             })
-            .map_err(|e| Error::Pczt(format!("verify transparent: {e:?}")))?
+            .map_err(|e| bad(format!("transparent: {e:?}")))?
             .with_ironwood::<Infallible, _>(|b| {
+                let version = *b.bundle_version();
                 for a in b.actions() {
-                    if let (Some(r), Some(v)) = (a.output().recipient(), a.output().value()) {
-                        if v.inner() > 0 {
-                            got.push((r.to_raw_address_bytes(), v.inner()));
+                    let out = a.output();
+                    if let Err(e) = out.verify_note_commitment(a.spend()) {
+                        ironwood = Err(format!("output does not match its commitment: {e:?}"));
+                        return Ok(());
+                    }
+                    let (r, v) = match (out.recipient(), out.value()) {
+                        (Some(r), Some(v)) => (r.to_raw_address_bytes(), v.inner()),
+                        _ => unreachable!("verify_note_commitment requires both"),
+                    };
+                    if v > 0 {
+                        got.push((r, v));
+                    }
+                    if r == mine && v > 0 {
+                        match a.decrypt_output_with_ivk(ivk, version) {
+                            Ok(Some((note, _, _))) => my_note = Some(note.value().inner()),
+                            _ => {
+                                ironwood = Err("own output does not decrypt".into());
+                                return Ok(());
+                            }
                         }
                     }
                 }
                 Ok(())
             })
-            .map_err(|e| Error::Pczt(format!("verify ironwood: {e:?}")))?;
+            .map_err(|e| bad(format!("ironwood: {e:?}")))?;
+        transparent.map_err(bad)?;
+        ironwood.map_err(bad)?;
         want.sort();
         got.sort();
-        if !t_ok || want != got {
-            return Err(Error::Build("close PCZT does not pay the agreed outputs".into()));
+        if want != got {
+            return Err(bad("outputs differ from the agreed payouts".into()));
+        }
+        if my_value.is_some() && my_note != my_value {
+            return Err(bad("own output did not decrypt to the agreed value".into()));
         }
         Ok(())
     }

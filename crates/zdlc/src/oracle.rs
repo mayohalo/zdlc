@@ -81,11 +81,11 @@ pub fn attestation_point(a: &Announcement, outcome: &str) -> Result<PublicKey> {
 }
 
 impl DevOracle {
-    /// A deterministic dev oracle for `event_id`, keyed by `label`.
+    /// A dev oracle for `event_id`: key from `label`, a fresh random nonce.
     pub fn new(label: &str, event_id: &str, outcomes: &[&str]) -> Self {
         let secp = Secp256k1::new();
         let x = even(&secp, zkp_key(&format!("oracle/{label}")));
-        let k = even(&secp, zkp_key(&format!("oracle/{label}/nonce/{event_id}")));
+        let k = even(&secp, random_key());
         let announcement = Announcement {
             pubkey: x.x_only_public_key(&secp).0,
             nonce: k.x_only_public_key(&secp).0,
@@ -139,6 +139,16 @@ impl DevOracle {
     }
 }
 
+fn random_key() -> SecretKey {
+    loop {
+        let mut b = [0u8; 32];
+        rand10::fill(&mut b);
+        if let Ok(k) = SecretKey::from_slice(&b) {
+            return k;
+        }
+    }
+}
+
 /// A secp256k1-zkp (0.29) secret key derived from a label.
 pub fn zkp_key(label: &str) -> SecretKey {
     let mut h: [u8; 32] = Sha256::digest(format!("zdlc-dev/{label}").as_bytes()).into();
@@ -187,13 +197,19 @@ pub fn digit_message(d: usize) -> Message {
 }
 
 impl NumericOracle {
-    /// A deterministic dev oracle for `event_id`, keyed by `label`.
+    /// A dev oracle for `event_id`: key from `label`, fresh random nonces (one per digit).
+    /// Nonces are never derived from the event: a second attestation under a re-derived
+    /// nonce would leak the key.
     pub fn new(label: &str, event_id: &str, nb_digits: usize, unit_cents: u64) -> Self {
+        let nonces = (0..nb_digits).map(|_| random_key().secret_bytes()).collect();
+        Self::with_nonces(label, event_id, unit_cents, nonces)
+    }
+
+    /// Restores an announced event from its stored nonce secrets.
+    pub fn with_nonces(label: &str, event_id: &str, unit_cents: u64, nonces: Vec<[u8; 32]>) -> Self {
+        let nb_digits = nonces.len();
         let secp = Secp256k1::new();
         let keypair = Keypair::from_secret_key(&secp, &zkp_key(&format!("oracle/{label}")));
-        let nonces: Vec<[u8; 32]> = (0..nb_digits)
-            .map(|i| zkp_key(&format!("oracle/{label}/nonce/{event_id}/{i}")).secret_bytes())
-            .collect();
         let announcement = NumericAnnouncement {
             pubkey: keypair.x_only_public_key().0,
             nonces: nonces
@@ -220,6 +236,11 @@ impl NumericOracle {
 
     pub fn announcement(&self) -> &NumericAnnouncement {
         &self.announcement
+    }
+
+    /// The nonce secrets, for an oracle that persists announced events. Secret.
+    pub fn nonce_secrets(&self) -> &[[u8; 32]] {
+        &self.nonces
     }
 
     /// Attests `value`, clamped to the largest value the digits can carry. Once only.
@@ -319,5 +340,7 @@ mod tests {
         let s = prefix_scalar(&att, 4).unwrap();
         assert_ne!(PublicKey::from_secret_key(&secp, &s), prefix_point(&a, &other).unwrap());
         assert!(o.attest(601).is_err());
+        let o2 = NumericOracle::new("t", "zecusd-1", 12, 10);
+        assert_ne!(o2.announcement().nonces, a.nonces, "nonces are fresh per announcement");
     }
 }
