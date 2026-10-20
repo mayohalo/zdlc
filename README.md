@@ -24,6 +24,19 @@ cargo run -p zdlc --release --bin zdlc-demo -- --settle refund                # 
 
 Each run uses fresh keys and coins, so they can follow each other on one chain.
 
+## Testnet
+
+`zdlc-testnet` runs the same contract on Zcash testnet through any Zakura testnet JSON-RPC endpoint, given as `--node URL` or `ZDLC_TESTNET_RPC` (never stored in the repo). Collateral is 0.01 TAZ a side, capped at 0.05.
+
+```sh
+export ZDLC_TESTNET_RPC=<your testnet Zakura RPC URL>
+cargo run -p zdlc --release --example testnet_wallet          # seed at ~/.zdlc/testnet-seed.hex; prints the address to fund
+cargo run -p zdlc --release --bin zdlc-testnet -- status
+cargo run -p zdlc --release --bin zdlc-testnet -- run --settle refund   # seed-only refund recovery
+cargo run -p zdlc --release --bin zdlc-testnet -- run --settle close --price 60.00
+cargo run -p zdlc --release --bin zdlc-testnet -- sweep         # return transparent payouts to the treasury
+```
+
 ## Build and test
 
 Rust 1.97.1 (pinned in `rust-toolchain.toml`), Docker for the regtest node.
@@ -38,4 +51,4 @@ cargo run -p zdlc --release --bin zdlc-oracle -- announce zecusd-1    # dev orac
 cargo run -p zdlc --release --bin zdlc-watch -- kit.json              # refund watcher
 ```
 
-Results: [Phase 0](docs/spikes/phase0.md), [Phase 1](docs/phase1.md), [Phase 2](docs/phase2.md).
+Results: [Phase 0](docs/spikes/phase0.md), [Phase 1](docs/phase1.md), [Phase 2](docs/phase2.md), [testnet](docs/testnet.md).

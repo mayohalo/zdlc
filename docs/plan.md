@@ -41,7 +41,7 @@ Six phases, each ending at a gate. A phase starts when the gates it depends on p
 
 **Gate:** a wallet restored from its seed alone recovers its collateral at the refund height while the other party is offline.
 
-**Gate passed 2026-10-20 on regtest.** Results: [phase2.md](phase2.md). Testnet and mainnet are not started.
+**Gate passed 2026-10-20 on regtest and on Zcash testnet.** Results: [phase2.md](phase2.md), [testnet.md](testnet.md). Mainnet is not started.
 
 ### Phase 3: oracle network (after Phase 2)
 

@@ -1,0 +1,61 @@
+[
+  {
+    "result": {
+      "alice_index": 3,
+      "bob_index": 4,
+      "branch": "77190ad9",
+      "settle": "close",
+      "tip": 4521967,
+      "treasury": "0.09980000 TAZ"
+    },
+    "step": "start"
+  },
+  {
+    "result": {
+      "fee": 20000,
+      "height": 4521971,
+      "txid": "d139d8020311e91a12c6e12aa5b3eb6bd3350299754d084821239c576adcdd44"
+    },
+    "step": "split"
+  },
+  {
+    "result": {
+      "adaptor_sigs_each_way": 371,
+      "cets": 95,
+      "maturity": 4521975,
+      "ms": 713,
+      "p2sh": "t2FvWfrbANHxkPZQD9gLPCmXcZRC5XTZgBN",
+      "refund_height": 4522001
+    },
+    "step": "setup"
+  },
+  {
+    "result": {
+      "branch": "77190ad9",
+      "funding_height": 4521978,
+      "funding_txid": "c05a5216052512579b44cf37c398b735aad6bdedc3cb7b92869bead46a844a8e",
+      "record_height": 4521976,
+      "record_txid": "5416e888950a80103fb7e2e77ab5e7d1cf25ea3d62422c10f6e9bcefab3cabec"
+    },
+    "step": "funded"
+  },
+  {
+    "result": {
+      "alice": "0.00820000 TAZ",
+      "bob": "0.01180000 TAZ",
+      "price_cents": 6000
+    },
+    "step": "attested"
+  },
+  {
+    "result": {
+      "mined_at": 4521980,
+      "outputs": [
+        "0.00815000 TAZ",
+        "0.01175000 TAZ"
+      ],
+      "txid": "0f662f85a79320141bd58f7515b5d96955554c181fb6ed7c2fba6c00991a64eb"
+    },
+    "step": "closed to Ironwood"
+  }
+]

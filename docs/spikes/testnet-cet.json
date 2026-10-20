@@ -1,0 +1,58 @@
+[
+  {
+    "result": {
+      "alice_index": 5,
+      "bob_index": 6,
+      "branch": "77190ad9",
+      "settle": "cet",
+      "tip": 4521971,
+      "treasury": "0.07460000 TAZ"
+    },
+    "step": "start"
+  },
+  {
+    "result": {
+      "fee": 20000,
+      "height": 4521976,
+      "txid": "fefcbf948150967a1b20c836d41b58b239689e80feae6002d050629d01086385"
+    },
+    "step": "split"
+  },
+  {
+    "result": {
+      "adaptor_sigs_each_way": 371,
+      "cets": 95,
+      "maturity": 4521980,
+      "ms": 709,
+      "p2sh": "t2N6ekdDYJ18b1dxFNYDZBi2uHdqMDpcRD1",
+      "refund_height": 4522006
+    },
+    "step": "setup"
+  },
+  {
+    "result": {
+      "branch": "77190ad9",
+      "funding_height": 4521980,
+      "funding_txid": "d5ec0374613b43d1f3b21a5889f9bd134684b667874636d9ae0f2c81072b4de1",
+      "record_height": 4521978,
+      "record_txid": "d214059dcf68106391ba665a349bc4ac5d34c7b626fc866b22c15a42aef2b0d1"
+    },
+    "step": "funded"
+  },
+  {
+    "result": {
+      "alice": "0.01240000 TAZ",
+      "bob": "0.00760000 TAZ",
+      "price_cents": 4000
+    },
+    "step": "attested"
+  },
+  {
+    "result": {
+      "index": 38,
+      "mined_at": 4521988,
+      "txid": "e21742c7930a1aa0d41864dba4cede0420abe9a5ac612e175a7cf012a77a339d"
+    },
+    "step": "CET"
+  }
+]

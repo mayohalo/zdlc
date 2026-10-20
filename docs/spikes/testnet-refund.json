@@ -1,0 +1,66 @@
+[
+  {
+    "result": {
+      "alice_index": 1,
+      "bob_index": 2,
+      "branch": "77190ad9",
+      "settle": "refund",
+      "tip": 4521966,
+      "treasury": "0.12500000 TAZ"
+    },
+    "step": "start"
+  },
+  {
+    "result": {
+      "fee": 20000,
+      "height": 4521967,
+      "txid": "2d270de8feab2a72d71a4f6539e8fa000a1c5ab34263376fc8441e5f0898b9a5"
+    },
+    "step": "split"
+  },
+  {
+    "result": {
+      "adaptor_sigs_each_way": 371,
+      "cets": 95,
+      "maturity": 4521971,
+      "ms": 706,
+      "p2sh": "t2JUrVUGimzFsb6YFu7sfueVkKfL6GVYYqG",
+      "refund_height": 4521977
+    },
+    "step": "setup"
+  },
+  {
+    "result": {
+      "branch": "77190ad9",
+      "funding_height": 4521976,
+      "funding_txid": "fcafdf8917b705534f525de91f4f2e74ad188a615f860b689fc1eee5252bd2fd",
+      "record_height": 4521971,
+      "record_txid": "0a2308ac7cb3cf4f8004c2910eeb1662fc775e11b86d0e86bd79ca0338ced789"
+    },
+    "step": "funded"
+  },
+  {
+    "result": {
+      "blocks_scanned": 11,
+      "same_refund": true,
+      "scan_ms": 26269
+    },
+    "step": "restored"
+  },
+  {
+    "result": {
+      "reply": "transaction did not pass consensus validation: transaction is locked until after block height 4521977\"}",
+      "tip": 4521976
+    },
+    "step": "refund one block early"
+  },
+  {
+    "result": {
+      "mined_at": 4521979,
+      "refund_height": 4521977,
+      "to": "tmVnSyuRo6VkjjUiGFVpwTpgP4myabYFbQx",
+      "txid": "13caad64027d2a5dc5de4b1c2d05f211839732b22697c2a9ec3df65beb25bb5a"
+    },
+    "step": "GATE: seed-only refund on testnet"
+  }
+]

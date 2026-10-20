@@ -25,7 +25,7 @@ Alice is owed $100 in 30 days and holds 2 ZEC at $50.00. Bob, a hedger, puts up 
 
 | Contract | Price | Settled by | Alice / Bob (zat) | Height |
 | --- | --- | --- | --- | --- |
-| p60 | $60.00 | Cooperative close, P2SH → two Ironwood outputs | 159,995,000 / 239,995,000 after a 20,000 zat fee split evenly ($96.00 worth to Alice, rounded down); Ironwood pool +399,990,000 | 219 |
+| p60 | $60.00 | Cooperative close, P2SH → two Ironwood outputs | 159,995,000 / 239,995,000 after a 10,000 zat fee split evenly ($96.00 worth to Alice, rounded down); Ironwood pool +399,990,000 | 219 |
 | p40 | $40.00 | CET, completed by Alice alone | 248,000,000 / 152,000,000 | 224 |
 | p20 | $20.00, below the floor | CET with a single output | 400,000,000 / 0 | 229 |
 | silent | none | Refund, lock height 238 | 200,000,000 / 200,000,000; rejected at tip 237 ("locked until after block height 238") | 239 |

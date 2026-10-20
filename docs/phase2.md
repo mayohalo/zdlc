@@ -1,6 +1,6 @@
 # Phase 2: safety and recovery
 
-The Phase 2 gate passed on 2026-10-20 on Zakura 1.6.0 regtest. Alice's wallet was restored from its 32-byte seed alone. It found her recovery record on chain, rebuilt the exact refund and confirmed it at the refund height, while Bob did nothing. Testnet and mainnet, the last Phase 2 item, have not started (see the end). Raw log: [spikes/phase2-regtest.json](spikes/phase2-regtest.json).
+The Phase 2 gate passed on 2026-10-20 on Zakura 1.6.0 regtest, and again on Zcash testnet ([testnet.md](testnet.md)). Alice's wallet was restored from its 32-byte seed alone. It found her recovery record on chain, rebuilt the exact refund and confirmed it at the refund height, while Bob did nothing. Mainnet, the last Phase 2 item, has not started (see the end). Raw log: [spikes/phase2-regtest.json](spikes/phase2-regtest.json).
 
 ```sh
 infra/zakura/scripts/down.sh; infra/zakura/scripts/up.sh
@@ -42,15 +42,13 @@ cargo test -p zdlc --release --test phase2 -- --ignored --nocapture
 
 ## Costs
 
-- **Recovery record:** one extra transaction per party per contract. It is a transparent input paying 10,000 zat to Ironwood, with a 15,000 zat fee at ZIP 317.
+- **Recovery record:** one extra transaction per party per contract: a transparent input paying 10,000 zat to Ironwood, plus its ZIP 317 fee.
 - **Privacy of the record:** it links that party's coin to a shielded payment, not to the contract.
 - **Dual signing:** it doubles the CETs and adaptor signatures, from 225 to 450 each way here.
 
 ## Not done
 
-- **Testnet, then mainnet with a per-contract cap.** Not started.
-  - Testnet needs a synced Zakura testnet node, about 5.7 GB free on this machine, and testnet ZEC.
-  - Mainnet moves real funds, so it waits for an explicit go-ahead and a cap.
-  - The code has only regtest parameters so far.
+- **Testnet:** done. The refund, close and CET all ran on Zcash testnet with a 0.05 TAZ cap; see [testnet.md](testnet.md).
+- **Mainnet with a per-contract cap:** not started. It moves real funds, so it waits for an explicit go-ahead and a cap.
 - **Record ordering.** Each party must see its own record confirmed before the funding goes out. The offerer's signatures are already out by then, so it cannot gate the accepter's broadcast. The offerer should post its record before sending its signatures; the protocol does not enforce this yet.
 - **Recovery beyond the refund.** Recovery finds the refund only. A restored wallet cannot complete CETs or a close; that would need the counterparty's adaptor signatures, which are too large for a memo.
