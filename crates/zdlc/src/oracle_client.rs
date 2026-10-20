@@ -45,6 +45,14 @@ impl OracleClient {
         serde_json::from_value(v).map_err(|e| Error::Rpc(e.to_string()))
     }
 
+    pub async fn announcement(&self, event_id: &str) -> Result<AnnouncementMsg> {
+        let (s, v) = self.send(self.http.get(format!("{}/events/{event_id}", self.base))).await?;
+        if s != 200 {
+            return Err(Error::Rpc(format!("announcement: {v}")));
+        }
+        serde_json::from_value(v).map_err(|e| Error::Rpc(e.to_string()))
+    }
+
     /// The attestation, or `None` while the event is not yet due.
     pub async fn attest(&self, event_id: &str) -> Result<Option<AttestationMsg>> {
         let (s, v) = self
@@ -55,6 +63,17 @@ impl OracleClient {
             202 => Ok(None),
             _ => Err(Error::Rpc(format!("attest: {v}"))),
         }
+    }
+
+    /// The arbiter's decision (operator only: needs the oracle's admin token).
+    pub async fn resolve(&self, event_id: &str, outcome: &str, token: &str) -> Result<()> {
+        let (s, v) = self
+            .send(self.http.post(format!("{}/events/{event_id}/resolve", self.base)).json(&json!({"outcome": outcome, "token": token})))
+            .await?;
+        if s != 200 {
+            return Err(Error::Rpc(format!("resolve: {v}")));
+        }
+        Ok(())
     }
 
     /// Polls until the event is attested.
@@ -74,7 +93,7 @@ fn xonly(h: &str) -> Result<XOnlyPublicKey> {
 }
 
 pub fn to_numeric(a: &AnnouncementMsg) -> Result<NumericAnnouncement> {
-    let EventSpec::ZecUsd { unit_cents, nb_digits, .. } = a.spec else {
+    let EventSpec::ZecUsd { unit_cents, nb_digits, .. } = a.spec.clone() else {
         return Err(Error::Build("not a numeric event".into()));
     };
     if a.nonces.len() != nb_digits {

@@ -10,6 +10,8 @@
 //! - `GET  /events/{id}`                    the announcement
 //! - `POST /events/{id}/attest`             200 attestation, 202 not yet due, 400 error
 //!
+//! - `POST /events/{id}/resolve {outcome, token}`  an arbiter's decision (needs `--admin-token FILE`)
+//!
 //! `--node` (a Zakura JSON-RPC URL) is needed only for shielded-payment events.
 
 use std::sync::Arc;
@@ -31,6 +33,7 @@ use zdlc::{
 struct App {
     enclave: Mutex<Enclave>,
     node: Option<Node>,
+    admin_token: Option<String>,
 }
 
 type Reply = (StatusCode, Json<Value>);
@@ -84,6 +87,23 @@ async fn attest(State(app): State<Arc<App>>, Path(id): Path<String>) -> Reply {
     }
 }
 
+#[derive(Deserialize)]
+struct ResolveReq {
+    outcome: String,
+    token: String,
+}
+
+async fn resolve(State(app): State<Arc<App>>, Path(id): Path<String>, Json(req): Json<ResolveReq>) -> Reply {
+    match &app.admin_token {
+        Some(t) if *t == req.token => {}
+        _ => return (StatusCode::FORBIDDEN, Json(json!({"error": "bad admin token"}))),
+    }
+    match app.enclave.lock().await.resolve(&id, &req.outcome) {
+        Ok(()) => (StatusCode::OK, Json(json!({"resolved": req.outcome}))),
+        Err(e) => bad(e),
+    }
+}
+
 #[tokio::main]
 async fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -108,12 +128,18 @@ async fn main() {
     let app = Arc::new(App {
         enclave: Mutex::new(enclave),
         node: arg(&args, "--node").map(Node::new),
+        admin_token: arg(&args, "--admin-token")
+            .map(|p| std::fs::read_to_string(&p).unwrap_or_else(|e| {
+                eprintln!("zdlc-oracled: admin token {p}: {e}");
+                std::process::exit(1)
+            }).trim().to_string()),
     });
     let router = Router::new()
         .route("/pubkey", get(pubkey))
         .route("/events", post(announce))
         .route("/events/{id}", get(announcement))
         .route("/events/{id}/attest", post(attest))
+        .route("/events/{id}/resolve", post(resolve))
         .with_state(app);
     let l = tokio::net::TcpListener::bind(&listen).await.unwrap_or_else(|e| {
         eprintln!("zdlc-oracled: {listen}: {e}");

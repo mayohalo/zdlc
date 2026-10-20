@@ -102,6 +102,12 @@ pub enum EventSpec {
         from_height: u32,
         by_height: u32,
     },
+    /// An outcome a human arbiter resolves (a milestone delivered or not). The oracle signs
+    /// only after `resolve`, through the operator's admin endpoint.
+    Arbiter {
+        question: String,
+        outcomes: Vec<String>,
+    },
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -231,7 +237,7 @@ impl Enclave {
     fn nonce_count(spec: &EventSpec) -> usize {
         match spec {
             EventSpec::ZecUsd { nb_digits, .. } => *nb_digits,
-            EventSpec::Payment { .. } => 1,
+            EventSpec::Payment { .. } | EventSpec::Arbiter { .. } => 1,
         }
     }
 
@@ -250,6 +256,7 @@ impl Enclave {
             outcomes: match &rec.spec {
                 EventSpec::ZecUsd { .. } => vec!["0".into(), "1".into()],
                 EventSpec::Payment { .. } => PAYMENT_OUTCOMES.iter().map(|s| s.to_string()).collect(),
+                EventSpec::Arbiter { outcomes, .. } => outcomes.clone(),
             },
         }
     }
@@ -273,6 +280,11 @@ impl Enclave {
                 parse_ivk(ivk)?;
                 if by_height < from_height {
                     return Err(Error::Build("by_height < from_height".into()));
+                }
+            }
+            EventSpec::Arbiter { outcomes, .. } => {
+                if outcomes.len() < 2 {
+                    return Err(Error::Build("an arbiter event needs two outcomes or more".into()));
                 }
             }
         }
@@ -329,6 +341,8 @@ impl Enclave {
                         let outcome = if got >= *min_zat { "paid" } else { "unpaid" };
                         (vec![outcome.to_string()], serde_json::json!({"received_zat": got}))
                     }
+                    // Not resolved yet.
+                    EventSpec::Arbiter { .. } => return Ok(None),
                 };
                 // Bind the event to this outcome before any signature exists.
                 let r = self.state.events.get_mut(id).expect("present");
@@ -353,6 +367,28 @@ impl Enclave {
             signatures,
             detail,
         }))
+    }
+}
+
+impl Enclave {
+    /// The arbiter's decision for an `Arbiter` event: binds the event to `outcome`
+    /// (sealed before anything is signed). A second, different decision is refused.
+    pub fn resolve(&mut self, id: &str, outcome: &str) -> Result<()> {
+        let rec = self.state.events.get_mut(id).ok_or(Error::Build(format!("event {id} was never announced")))?;
+        let EventSpec::Arbiter { outcomes, .. } = &rec.spec else {
+            return Err(Error::Build("only arbiter events are resolved by hand".into()));
+        };
+        if !outcomes.iter().any(|o| o == outcome) {
+            return Err(Error::Build(format!("{outcome} is not an outcome of {id}")));
+        }
+        match &rec.attested {
+            Some(o) if o != &vec![outcome.to_string()] => return Err(Error::Build("already resolved otherwise".into())),
+            Some(_) => return Ok(()),
+            None => {}
+        }
+        rec.attested = Some(vec![outcome.to_string()]);
+        rec.detail = Some(serde_json::json!({"resolved_by": "arbiter"}));
+        self.save()
     }
 }
 
