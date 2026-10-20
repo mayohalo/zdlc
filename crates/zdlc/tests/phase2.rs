@@ -74,7 +74,7 @@ impl Run {
 
     fn numeric(&self, tag: &str) -> (NumericOracle, Event) {
         let o = NumericOracle::new("phase2", tag, 12, 10);
-        let e = Event::Numeric(o.announcement().clone());
+        let e = Event::Numeric(vec![o.announcement().clone()]);
         (o, e)
     }
 }
@@ -115,7 +115,7 @@ async fn phase2_gate() {
     r.rt.node.mine_to(tip + 6).await.unwrap();
     let att = o.attest(400).unwrap(); // the oracle is late: attests after the refund height
     let refund = b.refund().unwrap();
-    let (cet, _) = a.cet_numeric(&att, r.tip().await + 1).unwrap();
+    let (cet, _) = a.cet_numeric(&[att.clone()], r.tip().await + 1).unwrap();
     let first = r.rt.node.send(&refund.raw).await;
     let second = r.rt.node.send(&cet.raw).await;
     r.rt.mine(1).await.unwrap();
@@ -127,12 +127,12 @@ async fn phase2_gate() {
     let (alice, bob) = r.rt.faucet("dust", 3_0000_0000).await.unwrap();
     let tip = r.tip().await;
     let mut o = DevOracle::new("phase2", "dust", &["alice", "bob"]);
-    let ev = Event::Enumerated(o.announcement().clone());
+    let ev = Event::Enumerated(vec![o.announcement().clone()]);
     let payouts = Payouts::Enumerated(vec![("alice".into(), 2 * COLLATERAL - 30), ("bob".into(), 30)]);
     let (a, _b, funding) = r.setup(&alice, &bob, r.terms(ev, payouts, tip, tip + 2, tip + 20, false), tip);
     r.rt.send_confirm(&funding).await.unwrap();
     let s = o.attest("alice").unwrap();
-    let cet = a.cet_outcome("alice", &s, r.tip().await + 1).unwrap();
+    let cet = a.cet_outcome("alice", &[s], r.tip().await + 1).unwrap();
     let h = r.rt.send_confirm(&cet).await.unwrap();
     let outs = r.rt.outputs(&cet).await.unwrap();
     // And what the node does with a 30 zat output.
@@ -215,8 +215,8 @@ async fn phase2_gate() {
     // ---- Dual signing, continued: settle after NU7 with the second era's CET -------------
     let att = o_dual.attest(400).unwrap();
     r.rt.node.mine_to(NU7_AT - 1).await.unwrap();
-    let (pre, _) = dual_a.cet_numeric(&att, NU7_AT - 1).unwrap(); // signed for NU6.3
-    let (post, _) = dual_a.cet_numeric(&att, NU7_AT).unwrap(); // signed for NU7
+    let (pre, _) = dual_a.cet_numeric(&[att.clone()], NU7_AT - 1).unwrap(); // signed for NU6.3
+    let (post, _) = dual_a.cet_numeric(&[att.clone()], NU7_AT).unwrap(); // signed for NU7
     let pre_reply = reason(r.rt.node.send(&pre.raw).await);
     let h = r.rt.send_confirm(&post).await.unwrap();
     r.note("dual: CET after activation", json!({"nu6.3_cet": pre_reply, "nu7_cet_mined_at": h,

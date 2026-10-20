@@ -37,10 +37,35 @@ pub const DUST: u64 = 54;
 /// Expiry delta for the funding and close transactions (not pre-signed).
 pub const EXPIRY_DELTA: u32 = 40;
 
+/// The oracle event a contract settles on. Several announcements make an n-of-n
+/// multi-oracle event: every CET's adaptor point is the sum of the oracles' points, so a
+/// CET opens only when every oracle attests the same outcome. Two oracles that disagree
+/// unlock nothing, and the contract falls back to the refund.
 #[derive(Clone, Debug)]
 pub enum Event {
-    Enumerated(Announcement),
-    Numeric(NumericAnnouncement),
+    Enumerated(Vec<Announcement>),
+    Numeric(Vec<NumericAnnouncement>),
+}
+
+impl Event {
+    pub fn oracles(&self) -> usize {
+        match self {
+            Event::Enumerated(a) => a.len(),
+            Event::Numeric(a) => a.len(),
+        }
+    }
+}
+
+fn sum_points(points: &[Point]) -> Result<Point> {
+    Point::combine_keys(&points.iter().collect::<Vec<_>>())
+        .map_err(|e| Error::Crypto(format!("sum of oracle points: {e}")))
+}
+
+fn sum_scalars(s: &[secp256k1_zkp::SecretKey]) -> Result<secp256k1_zkp::SecretKey> {
+    let (first, rest) = s.split_first().ok_or(Error::Crypto("no oracle scalars".into()))?;
+    rest.iter()
+        .try_fold(*first, |acc, x| acc.add_tweak(&secp256k1_zkp::Scalar::from(*x)))
+        .map_err(|e| Error::Crypto(format!("sum of oracle scalars: {e}")))
 }
 
 #[derive(Clone, Debug)]
@@ -190,28 +215,34 @@ impl Terms {
     pub fn cet_terms(&self) -> Result<Vec<CetTerms>> {
         let total = self.total();
         match (&self.event, &self.payouts) {
-            (Event::Enumerated(a), Payouts::Enumerated(list)) => list
+            (Event::Enumerated(anns), Payouts::Enumerated(list)) => list
                 .iter()
                 .map(|(o, off)| {
                     if *off > total {
                         return Err(Error::Build(format!("payout for {o} exceeds the pot")));
                     }
+                    let points = anns
+                        .iter()
+                        .map(|a| oracle::attestation_point(a, o))
+                        .collect::<Result<Vec<_>>>()?;
                     Ok(CetTerms {
                         offer: *off,
                         accept: total - off,
                         unlocks: vec![Unlock {
                             prefix: vec![],
                             outcome: Some(o.clone()),
-                            point: oracle::attestation_point(a, o)?,
+                            point: sum_points(&points)?,
                         }],
                     })
                 })
                 .collect(),
-            (Event::Numeric(a), Payouts::StableValue(c)) => {
-                if c.q_recipient != self.offer_collateral
+            (Event::Numeric(anns), Payouts::StableValue(c)) => {
+                if anns.is_empty()
+                    || c.q_recipient != self.offer_collateral
                     || c.q_hedger != self.accept_collateral
-                    || c.nb_digits != a.nb_digits
-                    || c.unit_cents != a.unit_cents
+                    || anns
+                        .iter()
+                        .any(|a| c.nb_digits != a.nb_digits || c.unit_cents != a.unit_cents)
                 {
                     return Err(Error::Build("curve does not match collateral or event".into()));
                 }
@@ -221,8 +252,12 @@ impl Terms {
                         let unlocks = payout::prefixes(r, c.nb_digits)
                             .into_iter()
                             .map(|prefix| {
+                                let points = anns
+                                    .iter()
+                                    .map(|a| oracle::prefix_point(a, &prefix))
+                                    .collect::<Result<Vec<_>>>()?;
                                 Ok(Unlock {
-                                    point: oracle::prefix_point(a, &prefix)?,
+                                    point: sum_points(&points)?,
                                     prefix,
                                     outcome: None,
                                 })
@@ -610,16 +645,35 @@ impl Contract {
     }
 
     /// The CET for an attested numeric value, for a block at `height`: decrypts the
-    /// counterparty's adaptor signature for the matching prefix with the oracle's scalars.
-    /// Returns the transaction and the CET index.
-    pub fn cet_numeric(&self, att: &NumericAttestation, height: u32) -> Result<(tx::Final, usize)> {
+    /// counterparty's adaptor signature for the matching prefix with the sum of every
+    /// oracle's scalars. All oracles must have attested the same value. Returns the
+    /// transaction and the CET index.
+    pub fn cet_numeric(&self, atts: &[NumericAttestation], height: u32) -> Result<(tx::Final, usize)> {
+        if atts.len() != self.terms.event.oracles() {
+            return Err(Error::Build(format!(
+                "{} attestations for a {}-oracle event",
+                atts.len(),
+                self.terms.event.oracles()
+            )));
+        }
+        let att = &atts[0];
+        if atts.iter().any(|a| a.digits != att.digits) {
+            return Err(Error::Build(
+                "oracles disagree: no CET opens; wait for the refund".into(),
+            ));
+        }
         for (i, (ct, pczt, _, era)) in self.txs.cets.iter().enumerate() {
             if !self.in_era(*era, height) {
                 continue;
             }
             for (j, u) in ct.unlocks.iter().enumerate() {
                 if !u.prefix.is_empty() && att.digits.starts_with(&u.prefix) {
-                    let s = oracle::prefix_scalar(att, u.prefix.len())?;
+                    let s = sum_scalars(
+                        &atts
+                            .iter()
+                            .map(|a| oracle::prefix_scalar(a, u.prefix.len()))
+                            .collect::<Result<Vec<_>>>()?,
+                    )?;
                     let d = adaptor::decrypt(&self.their_adaptors[i][j], &s)?;
                     let pczt = tx::append(pczt.clone(), 0, d.signature)?;
                     return Ok((tx::extract(tx::sign(pczt, 0, &self.funding_sk)?)?, i));
@@ -629,16 +683,21 @@ impl Contract {
         Err(Error::Build("no CET covers the attested value".into()))
     }
 
-    /// The CET for an attested outcome of an enumerated event, for a block at `height`.
+    /// The CET for an outcome every oracle attested, for a block at `height`: `scalars`
+    /// holds each oracle's attestation scalar for that outcome.
     pub fn cet_outcome(
         &self,
         outcome: &str,
-        s: &secp256k1_zkp::SecretKey,
+        scalars: &[secp256k1_zkp::SecretKey],
         height: u32,
     ) -> Result<tx::Final> {
+        if scalars.len() != self.terms.event.oracles() {
+            return Err(Error::Build("one attestation per oracle".into()));
+        }
+        let s = sum_scalars(scalars)?;
         for (i, (ct, pczt, _, era)) in self.txs.cets.iter().enumerate() {
             if self.in_era(*era, height) && ct.unlocks[0].outcome.as_deref() == Some(outcome) {
-                let d = adaptor::decrypt(&self.their_adaptors[i][0], s)?;
+                let d = adaptor::decrypt(&self.their_adaptors[i][0], &s)?;
                 let pczt = tx::append(pczt.clone(), 0, d.signature)?;
                 return tx::extract(tx::sign(pczt, 0, &self.funding_sk)?);
             }

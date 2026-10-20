@@ -2,9 +2,9 @@
 //!
 //! The attestation point for outcome `m` is `S_m = R + e·P` with
 //! `e = H_BIP340/challenge(R_x || P_x || m)`; attesting publishes `s_m = k + e·x`, the
-//! BIP-340 signature scalar, and `s_m·G = S_m`. The message is SHA-256 of the outcome
-//! string. This matches dlcspecs' math but not yet its message tagging (checked against a
-//! live dlcspecs oracle in Phase 3).
+//! BIP-340 signature scalar, and `s_m·G = S_m`. The message is the dlcspecs tagged hash
+//! of the outcome string (`DLC/oracle/attestation/v0`), so contracts can also settle on
+//! standard dlcspecs oracles (tested against kormir, `tests/compat.rs`).
 
 use secp256k1_zkp::{
     schnorr, Keypair, Message, Parity, PublicKey, Scalar, Secp256k1, SecretKey, XOnlyPublicKey,
@@ -50,8 +50,13 @@ fn tagged(tag: &str, parts: &[&[u8]]) -> [u8; 32] {
     h.finalize().into()
 }
 
+/// The dlcspecs tag every attested outcome string is hashed under.
+pub const ATTESTATION_TAG: &str = "DLC/oracle/attestation/v0";
+
+/// The message an oracle signs for an outcome: the dlcspecs tagged hash
+/// `SHA256(SHA256(tag) || SHA256(tag) || outcome)`, as kormir and other dlcspecs oracles do.
 pub fn outcome_message(outcome: &str) -> [u8; 32] {
-    Sha256::digest(outcome.as_bytes()).into()
+    tagged(ATTESTATION_TAG, &[outcome.as_bytes()])
 }
 
 fn challenge(a: &Announcement, outcome: &str) -> Result<Scalar> {
@@ -160,8 +165,8 @@ pub fn zkp_key(label: &str) -> SecretKey {
     }
 }
 
-/// A numeric event: one nonce per binary digit, attested digit by digit (rust-dlc's
-/// scheme: each digit's message is SHA-256 of the digit as a decimal string, signed with
+/// A numeric event: one nonce per binary digit, attested digit by digit (dlcspecs:
+/// each digit's message is the tagged hash of "0" or "1", signed with
 /// `dlc::secp_utils::schnorrsig_sign_with_nonce`).
 #[derive(Clone, Debug)]
 pub struct NumericAnnouncement {
@@ -192,8 +197,9 @@ pub struct NumericOracle {
     attested: bool,
 }
 
+/// A digit's message: the tagged hash of the digit as a string ("0" or "1").
 pub fn digit_message(d: usize) -> Message {
-    Message::from_digest(Sha256::digest(d.to_string().as_bytes()).into())
+    Message::from_digest(outcome_message(&d.to_string()))
 }
 
 impl NumericOracle {

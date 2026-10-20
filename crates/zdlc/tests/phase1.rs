@@ -57,7 +57,7 @@ impl Run {
         let tip = self.rt.tip().await.unwrap();
         let o = NumericOracle::new("phase1", &format!("zecusd/{tag}"), DIGITS, UNIT_CENTS);
         let terms = Terms {
-            event: Event::Numeric(o.announcement().clone()),
+            event: Event::Numeric(vec![o.announcement().clone()]),
             payouts: Payouts::StableValue(curve()),
             offer_collateral: COLLATERAL,
             accept_collateral: COLLATERAL,
@@ -123,7 +123,7 @@ async fn phase1_gate() {
     let (a, _b, mut o, terms) = r.setup("p40", 3, 40).await;
     r.rt.node.mine_to(a.terms.maturity).await.unwrap();
     let att = o.attest(400).unwrap();
-    let (cet, i) = a.cet_numeric(&att, r.rt.tip().await.unwrap() + 1).unwrap();
+    let (cet, i) = a.cet_numeric(&[att.clone()], r.rt.tip().await.unwrap() + 1).unwrap();
     let h = r.rt.send_confirm(&cet).await.unwrap();
     let outs = r.rt.outputs(&cet).await.unwrap();
     r.note("p40: CET", json!({"price": price(att.value), "payout_alice_bob_zat": terms.payout_at(att.value).unwrap(),
@@ -134,7 +134,7 @@ async fn phase1_gate() {
     let (a, _b, mut o, terms) = r.setup("p20", 3, 40).await;
     r.rt.node.mine_to(a.terms.maturity).await.unwrap();
     let att = o.attest(200).unwrap();
-    let (cet, i) = a.cet_numeric(&att, r.rt.tip().await.unwrap() + 1).unwrap();
+    let (cet, i) = a.cet_numeric(&[att.clone()], r.rt.tip().await.unwrap() + 1).unwrap();
     let h = r.rt.send_confirm(&cet).await.unwrap();
     let outs = r.rt.outputs(&cet).await.unwrap();
     r.note("p20: CET", json!({"price": price(att.value), "payout_alice_bob_zat": terms.payout_at(att.value).unwrap(),

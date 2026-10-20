@@ -35,7 +35,7 @@ fn enumerated_contract_end_to_end() {
     let (alice, bob) = (party("enum/alice", 1), party("enum/bob", 2));
     let mut o = oracle::DevOracle::new("enum", "match-1", &["alice", "bob", "draw"]);
     let terms = Terms {
-        event: Event::Enumerated(o.announcement().clone()),
+        event: Event::Enumerated(vec![o.announcement().clone()]),
         payouts: Payouts::Enumerated(vec![
             ("alice".into(), 2 * COLLATERAL),
             ("bob".into(), 0),
@@ -59,8 +59,8 @@ fn enumerated_contract_end_to_end() {
         assert_eq!(a.2, b.2, "CET sighashes agree");
     }
     let s = o.attest("draw").unwrap();
-    let cet = bob_c.cet_outcome("draw", &s, tip + 11).unwrap();
-    let cet_a = alice_c.cet_outcome("draw", &s, tip + 11).unwrap();
+    let cet = bob_c.cet_outcome("draw", &[s], tip + 11).unwrap();
+    let cet_a = alice_c.cet_outcome("draw", &[s], tip + 11).unwrap();
     assert_eq!(cet.txid, cet_a.txid, "either side can complete the CET");
     let refund = alice_c.refund().unwrap();
     assert_eq!(refund.lock_time, tip + 30);
@@ -74,7 +74,7 @@ fn stable_value_contract_end_to_end() {
     let (alice, bob) = (party("sv/alice", 3), party("sv/bob", 4));
     let mut o = oracle::NumericOracle::new("sv", "zecusd-at-260", 12, 10);
     let terms = Terms {
-        event: Event::Numeric(o.announcement().clone()),
+        event: Event::Numeric(vec![o.announcement().clone()]),
         payouts: Payouts::StableValue(curve()),
         offer_collateral: COLLATERAL,
         accept_collateral: COLLATERAL,
@@ -106,8 +106,8 @@ fn stable_value_contract_end_to_end() {
 
     // $40.00: the recipient is owed 2.5 ZEC (2.48 on the 0.08 grid).
     let att = o.attest(400).unwrap();
-    let (cet, i) = alice_c.cet_numeric(&att, tip + 51).unwrap();
-    let (cet_b, j) = bob_c.cet_numeric(&att, tip + 51).unwrap();
+    let (cet, i) = alice_c.cet_numeric(&[att.clone()], tip + 51).unwrap();
+    let (cet_b, j) = bob_c.cet_numeric(&[att.clone()], tip + 51).unwrap();
     assert_eq!((cet.txid, i), (cet_b.txid, j));
     assert_eq!(alice_c.txs.cets[i].0.offer, terms.payout_at(400).unwrap().0);
     println!("CET at $40.00: index {i}, offer {} zat, accept {} zat", alice_c.txs.cets[i].0.offer, alice_c.txs.cets[i].0.accept);
@@ -130,7 +130,7 @@ fn upgrade_guard_refuses_a_contract_spanning_nu7() {
     let (alice, bob) = (party("guard/alice", 5), party("guard/bob", 6));
     let o = oracle::NumericOracle::new("guard", "e", 12, 10);
     let mut terms = Terms {
-        event: Event::Numeric(o.announcement().clone()),
+        event: Event::Numeric(vec![o.announcement().clone()]),
         payouts: Payouts::StableValue(curve()),
         offer_collateral: COLLATERAL,
         accept_collateral: COLLATERAL,
@@ -185,7 +185,7 @@ fn close_check_binds_metadata_to_the_note() {
     let (alice, bob) = (party("forge/alice", 7), party("forge/bob", 8));
     let o = oracle::NumericOracle::new("forge", "e", 12, 10);
     let terms = Terms {
-        event: Event::Numeric(o.announcement().clone()),
+        event: Event::Numeric(vec![o.announcement().clone()]),
         payouts: Payouts::StableValue(curve()),
         offer_collateral: COLLATERAL,
         accept_collateral: COLLATERAL,
@@ -263,7 +263,7 @@ fn dual_signed_contract_covers_both_eras() {
     let (alice, bob) = (party("dual/alice", 13), party("dual/bob", 14));
     let mut o = oracle::NumericOracle::new("dual", "e", 12, 10);
     let mut terms = Terms {
-        event: Event::Numeric(o.announcement().clone()),
+        event: Event::Numeric(vec![o.announcement().clone()]),
         payouts: Payouts::StableValue(curve()),
         offer_collateral: COLLATERAL,
         accept_collateral: COLLATERAL,
@@ -283,8 +283,8 @@ fn dual_signed_contract_covers_both_eras() {
     let refund = a.refund().unwrap();
     assert_eq!(refund.branch_id, params::BRANCH_NU7, "refund signed for the era it confirms in");
     let att = o.attest(400).unwrap();
-    let (pre, _) = a.cet_numeric(&att, 195).unwrap();
-    let (post, _) = a.cet_numeric(&att, NU7_AT + 1).unwrap();
+    let (pre, _) = a.cet_numeric(&[att.clone()], 195).unwrap();
+    let (post, _) = a.cet_numeric(&[att.clone()], NU7_AT + 1).unwrap();
     assert_eq!((pre.branch_id, post.branch_id), (params::BRANCH_NU6_3, params::BRANCH_NU7));
     terms.refund_height = 10_000;
     let _ = terms;
@@ -298,7 +298,7 @@ fn recovery_record_rebuilds_the_refund() {
     let (wa, alice, bob) = wallet_parties("rec");
     let o = oracle::NumericOracle::new("rec", "e", 12, 10);
     let terms = Terms {
-        event: Event::Numeric(o.announcement().clone()),
+        event: Event::Numeric(vec![o.announcement().clone()]),
         payouts: Payouts::StableValue(curve()),
         offer_collateral: COLLATERAL,
         accept_collateral: COLLATERAL,

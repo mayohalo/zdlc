@@ -103,7 +103,7 @@ async fn run() -> zdlc::Result<()> {
     println!("   Alice and Bob each hold {}", zec(3_0000_0000));
 
     let terms = Terms {
-        event: Event::Numeric(a),
+        event: Event::Numeric(vec![a]),
         payouts: Payouts::StableValue(curve),
         offer_collateral: COLLATERAL,
         accept_collateral: COLLATERAL,
@@ -175,7 +175,7 @@ async fn run() -> zdlc::Result<()> {
                 println!("   txid {}", txid_hex(&close.txid));
             } else {
                 step(8, "Bob stops answering: Alice settles alone with the CET");
-                let (cet, i) = alice_c.cet_numeric(&att, rt.tip().await? + 1)?;
+                let (cet, i) = alice_c.cet_numeric(&[att.clone()], rt.tip().await? + 1)?;
                 println!("   CET #{i}: Bob's adaptor signature for the matching prefix, decrypted with");
                 println!("   the oracle's digit signatures, plus Alice's own");
                 let h = rt.send_confirm(&cet).await?;
