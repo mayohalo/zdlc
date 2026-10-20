@@ -1,0 +1,104 @@
+{
+  "maker": [
+    {
+      "result": {
+        "identity": "0346bd08bb345bdbdabe0b4cc4c29925483d73a522fe0dd8619f0d5d39e3b9f9e1",
+        "oracles": [
+          "4ced2bde0520074f0b11f9681f8db09b9c8561274b85cf285e2afe389ee53e03",
+          "b7e4ac8521d6b18be0dc31f891b40190038609a83f5d8e9a34000e4adb66c880"
+        ],
+        "treasury": "tmVb8DJpaxz5BKGhQBVTw39VcFcdYdHmrNv"
+      },
+      "step": "ready"
+    },
+    {
+      "result": {
+        "height": 227,
+        "memo_bytes": 113,
+        "quote": "a66fcb630359e4deed598c92",
+        "txid": "aa4050cb0c8f3ce6c619cee541efb6eeadeb2e4e31f603ba5b0096d3c97c906c"
+      },
+      "step": "invitation sent"
+    },
+    {
+      "result": {
+        "cets": 98,
+        "index": 1,
+        "quote": "a66fcb630359e4deed598c92"
+      },
+      "step": "accepted"
+    },
+    {
+      "result": {
+        "quote": "a66fcb630359e4deed598c92",
+        "txid": "53256bea40c0d2a57aa24a182c805ca98a1046bef1cc01e60a84e39e22e93236"
+      },
+      "step": "funded"
+    },
+    {
+      "result": {
+        "quote": "a66fcb630359e4deed598c92"
+      },
+      "step": "co-signed close"
+    },
+    {
+      "result": {
+        "done": 1,
+        "quote": "a66fcb630359e4deed598c92"
+      },
+      "step": "contract finished"
+    }
+  ],
+  "taker": [
+    {
+      "result": {
+        "maker": "0346bd08bb345bdbdabe0b4cc4c29925483d73a522fe0dd8619f0d5d39e3b9f9e1",
+        "premium": 50000,
+        "quote": "a66fcb630359e4deed598c92",
+        "valid_until": 303
+      },
+      "step": "invitation found"
+    },
+    {
+      "result": {
+        "event": "zecusd-1792500060",
+        "index": 1,
+        "owed_usd_cents": 11521,
+        "spot_cents": 115213
+      },
+      "step": "offer sent"
+    },
+    {
+      "result": {
+        "adaptor_sigs_verified": 518,
+        "cets": 98
+      },
+      "step": "accepted and signed"
+    },
+    {
+      "result": {
+        "height": 236,
+        "txid": "53256bea40c0d2a57aa24a182c805ca98a1046bef1cc01e60a84e39e22e93236"
+      },
+      "step": "funded"
+    },
+    {
+      "result": {
+        "agree": true,
+        "payout": [
+          10000000,
+          10050000
+        ],
+        "price_usd": 1149
+      },
+      "step": "attested"
+    },
+    {
+      "result": {
+        "height": 249,
+        "txid": "08f8e091c269984ea8d1b3691e91adb7441f0d743629607d2b6bb109b60e2557"
+      },
+      "step": "closed to Ironwood"
+    }
+  ]
+}

@@ -55,11 +55,13 @@ Six phases, each ending at a gate. A phase starts when the gates it depends on p
 
 ### Phase 4: products (after Phase 2, beside Phase 3)
 
-- RFQ desk over G8 or Nostr, with memo invitations and self-expiring quotes. It runs on the operator oracle until Phase 3's gate passes.
+- RFQ desk over HTTPS: a quote board, an end-to-end encrypted mailbox for setup messages, memo invitations for private quotes, and self-expiring firm quotes. It runs on the operator oracle until Phase 3's gate passes.
 - Conditional payments: milestone escrow first, then agent outcome payments once the shielded-payment feed exists.
 - Hedged payroll: a monthly stable-value contract, rolled on chain.
 
 **Gate:** two counterparties other than you trade through the desk.
+
+**Built and run 2026-10-20; the gate needs outside traders.** The desk (HTTPS quote board, sealed mailbox, memo invitations, firm self-expiring quotes) carried trades between two independent agents on regtest and Zcash testnet. Milestone escrow and payroll rolled on chain settled on regtest. Results: [phase4.md](phase4.md).
 
 ### Phase 5: extensions (after Phases 3 and 4)
 

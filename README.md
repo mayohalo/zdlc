@@ -41,6 +41,20 @@ cargo run -p zdlc --release --bin zdlc-live -- run --settle refund    # seed-onl
 cargo run -p zdlc --release --bin zdlc-live -- sweep                 # return transparent payouts to the treasury
 ```
 
+## The RFQ desk
+
+`zdlc-desk` is a quote board and a sealed mailbox (put it behind TLS). `zdlc-trader` runs a maker (hedger) or a taker (recipient), each with its own seed; they meet only through the desk, the oracles and the chain.
+
+```sh
+cargo run -p zdlc --release --bin zdlc-desk -- --listen 127.0.0.1:7900 --state desk.json --node $ZDLC_RPC
+cargo run -p zdlc --release --bin zdlc-trader -- address --seed maker.seed      # fund the printed treasury
+cargo run -p zdlc --release --bin zdlc-trader -- maker --seed maker.seed --desk http://127.0.0.1:7900 --oracles $ORACLES --premium-bps 50
+cargo run -p zdlc --release --bin zdlc-trader -- taker --seed taker.seed --desk http://127.0.0.1:7900 --oracles $ORACLES --collateral 1000000 --settle close
+# private quote by memo invitation: no public RFQ
+cargo run -p zdlc --release --bin zdlc-trader -- maker ... --invite <taker inbox hex> --invite-collateral 1000000
+cargo run -p zdlc --release --bin zdlc-trader -- taker ... --invitations-from <height>
+```
+
 ## Build and test
 
 Rust 1.97.1 (pinned in `rust-toolchain.toml`), Docker for the regtest node.
@@ -52,8 +66,10 @@ cargo test -p zdlc --release --test regtest -- --ignored --nocapture # Phase 0 g
 cargo test -p zdlc --release --test phase1 -- --ignored --nocapture  # Phase 1 gate
 cargo test -p zdlc --release --test phase2 -- --ignored --nocapture  # Phase 2 gate (needs a fresh chain)
 cargo test -p zdlc --release --test phase3 -- --ignored --nocapture  # two oracle daemons, 2-of-2 (needs internet)
+cargo test -p zdlc --release --test phase4 -- --ignored --nocapture  # maker and taker processes trade through the desk
+cargo test -p zdlc --release --test products -- --ignored --nocapture --test-threads=1  # invitation, escrow, payroll roll
 cargo run -p zdlc --release --bin zdlc-oracle -- announce zecusd-1    # dev oracle
 cargo run -p zdlc --release --bin zdlc-watch -- kit.json              # refund watcher
 ```
 
-Results: [Phase 0](docs/spikes/phase0.md), [Phase 1](docs/phase1.md), [Phase 2](docs/phase2.md), [testnet](docs/testnet.md), [Phase 3](docs/phase3.md).
+Results: [Phase 0](docs/spikes/phase0.md), [Phase 1](docs/phase1.md), [Phase 2](docs/phase2.md), [testnet](docs/testnet.md), [Phase 3](docs/phase3.md), [Phase 4](docs/phase4.md).

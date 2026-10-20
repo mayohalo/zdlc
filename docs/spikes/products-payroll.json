@@ -1,0 +1,29 @@
+{
+  "employee_paid_in_roll_zat": 23992500,
+  "month1_credits_at_800": [
+    124000000,
+    76000000
+  ],
+  "month1_funding": 215,
+  "month2_cet_height": 221,
+  "month2_outputs_zat": [
+    80000000,
+    120000000
+  ],
+  "roll_height": 218,
+  "roll_outputs_zat": [
+    [
+      "t2NXYG82BYPGYgHFsWFwPAc7vUtWVxumSRv",
+      200010000
+    ],
+    [
+      "tmQzj2sjTzAsR8JNLA89jxLTqzp3ucH6rFW",
+      23992500
+    ],
+    [
+      "tmFdr9vS6Kxux3QvT6z6M9dyWLSax2u8CYs",
+      25992500
+    ]
+  ],
+  "roll_spends_month1": true
+}

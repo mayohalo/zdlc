@@ -90,7 +90,7 @@ The contract's existence and total are public; its terms, oracle and split stay 
 | Public, on Zcash | Ironwood value leaving into a 2-of-2, then the same value returning to Ironwood | With transparent payouts: the exact split. For a numeric contract the split maps to a price, which can identify the oracle event |
 | Oracle | Nothing; it signs outcomes for everyone alike | Nothing more, unless it scans the chain for splits that match its outcomes |
 | Counterparty | Everything in the contract | The same |
-| Matching venue (RFQ desk, G8 group) | Quotes and who accepted | The same |
+| Matching venue (RFQ desk) | Quotes and who accepted | The same |
 
 Shielded CET outputs would hide the split even in a dispute. Whether that is affordable is the spike's question, because of four costs:
 

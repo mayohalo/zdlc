@@ -40,7 +40,7 @@ The desk is a matching board that never holds funds: a quote is a dlcspecs offer
 
 1. **Request.** A taker posts underlying, notional, expiry and payoff type (forward, call or put spread, binary).
 2. **Quote.** Makers reply with full contract terms: payout curve, oracle announcement, each side's collateral.
-3. **Accept.** The taker picks one; both run setup over the desk's transport (G8 over MLS, or Nostr).
+3. **Accept.** The taker picks one; both run setup through the desk's mailbox, encrypted end to end between them; a maker can also invite a taker privately with a memo invitation.
 4. **Fund.** The funding tx confirms and the desk drops out.
 
 - **Fully collateralized.** There are no margin calls, so every payoff is bounded: spreads, capped forwards and binaries suit it; naked options do not.
@@ -63,7 +63,7 @@ Start with the on-chain roll. Shorter periods trade fees for less counterparty e
 Binary or enumerated events, with the oracle mirroring a public resolution: a sports result, an election call, or a Polymarket market's final resolution.
 
 - **What stays hidden.** The outcome is public; who bet, how much and at what odds are not, as long as contracts close cooperatively.
-- **Matching.** The RFQ desk or a G8 group. Liquidity is bilateral, so this suits a small number of larger bets better than an order book.
+- **Matching.** The RFQ desk, or a private memo invitation. Liquidity is bilateral, so this suits a small number of larger bets better than an order book.
 
 ## Cross-Chain
 
@@ -103,7 +103,7 @@ A DLC needs a second signer, so the counterparty is a commitment service that st
 
 ### Group-chat bets
 
-Multi-party DLCs need every member to sign every CET, so group bets work best as pairwise contracts, or one bookmaker against each member. The G8 chat carries the offer, accept and sign messages over MLS; a bot posts the oracle's attestation and each bet's result into the thread.
+Multi-party DLCs need every member to sign every CET, so group bets work best as pairwise contracts, or one bookmaker against each member. The group shares one desk mailbox thread for the offer, accept and sign messages, encrypted to each member; a bot posts the oracle's attestation and each bet's result into the thread.
 
 ### Fantasy Trader League, settled on Zcash
 
