@@ -7,9 +7,12 @@
 
 pub mod adaptor;
 pub mod contract;
+pub mod enclave;
+pub mod feeds;
 pub mod keys;
 pub mod node;
 pub mod oracle;
+pub mod oracle_client;
 pub mod params;
 pub mod payout;
 pub mod recovery;

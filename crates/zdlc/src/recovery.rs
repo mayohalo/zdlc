@@ -177,7 +177,7 @@ pub fn record_tx(
     tx::extract(tx::sign(tx::build(p, &spec)?, 0, &wallet.coin_key(i))?)
 }
 
-fn parse_tx(raw: &[u8]) -> Option<Transaction> {
+pub(crate) fn parse_tx(raw: &[u8]) -> Option<Transaction> {
     let branch = BranchId::try_from(u32::from_le_bytes(raw.get(8..12)?.try_into().ok()?)).ok()?;
     Transaction::read(raw, branch).ok()
 }
