@@ -1,0 +1,62 @@
+//! Consensus parameters for the zdlc regtest chain (`infra/zakura/regtest.toml`).
+
+use zcash_protocol::consensus::{BlockHeight, BranchId};
+use zcash_protocol::local_consensus::LocalNetwork;
+
+/// NU7 activation height on the zdlc regtest chain. Everything up to NU6.3 (Ironwood)
+/// activates at height 1, so heights 1..NU7_AT sign under NU6.3's branch ID and
+/// NU7_AT onward under NU7's.
+pub const NU7_AT: u32 = 200;
+
+/// NU6.3 "Ironwood" branch ID.
+pub const BRANCH_NU6_3: u32 = 0x37A5_165B;
+/// NU7 branch ID.
+pub const BRANCH_NU7: u32 = 0x7719_0AD9;
+
+pub fn regtest(nu7: Option<u32>) -> LocalNetwork {
+    let one = Some(BlockHeight::from_u32(1));
+    LocalNetwork {
+        overwinter: one,
+        sapling: one,
+        blossom: one,
+        heartwood: one,
+        canopy: one,
+        nu5: one,
+        nu6: one,
+        nu6_1: one,
+        nu6_2: one,
+        nu6_3: one,
+        nu7: nu7.map(BlockHeight::from_u32),
+    }
+}
+
+/// The branch ID a transaction targeting `height` signs under.
+pub fn branch_at(params: &LocalNetwork, height: u32) -> u32 {
+    u32::from(BranchId::for_height(params, BlockHeight::from_u32(height)))
+}
+
+/// Whether `[from, to]` crosses the next network upgrade after `from`: the rule that a
+/// contract's maturity and refund must fall before the next activation height.
+pub fn spans_upgrade(params: &LocalNetwork, from: u32, to: u32) -> bool {
+    BranchId::for_height(params, BlockHeight::from_u32(from))
+        .height_bounds(params)
+        .and_then(|(_, next)| next)
+        .is_some_and(|next| to >= u32::from(next))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use zcash_protocol::consensus::Parameters;
+
+    #[test]
+    fn branches_and_upgrade_guard() {
+        let p = regtest(Some(NU7_AT));
+        assert_eq!(branch_at(&p, 10), BRANCH_NU6_3);
+        assert_eq!(branch_at(&p, NU7_AT), BRANCH_NU7);
+        assert!(spans_upgrade(&p, 150, NU7_AT));
+        assert!(!spans_upgrade(&p, 150, NU7_AT - 1));
+        assert!(!spans_upgrade(&p, NU7_AT, 10_000));
+        let _ = p.network_type();
+    }
+}
