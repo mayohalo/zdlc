@@ -7,8 +7,10 @@
 
 pub mod adaptor;
 pub mod contract;
+pub mod desk;
 pub mod enclave;
 pub mod feeds;
+pub mod invite;
 pub mod keys;
 pub mod node;
 pub mod oracle;
@@ -18,8 +20,10 @@ pub mod payout;
 pub mod recovery;
 pub mod regtest;
 pub mod script;
+pub mod trader;
 pub mod tx;
 pub mod wallet;
+pub mod wire;
 pub mod watch;
 
 #[derive(Debug, thiserror::Error)]

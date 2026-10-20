@@ -4,6 +4,7 @@
 //! zdlc-live status
 //! zdlc-live run --settle close|cet|refund [--oracles URL,URL] [--price 60.00]
 //! zdlc-live sweep
+//! zdlc-live pay --to ADDR[,ADDR…] --amount ZAT     (from the treasury, one output per address)
 //! ```
 //!
 //! Options: `--node URL` (or `ZDLC_RPC`; required, never stored); `--seed FILE` (default
@@ -196,6 +197,7 @@ async fn main() {
     let r = match args.first().map(String::as_str) {
         Some("status") => status(&ctx).await,
         Some("sweep") => sweep(&ctx).await,
+        Some("pay") => pay(&ctx, &args).await,
         Some("run") => run(&mut ctx, &args).await,
         _ => Err(Error::Build("usage: zdlc-live status | run --settle close|cet|refund [--oracles A,B] [--price D] | sweep".into())),
     };
@@ -227,6 +229,38 @@ async fn status(ctx: &Ctx) -> Result<()> {
             println!("index {i}: coins {} at {}, payouts {}", taz(c), ctx.addr(&w.coin_address(i)), taz(p));
         }
     }
+    Ok(())
+}
+
+/// Pays `--amount` to each `--to` transparent address from the treasury.
+async fn pay(ctx: &Ctx, args: &[String]) -> Result<()> {
+    let tip = check_chain(ctx).await?;
+    let w = ctx.wallet()?;
+    let amount: u64 = arg(args, "--amount", "").parse().map_err(|_| Error::Build("--amount ZAT".into()))?;
+    let to: Vec<zcash_transparent::address::TransparentAddress> = arg(args, "--to", "")
+        .split(',')
+        .filter(|s| !s.is_empty())
+        .map(|s| {
+            s.parse::<zcash_address::ZcashAddress>()
+                .map_err(|e| Error::Build(format!("{s}: {e}")))?
+                .convert::<zcash_transparent::address::TransparentAddress>()
+                .map_err(|e| Error::Build(format!("{s}: {e:?}")))
+        })
+        .collect::<Result<_>>()?;
+    let inputs = ctx.coins(&w, 0, false).await?;
+    let have: u64 = inputs.iter().map(|c| c.value).sum();
+    let mut outputs: Vec<Pay> = to.iter().map(|a| Pay::Transparent(*a, amount)).collect();
+    outputs.push(Pay::Transparent(w.coin_address(0), 1));
+    let mut spec = Spec { target_height: tip + 1, expiry_height: tip + 40, lock_height: None, inputs: inputs.clone(), outputs, ironwood_anchor: None };
+    let fee = tx::fee(&ctx.p, &spec)?;
+    let last = spec.outputs.len() - 1;
+    spec.outputs[last] = Pay::Transparent(w.coin_address(0), have.checked_sub(amount * to.len() as u64 + fee).ok_or(Error::Build("treasury too small".into()))?);
+    let mut pczt = tx::build(&ctx.p, &spec)?;
+    for i in 0..inputs.len() {
+        pczt = tx::sign(pczt, i, &w.coin_key(0))?;
+    }
+    let f = tx::extract(pczt)?;
+    ctx.send_wait(&format!("pay {} to {} addresses", taz(amount), to.len()), &f).await?;
     Ok(())
 }
 
@@ -342,6 +376,7 @@ async fn run(ctx: &mut Ctx, args: &[String]) -> Result<()> {
         unit_cents,
         nb_digits,
         rounding: (2 * collateral / 100).max(1), // 1% of the pot
+        premium: 0,
     };
     let (event, mut oracles) = if oracle_urls.is_empty() {
         let o = NumericOracle::new(ctx.name, &format!("zecusd/{}/{tip}", ctx.name), nb_digits, unit_cents);
@@ -370,6 +405,7 @@ async fn run(ctx: &mut Ctx, args: &[String]) -> Result<()> {
         refund_height: refund,
         sign_height: tip + 1,
         dual_sign: false,
+        roll: None,
     };
     terms.check_cap(ctx.cap())?;
     let t = Instant::now();
