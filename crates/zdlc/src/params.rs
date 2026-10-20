@@ -17,6 +17,33 @@ pub const BRANCH_NU7: u32 = 0x7719_0AD9;
 /// own, smaller cap when it is enabled.
 pub const TESTNET_CAP: u64 = 500_0000;
 
+/// Largest collateral per side on mainnet (0.01 ZEC) until the protocol has more review.
+pub const MAINNET_CAP: u64 = 100_0000;
+
+/// Parameters as a node reports them (`getblockchaininfo` `upgrades`): the activation
+/// heights the node will enforce, including upgrades scheduled after the pinned library
+/// was released (mainnet NU7).
+pub fn from_node(upgrades: &serde_json::Value) -> Option<LocalNetwork> {
+    let h = |name: &str| {
+        upgrades.as_object()?.values().find(|u| u["name"] == name)?["activationheight"]
+            .as_u64()
+            .map(|h| BlockHeight::from_u32(h as u32))
+    };
+    Some(LocalNetwork {
+        overwinter: h("Overwinter"),
+        sapling: h("Sapling"),
+        blossom: h("Blossom"),
+        heartwood: h("Heartwood"),
+        canopy: h("Canopy"),
+        nu5: h("NU5"),
+        nu6: h("NU6"),
+        nu6_1: h("NU6.1"),
+        nu6_2: h("NU6.2"),
+        nu6_3: Some(h("NU6.3")?),
+        nu7: h("NU7"),
+    })
+}
+
 /// Zcash testnet, as a `LocalNetwork` so every builder takes one parameter type. The
 /// heights are the pinned zcash_protocol's (NU6.3 at 4,134,000, NU7 at 4,465,026).
 pub fn testnet() -> LocalNetwork {

@@ -1,6 +1,11 @@
-//! The zdlc testnet wallet: creates a random seed at `~/.zdlc/testnet-seed.hex` (mode 600)
-//! if there is none, and prints the transparent address to fund (coin key, index 0).
-//! The seed never enters the repository.
+//! A zdlc wallet for a live network: creates a random seed at `~/.zdlc/<network>-seed.hex`
+//! (mode 600) if there is none, and prints the transparent address to fund (the treasury,
+//! index 0). The seed never enters the repository.
+//!
+//! ```sh
+//! cargo run -p zdlc --release --example wallet -- testnet
+//! cargo run -p zdlc --release --example wallet -- mainnet
+//! ```
 
 use std::{fs, io::Write, os::unix::fs::OpenOptionsExt, path::PathBuf};
 
@@ -8,8 +13,17 @@ use zcash_protocol::consensus::NetworkType;
 use zdlc::{keys, wallet::Wallet};
 
 fn main() {
+    let net = std::env::args().nth(1).unwrap_or("testnet".into());
+    let ty = match net.as_str() {
+        "testnet" => NetworkType::Test,
+        "mainnet" => NetworkType::Main,
+        _ => {
+            eprintln!("usage: wallet testnet|mainnet");
+            std::process::exit(2);
+        }
+    };
     let dir = PathBuf::from(std::env::var("HOME").expect("HOME")).join(".zdlc");
-    let path = dir.join("testnet-seed.hex");
+    let path = dir.join(format!("{net}-seed.hex"));
     let seed: [u8; 32] = match fs::read_to_string(&path) {
         Ok(h) => hex::decode(h.trim()).expect("seed hex").try_into().expect("32 bytes"),
         Err(_) => {
@@ -27,6 +41,5 @@ fn main() {
             s
         }
     };
-    let w = Wallet::from_seed(seed);
-    println!("{}", keys::encode(&w.coin_address(0), NetworkType::Test));
+    println!("{}", keys::encode(&Wallet::from_seed(seed).coin_address(0), ty));
 }
