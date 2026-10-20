@@ -10,3 +10,15 @@ zdlc is oracle-settled contracts on Zcash, entered and exited through Ironwood. 
 | [docs/core.md](docs/core.md) | rust-dlc reuse map, TEE oracle network, Ironwood payout spike |
 | [docs/applications.md](docs/applications.md) | Shielded payments, private markets, cross-chain, Zcash-native extensions |
 | [docs/plan.md](docs/plan.md) | Phased plan with gates, open questions, sources |
+
+## Build and test
+
+Rust 1.97.1 (pinned in `rust-toolchain.toml`), Docker for the regtest node.
+
+```sh
+cargo test -p zdlc --release                                         # unit + offline contract tests
+infra/zakura/scripts/down.sh; infra/zakura/scripts/up.sh             # fresh Zakura regtest, NU7 at 200
+cargo test -p zdlc --release --test regtest -- --ignored --nocapture # Phase 0 gate
+```
+
+Phase 0 results: [docs/spikes/phase0.md](docs/spikes/phase0.md).

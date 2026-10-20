@@ -74,10 +74,10 @@ Single contracts port cleanly; channels and anything that must survive a network
 | Sighash commits to the consensus branch ID (ZIP 244, kept in v6) | Every CET and the refund become invalid when the next upgrade activates | Maturity and refund height must fall before the next activation height, or every transaction is signed twice, once per branch ID. Rounds in ztxo already refuse to straddle `next_upgrade` |
 | NU7 mainnet height due to be set Oct 20, 2026 (ZIP 259), 25 s blocks | Contracts that span NU7 hit the rule above, and heights mean different times on each side | Express the refund as a height computed per era; dual-sign or refuse contracts that span activation |
 | librustzcash's Builder fixes nLockTime at 0; the pczt roles (0.10.0-pre.1) do not | The Builder cannot make the refund. pczt spends P2SH multisig, exposes each input's sighash, accepts an external signature and sets a per-input height lock time | Every transaction is v6, built through pczt: transparent_sighash for adaptor signing, append_transparent_signature for the decrypted signature. No custom builder |
-| Each tx must pay the conventional fee alone; no RBF, no CPFP | A CET's fee is fixed at signing and cannot be bumped | ZIP 317 fee baked into every CET. A CET with one transparent input and two transparent outputs is 2 logical actions; at the 10,000 zat/action ceiling that is 20,000 zat |
+| Each tx must pay the conventional fee alone; no RBF, no CPFP | A CET's fee is fixed at signing and cannot be bumped | ZIP 317 fee baked into every CET. A CET with one P2SH input and two P2PKH outputs is 2 logical actions: 10,000 zat, measured on regtest in Phase 0 |
 | Relay limits: 15 sigops, scriptSig 1,650 B, dust 54 zat | A 2-of-2 spend is about 220 B and 2 sigops, well inside | CET payouts below 54 zat are dropped to the other side, as Bitcoin DLCs do with dust |
 | nExpiryHeight on every tx | A pre-signed tx with a non-zero expiry silently dies | CETs and refund set nExpiryHeight to 0 (no expiry); the cooperative close uses a normal short expiry |
-| ECDSA signatures must be low-S | A decrypted adaptor signature may come out high-S | Normalize s to n - s before broadcast; validity is unchanged |
+| ECDSA signatures must be low-S | pczt's Signer refuses a high-S signature | libsecp256k1-zkp's adaptor decrypt already returns low-S (Phase 0: 0 of 64); zdlc normalizes anyway |
 
 The one branch-ID rule is the easiest to miss. A contract signed today under the Ironwood branch, with a refund height after NU7 activates, has a refund that can never confirm.
 

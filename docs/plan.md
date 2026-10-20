@@ -8,13 +8,15 @@ Six phases, each ending at a gate. A phase starts when the gates it depends on p
 
 ### Phase 0: spikes (Oct 20–22)
 
-- [ ] Builder: a v6 transaction spending the P2SH 2-of-2 through pczt, its signatures added with `append_transparent_signature` and its lock time set per input.
-- [ ] Adaptor path: adaptor-sign the input's `transparent_sighash`, decrypt with an oracle scalar, normalize to low-S, append and finalize.
-- [ ] Ironwood: a v6 transaction with only transparent inputs paying an Ironwood output. This is the cooperative close.
-- [ ] NU7: a v6 CET signed under NU6.3's branch ID (37a5165b) is rejected after activation; the same CET signed under NU7's (77190ad9) is accepted. Run on regtest configs from before and after NU7.
-- [ ] Dependencies: pin a rust-dlc commit; check that dlc-trie and secp256k1-zkp build beside pczt, and whether dlc-trie pulls in the Bitcoin `dlc` crate.
+- [x] Builder: a v6 transaction spending the P2SH 2-of-2 through pczt, its signatures added with `append_transparent_signature` and its lock time set per input.
+- [x] Adaptor path: adaptor-sign the input's `transparent_sighash`, decrypt with an oracle scalar, normalize to low-S, append and finalize.
+- [x] Ironwood: a v6 transaction with only transparent inputs paying an Ironwood output. This is the cooperative close.
+- [x] NU7: a v6 CET signed under NU6.3's branch ID (37a5165b) is rejected after activation; the same CET signed under NU7's (77190ad9) is accepted. Run on regtest configs from before and after NU7.
+- [x] Dependencies: pin a rust-dlc commit; check that dlc-trie and secp256k1-zkp build beside pczt, and whether dlc-trie pulls in the Bitcoin `dlc` crate.
 
 **Gate:** on Zakura regtest, a refund confirms after its lock height and not before, and an adaptor-completed CET confirms.
+
+**Passed 2026-10-20.** Results: [spikes/phase0.md](spikes/phase0.md).
 
 ### Phase 1: core contract (Oct 22–28)
 
@@ -71,13 +73,16 @@ Six phases, each ending at a gate. A phase starts when the gates it depends on p
 
 Unverified facts:
 
-- Whether Ironwood accepts outputs from a transaction with only transparent inputs (spike).
-- Whether pczt's append_transparent_signature checks the signature or its low-S form, and whether its Updater can set an input's required_height_lock_time.
-- Whether secp256k1-zkp's adaptor module and pczt share a secp256k1 version; if not, signatures cross as compact bytes.
 - The NU7 mainnet activation height, due to be set Oct 20, 2026, which caps maturity for every contract signed before it.
 - Whether pczt can combine two parties' Ironwood spends into one funding transaction, and what each side then learns.
 - Whether an Ironwood output's ciphertext is byte-for-byte reproducible from its plaintext.
 - Which existing dlcspecs oracles are still live, and whether their announcement format matches rust-dlc's.
+
+Answered in Phase 0 ([spikes/phase0.md](spikes/phase0.md)):
+
+- Ironwood accepts outputs from a transaction with only transparent inputs, under NU6.3 and NU7.
+- `append_transparent_signature` verifies each signature and refuses high-S. The Updater cannot set an input's sequence or lock time, so zdlc rebuilds the bundle with `Input::parse`.
+- secp256k1-zkp is on secp256k1 0.29 and pczt on 0.33; both build together, and signatures cross as compact bytes.
 
 Design choices:
 

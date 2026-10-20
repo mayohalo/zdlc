@@ -1,0 +1,121 @@
+[
+  {
+    "result": {
+      "accepted": true,
+      "detail": "Ok(\"9e43b024e6316f073f50629070d3c96f203f9b07987e85e21a74caa970d5167e\")"
+    },
+    "step": "unshielded coinbase -> 2-of-2 funding"
+  },
+  {
+    "result": {
+      "accepted": false,
+      "detail": "Err(\"rpc: sendrawtransaction: {\\\"code\\\":-25,\\\"message\\\":\\\"failed to validate tx: WtxId(\\\\\\\"private\\\\\\\"), error: transaction did not pass consensus validation: transaction is locked until after block height 116\\\"}\")",
+      "lock": 116,
+      "tip": 115
+    },
+    "step": "refund at tip = lock-1"
+  },
+  {
+    "result": {
+      "accepted": true,
+      "detail": "Ok(\"7c8d7b2e5400804fe73c77434644671137b6fae7ec3a32e57c3cb27f2750eb6d\")",
+      "tip": 116
+    },
+    "step": "refund at tip = lock"
+  },
+  {
+    "result": {
+      "branch": "37a5165b",
+      "funding_height": 111,
+      "lock": 116,
+      "mined_height": 117,
+      "txid": "7c8d7b2e5400804fe73c77434644671137b6fae7ec3a32e57c3cb27f2750eb6d"
+    },
+    "step": "refund confirmed"
+  },
+  {
+    "result": {
+      "branch": "37a5165b",
+      "bytes": 354,
+      "decrypted_high_s": false,
+      "mined_height": 119,
+      "outcome": "heads",
+      "outputs_zat": [
+        139993000,
+        59997000
+      ],
+      "txid": "56253b4d0dbbe0892c27d968812ca474490535ce8e492fae3b2649bf1c9cb019"
+    },
+    "step": "adaptor CET confirmed"
+  },
+  {
+    "result": {
+      "accepted": true,
+      "branch": "37a5165b",
+      "build_prove_ms": 2439,
+      "bytes": 9425,
+      "detail": "Ok(\"a4e028cfebb4f2a5b2b7906692d41f526dc183456e76f4db706acf0c5fca510c\")"
+    },
+    "step": "rt-close-nu6.3: P2SH -> Ironwood close"
+  },
+  {
+    "result": {
+      "ironwood_pool_after": 199980000,
+      "ironwood_pool_before": 0,
+      "mined_height": 121,
+      "txid": "a4e028cfebb4f2a5b2b7906692d41f526dc183456e76f4db706acf0c5fca510c"
+    },
+    "step": "rt-close-nu6.3: close confirmed"
+  },
+  {
+    "result": {
+      "accepted": false,
+      "detail": "Err(\"rpc: sendrawtransaction: {\\\"code\\\":-25,\\\"message\\\":\\\"failed to validate tx: WtxId(\\\\\\\"private\\\\\\\"), error: transaction did not pass consensus validation: transaction uses an incorrect consensus branch id\\\"}\")",
+      "tip": 122
+    },
+    "step": "NU7-signed CET before activation"
+  },
+  {
+    "result": {
+      "accepted": false,
+      "detail": "Err(\"rpc: sendrawtransaction: {\\\"code\\\":-25,\\\"message\\\":\\\"failed to validate tx: WtxId(\\\\\\\"private\\\\\\\"), error: transaction did not pass consensus validation: transaction uses an incorrect consensus branch id\\\"}\")",
+      "tip": 199
+    },
+    "step": "NU6.3-signed CET once the next block is NU7"
+  },
+  {
+    "result": {
+      "accepted": true,
+      "detail": "Ok(\"30fcae6301540c4143e3c335585df4966989fbd998489bb9e442afc4e568e701\")",
+      "tip": 199
+    },
+    "step": "NU7-signed CET once the next block is NU7"
+  },
+  {
+    "result": {
+      "chaintip_branch": "77190ad9",
+      "mined_height": 200,
+      "txid": "30fcae6301540c4143e3c335585df4966989fbd998489bb9e442afc4e568e701"
+    },
+    "step": "NU7 CET confirmed"
+  },
+  {
+    "result": {
+      "accepted": true,
+      "branch": "77190ad9",
+      "build_prove_ms": 866,
+      "bytes": 9426,
+      "detail": "Ok(\"b2e81569375b5277e4c07a3ec8dda8e9b4309566648b2a263dbc48ef19023ca3\")"
+    },
+    "step": "rt-close-nu7: P2SH -> Ironwood close"
+  },
+  {
+    "result": {
+      "ironwood_pool_after": 399960000,
+      "ironwood_pool_before": 199980000,
+      "mined_height": 202,
+      "txid": "b2e81569375b5277e4c07a3ec8dda8e9b4309566648b2a263dbc48ef19023ca3"
+    },
+    "step": "rt-close-nu7: close confirmed"
+  }
+]
