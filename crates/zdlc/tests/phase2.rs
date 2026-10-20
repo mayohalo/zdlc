@@ -9,7 +9,7 @@
 
 use serde_json::{json, Value};
 use zdlc::{
-    contract::{Contract, Event, Party, Payouts, Terms},
+    contract::{Contract, Event, Party, Payouts, Splits, Terms},
     keys,
     oracle::{DevOracle, NumericOracle},
     params::{self, NU7_AT},
@@ -62,6 +62,7 @@ impl Run {
             sign_height: tip + 1,
             dual_sign: dual,
             roll: None,
+            splits: Splits::default(),
         }
     }
 

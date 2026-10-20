@@ -1,0 +1,32 @@
+[
+  {
+    "cet_height": 256,
+    "funding_height": 255,
+    "outputs_zat": [
+      75000000,
+      45000000,
+      30000000
+    ],
+    "payees": [
+      "ana 50%",
+      "ben 30%",
+      "chen 20%"
+    ],
+    "run": "team escrow by CET",
+    "txid": "e5f2ebc7ded646ffe3405430969afe2eced61c181501da7b98f540933a3ddf20"
+  },
+  {
+    "close_height": 259,
+    "each_beneficiary_decrypts": true,
+    "funding_height": 258,
+    "ironwood_outputs_zat": [
+      74996666,
+      44996667,
+      29996667
+    ],
+    "ironwood_pool_delta": 149990000,
+    "other_split_refused": "build: close PCZT refused: outputs differ from the agreed payouts",
+    "run": "team escrow by cooperative close",
+    "txid": "5918d7f25bc6a6d2c40bc1126ead9539bdf5994d6f6db120aba35bd67cbde3f3"
+  }
+]

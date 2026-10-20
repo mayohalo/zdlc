@@ -11,7 +11,7 @@
 use std::time::Instant;
 
 use zdlc::{
-    contract::{Event, Payouts, Terms},
+    contract::{Event, Payouts, Splits, Terms},
     oracle::NumericOracle,
     params::{self, NU7_AT},
     payout::StableValue,
@@ -113,6 +113,7 @@ async fn run() -> zdlc::Result<()> {
         sign_height: tip + 1,
         dual_sign: false,
         roll: None,
+        splits: Splits::default(),
     };
 
     step(5, "Offer, accept, sign: every CET and the refund before funding");

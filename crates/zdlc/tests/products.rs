@@ -17,7 +17,7 @@ use std::process::{Child, Command};
 
 use serde_json::{json, Value};
 use zdlc::{
-    contract::{Event, Party, PartyInfo, Payouts, Roll, Terms},
+    contract::{Event, Party, PartyInfo, Payouts, Roll, Splits, Terms},
     enclave::EventSpec,
     keys,
     oracle::NumericOracle,
@@ -179,6 +179,7 @@ async fn milestone_escrow_with_two_arbiters() {
         sign_height: tip + 1,
         dual_sign: false,
         roll: None,
+        splits: Splits::default(),
     };
     let offer = client.offer(terms);
     let (accept, txs) = contractor.accept(&rt.p, tip, &offer).unwrap();
@@ -236,6 +237,7 @@ async fn payroll_rolled_on_chain() {
         sign_height: tip + 1,
         dual_sign: false,
         roll: None,
+        splits: Splits::default(),
     };
     let (e1, b1) = (party(&ew, 1, vec![coin(&ew, txid, 0, q + 50_0000)], None), party(&bw, 1, vec![coin(&bw, txid, 1, q + 50_0000)], None));
     let offer = e1.offer(t1.clone());
@@ -264,6 +266,7 @@ async fn payroll_rolled_on_chain() {
         sign_height: tip + 1,
         dual_sign: false,
         roll: Some(Roll { coin: ec1.txs.funding_coin.clone(), credit }),
+        splits: Splits::default(),
     };
     let e2 = party(&ew, 2, vec![], Some(ew.funding_key(1)));
     let b2 = party(&bw, 2, vec![coin(&bw, txid, 2, 5000_0000)], Some(bw.funding_key(1)));

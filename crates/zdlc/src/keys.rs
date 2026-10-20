@@ -2,7 +2,7 @@
 
 use secp256k1::{PublicKey, SecretKey};
 use sha2::{Digest, Sha256};
-use zcash_address::{ToAddress, ZcashAddress};
+use zcash_address::{ConversionError, ToAddress, TryFromAddress, ZcashAddress};
 use zcash_protocol::consensus::NetworkType;
 use zcash_transparent::address::TransparentAddress;
 
@@ -31,6 +31,26 @@ pub fn encode(addr: &TransparentAddress, net: NetworkType) -> String {
         TransparentAddress::PublicKeyHash(h) => ZcashAddress::from_transparent_p2pkh(net, *h).encode(),
         TransparentAddress::ScriptHash(h) => ZcashAddress::from_transparent_p2sh(net, *h).encode(),
     }
+}
+
+struct Decoded(NetworkType, TransparentAddress);
+
+impl TryFromAddress for Decoded {
+    type Error = ();
+
+    fn try_from_transparent_p2pkh(net: NetworkType, data: [u8; 20]) -> Result<Self, ConversionError<()>> {
+        Ok(Decoded(net, TransparentAddress::PublicKeyHash(data)))
+    }
+
+    fn try_from_transparent_p2sh(net: NetworkType, data: [u8; 20]) -> Result<Self, ConversionError<()>> {
+        Ok(Decoded(net, TransparentAddress::ScriptHash(data)))
+    }
+}
+
+/// Decodes a transparent address (`t1…`, `t3…`, `tm…`, `t2…`) and its network.
+pub fn decode(s: &str) -> Option<(NetworkType, TransparentAddress)> {
+    let d: Decoded = ZcashAddress::try_from_encoded(s).ok()?.convert().ok()?;
+    Some((d.0, d.1))
 }
 
 /// Encodes a transparent address for regtest (`tm…` / `t2…`).

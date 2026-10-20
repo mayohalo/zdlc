@@ -32,8 +32,10 @@ use crate::{
     Error, Result,
 };
 
-/// Outputs below this are dropped (to the other side), as relay rejects them as dust.
+/// Outputs below this are merged into another output, as relay rejects them as dust.
 pub const DUST: u64 = 54;
+/// Most beneficiaries a contract may name: a 16-output CET pays 80,000 zat in fees.
+pub const MAX_BENEFICIARIES: usize = 16;
 /// How many blocks old a contract's sign height may be when a party checks the terms.
 pub const SIGN_SLACK: u32 = 10;
 /// Expiry delta for the funding and close transactions (not pre-signed).
@@ -95,6 +97,149 @@ pub struct Terms {
     /// Roll from a previous contract: its funding output, settled at `credit`, funds this
     /// one in the same transaction (see [`Roll`]).
     pub roll: Option<Roll>,
+    /// Who each side's payout goes to. The default pays each side to its own party.
+    pub splits: Splits,
+}
+
+/// Who an output pays: one of the two signers, or a beneficiary named in the terms.
+/// Outputs are ordered by payee (offer, accept, then beneficiaries by index), so both
+/// signers build identical transactions.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum Payee {
+    Offer,
+    Accept,
+    Beneficiary(usize),
+}
+
+/// A payee who never signs: it only gave addresses.
+#[derive(Clone, Debug)]
+pub struct Beneficiary {
+    pub label: String,
+    /// CETs pay here.
+    pub payout: TransparentAddress,
+    /// The cooperative close pays here; `None` pays `payout` transparently.
+    pub close: Option<IronwoodAddress>,
+}
+
+/// How one side's payout divides among payees, in basis points summing to 10,000. Each
+/// share rounds down; the remainder and any share below dust go to the first payee.
+/// Empty: everything to the side's own party.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Split(pub Vec<(Payee, u32)>);
+
+/// The payees of every outcome. Splits apply to CETs and the cooperative close; the
+/// refund ignores them and returns each funder's collateral, since no outcome happened.
+#[derive(Clone, Debug, Default)]
+pub struct Splits {
+    pub beneficiaries: Vec<Beneficiary>,
+    pub offer: Split,
+    pub accept: Split,
+    /// Enumerated contracts only: an outcome's own output list, replacing both splits
+    /// for that outcome (fixed fees, say). Amounts sum to the pot.
+    pub outcomes: Vec<(String, Vec<(Payee, u64)>)>,
+}
+
+impl Split {
+    fn expand(&self, own: Payee, amount: u64) -> Vec<(Payee, u64)> {
+        if self.0.is_empty() {
+            return vec![(own, amount)];
+        }
+        let mut out: Vec<(Payee, u64)> = self
+            .0
+            .iter()
+            .map(|(p, bps)| (*p, (amount as u128 * *bps as u128 / 10_000) as u64))
+            .collect();
+        let paid: u64 = out.iter().map(|(_, v)| v).sum();
+        out[0].1 += amount - paid;
+        for i in 1..out.len() {
+            if out[i].1 < DUST {
+                out[0].1 += out[i].1;
+                out[i].1 = 0;
+            }
+        }
+        out
+    }
+}
+
+impl Splits {
+    pub fn is_default(&self) -> bool {
+        self.beneficiaries.is_empty()
+            && self.offer.0.is_empty()
+            && self.accept.0.is_empty()
+            && self.outcomes.is_empty()
+    }
+
+    /// The outputs paying (offer, accept), or the outcome's own list: merged per payee,
+    /// ordered by payee, without zero or dust outputs. A side whose whole payout is dust
+    /// goes to the other side's first payee.
+    pub fn outputs(&self, offer: u64, accept: u64, outcome: Option<&str>) -> Vec<(Payee, u64)> {
+        if let Some((_, list)) = outcome.and_then(|o| self.outcomes.iter().find(|(n, _)| n == o)) {
+            return merge(list.iter().copied());
+        }
+        let mut o = self.offer.expand(Payee::Offer, offer);
+        let mut a = self.accept.expand(Payee::Accept, accept);
+        if o[0].1 < DUST {
+            a[0].1 += o[0].1;
+            o[0].1 = 0;
+        } else if a[0].1 < DUST {
+            o[0].1 += a[0].1;
+            a[0].1 = 0;
+        }
+        merge(o.into_iter().chain(a))
+    }
+
+    fn check(&self, total: u64, outcomes: &[String]) -> Result<()> {
+        let bad = |m: &str| Err(Error::Build(format!("splits: {m}")));
+        if self.beneficiaries.len() > MAX_BENEFICIARIES {
+            return bad(&format!("more than {MAX_BENEFICIARIES} beneficiaries"));
+        }
+        let known = |p: &Payee| match p {
+            Payee::Beneficiary(i) => *i < self.beneficiaries.len(),
+            _ => true,
+        };
+        for s in [&self.offer, &self.accept] {
+            if !s.0.is_empty() && s.0.iter().map(|(_, b)| *b as u64).sum::<u64>() != 10_000 {
+                return bad("a side's shares do not sum to 10,000 bps");
+            }
+            if s.0.iter().any(|(p, b)| *b == 0 || !known(p)) {
+                return bad("a share is zero or names an unknown beneficiary");
+            }
+        }
+        for (o, list) in &self.outcomes {
+            if !outcomes.contains(o) {
+                return bad(&format!("override for unknown outcome {o}"));
+            }
+            if list.iter().map(|(_, v)| v).sum::<u64>() != total {
+                return bad(&format!("outputs for {o} do not sum to the pot"));
+            }
+            if list.iter().any(|(p, v)| !known(p) || (*v > 0 && *v < DUST)) {
+                return bad(&format!("outputs for {o} name an unknown payee or pay dust"));
+            }
+        }
+        Ok(())
+    }
+
+    /// (transparent, Ironwood) addresses of a payee.
+    pub fn address(
+        &self,
+        payee: Payee,
+        offer: &PartyInfo,
+        accept: &PartyInfo,
+    ) -> (TransparentAddress, Option<IronwoodAddress>) {
+        match payee {
+            Payee::Offer => (offer.payout, Some(offer.close)),
+            Payee::Accept => (accept.payout, Some(accept.close)),
+            Payee::Beneficiary(i) => (self.beneficiaries[i].payout, self.beneficiaries[i].close),
+        }
+    }
+}
+
+fn merge(outs: impl Iterator<Item = (Payee, u64)>) -> Vec<(Payee, u64)> {
+    let mut m = std::collections::BTreeMap::new();
+    for (p, v) in outs {
+        *m.entry(p).or_insert(0u64) += v;
+    }
+    m.into_iter().filter(|(_, v)| *v > 0).collect()
 }
 
 /// One transaction closes the previous contract and opens this one: the new funding spends
@@ -123,6 +268,8 @@ pub struct CetTerms {
     pub offer: u64,
     pub accept: u64,
     pub unlocks: Vec<Unlock>,
+    /// What the CET pays: `offer` and `accept` through the splits.
+    pub outputs: Vec<(Payee, u64)>,
 }
 
 #[derive(Clone, Debug)]
@@ -228,6 +375,11 @@ impl Terms {
                 return Err(Error::Build("contract spans two network upgrades".into()));
             }
         }
+        let outcomes = match &self.payouts {
+            Payouts::Enumerated(l) => l.iter().map(|(o, _)| o.clone()).collect(),
+            Payouts::StableValue(_) => vec![],
+        };
+        self.splits.check(self.total(), &outcomes)?;
         self.cet_terms().map(|_| ())
     }
 
@@ -252,6 +404,7 @@ impl Terms {
                             outcome: Some(o.clone()),
                             point: sum_points(&points)?,
                         }],
+                        outputs: self.splits.outputs(*off, total - off, Some(o)),
                     })
                 })
                 .collect(),
@@ -286,6 +439,7 @@ impl Terms {
                             offer: r.recipient,
                             accept: total - r.recipient,
                             unlocks,
+                            outputs: self.splits.outputs(r.recipient, total - r.recipient, None),
                         })
                     })
                     .collect()
@@ -306,39 +460,31 @@ impl Terms {
     }
 }
 
-/// A spec spending the funding coin to the two payouts. Dust goes to the other side; the
-/// fee comes out of the reserve and any reserve left over goes to the larger output.
+/// A spec spending the funding coin to `to` (already merged and free of dust). The fee
+/// comes out of the reserve and any reserve left over goes to the largest output (the
+/// later one on a tie).
 fn payout_spec(
     p: &LocalNetwork,
     funding: &Coin,
     reserve: u64,
     sign_height: u32,
     lock_height: Option<u32>,
-    to: [(TransparentAddress, u64); 2],
+    to: &[(TransparentAddress, u64)],
 ) -> Result<Spec> {
-    let mut amounts = to;
-    for i in 0..2 {
-        if amounts[i].1 < DUST {
-            amounts[1 - i].1 += amounts[i].1;
-            amounts[i].1 = 0;
-        }
-    }
-    let live: Vec<(TransparentAddress, u64)> =
-        amounts.iter().filter(|(_, v)| *v > 0).copied().collect();
     let mut spec = Spec {
         target_height: sign_height,
         expiry_height: 0,
         lock_height,
         inputs: vec![funding.clone()],
-        outputs: live.iter().map(|(a, v)| Pay::Transparent(*a, *v)).collect(),
+        outputs: to.iter().map(|(a, v)| Pay::Transparent(*a, *v)).collect(),
         ironwood_anchor: None,
     };
     let fee = tx::fee(p, &spec)?;
     let left = reserve
         .checked_sub(fee)
         .ok_or(Error::Build(format!("fee {fee} exceeds reserve {reserve}")))?;
-    let big = (0..live.len()).max_by_key(|&i| live[i].1).unwrap_or(0);
-    spec.outputs[big] = Pay::Transparent(live[big].0, live[big].1 + left);
+    let big = (0..to.len()).max_by_key(|&i| to[i].1).unwrap_or(0);
+    spec.outputs[big] = Pay::Transparent(to[big].0, to[big].1 + left);
     Ok(spec)
 }
 
@@ -363,13 +509,18 @@ pub fn refund_spec(
     offer: (TransparentAddress, u64),
     accept: (TransparentAddress, u64),
 ) -> Result<Spec> {
+    let to: Vec<(TransparentAddress, u64)> = Splits::default()
+        .outputs(offer.1, accept.1, None)
+        .into_iter()
+        .map(|(who, v)| (if who == Payee::Offer { offer.0 } else { accept.0 }, v))
+        .collect();
     payout_spec(
         p,
         funding,
         reserve,
         refund_target(p, sign_height, refund_height),
         Some(refund_height),
-        [offer, accept],
+        &to,
     )
 }
 
@@ -388,6 +539,9 @@ pub fn build_txs(
         value: total + 1_000_000,
         spend: Spend::P2sh(redeem.clone()),
     };
+    // The reserve covers the largest CET: the one paying the most outputs.
+    let all = terms.cet_terms()?;
+    let widest = all.iter().map(|ct| ct.outputs.len()).max().unwrap_or(0).max(2);
     let mut reserve = tx::fee(
         p,
         &Spec {
@@ -395,10 +549,7 @@ pub fn build_txs(
             expiry_height: 0,
             lock_height: None,
             inputs: vec![probe],
-            outputs: vec![
-                Pay::Transparent(offer.payout, 1),
-                Pay::Transparent(accept.payout, 1),
-            ],
+            outputs: vec![Pay::Transparent(offer.payout, 1); widest],
             ironwood_anchor: None,
         },
     )?;
@@ -476,17 +627,14 @@ pub fn build_txs(
     };
 
     let mut cets = vec![];
-    let all = terms.cet_terms()?;
     for era in terms.eras(p) {
         for ct in &all {
-            let spec = payout_spec(
-                p,
-                &funding_coin,
-                reserve,
-                era,
-                None,
-                [(offer.payout, ct.offer), (accept.payout, ct.accept)],
-            )?;
+            let to: Vec<(TransparentAddress, u64)> = ct
+                .outputs
+                .iter()
+                .map(|(who, v)| (terms.splits.address(*who, offer, accept).0, *v))
+                .collect();
+            let spec = payout_spec(p, &funding_coin, reserve, era, None, &to)?;
             let pczt = tx::build(p, &spec)?;
             let sighash = tx::sighash(&pczt, 0)?;
             cets.push((ct.clone(), pczt, sighash, era));
@@ -782,16 +930,48 @@ impl Contract {
         payout: (u64, u64),
         anchor: orchard::Anchor,
     ) -> Result<Spec> {
+        let outs = self.terms.splits.outputs(payout.0, payout.1, None);
+        self.close_spec_to(p, tip, &outs, anchor)
+    }
+
+    /// The close of an enumerated contract at `outcome`: pays what its CET pays.
+    pub fn close_outcome(
+        &self,
+        p: &LocalNetwork,
+        tip: u32,
+        outcome: &str,
+        anchor: orchard::Anchor,
+    ) -> Result<Spec> {
+        let ct = self
+            .txs
+            .cets
+            .iter()
+            .find(|(ct, ..)| ct.unlocks.iter().any(|u| u.outcome.as_deref() == Some(outcome)))
+            .ok_or(Error::Build(format!("no CET for outcome {outcome}")))?;
+        self.close_spec_to(p, tip, &ct.0.outputs.clone(), anchor)
+    }
+
+    /// The close paying `outs`: Ironwood to every payee with a close address, transparent
+    /// to the rest. Payees share the fee equally; the reserve pays it first.
+    pub fn close_spec_to(
+        &self,
+        p: &LocalNetwork,
+        tip: u32,
+        outs: &[(Payee, u64)],
+        anchor: orchard::Anchor,
+    ) -> Result<Spec> {
         let value = self.txs.funding_coin.value;
-        let to = [(self.offer.close, payout.0), (self.accept.close, payout.1)];
-        let live: Vec<(IronwoodAddress, u64)> =
-            to.iter().filter(|(_, v)| *v >= DUST).copied().collect();
+        let pay = |who: Payee, v: u64| match self.terms.splits.address(who, &self.offer, &self.accept) {
+            (_, Some(z)) => Pay::Ironwood(z, v),
+            (t, None) => Pay::Transparent(t, v),
+        };
+        let live: Vec<(Payee, u64)> = outs.iter().filter(|(_, v)| *v >= DUST).copied().collect();
         let mut spec = Spec {
             target_height: tip + 1,
             expiry_height: tip + 1 + EXPIRY_DELTA,
             lock_height: None,
             inputs: vec![self.txs.funding_coin.clone()],
-            outputs: live.iter().map(|(a, v)| Pay::Ironwood(*a, *v)).collect(),
+            outputs: live.iter().map(|(w, v)| pay(*w, *v)).collect(),
             ironwood_anchor: Some(anchor),
         };
         let fee = tx::fee(p, &spec)?;
@@ -800,41 +980,41 @@ impl Contract {
         let extra = value - paid;
         let owed = fee.saturating_sub(extra);
         let n = live.len() as u64;
-        let mut outs = vec![];
-        for (k, (a, v)) in live.iter().enumerate() {
+        let mut amounts = vec![];
+        for (k, (_, v)) in live.iter().enumerate() {
             let share = owed / n + if (k as u64) < owed % n { 1 } else { 0 };
-            outs.push(Pay::Ironwood(
-                *a,
+            amounts.push(
                 v.checked_sub(share)
                     .ok_or(Error::Build("payout below its fee share".into()))?,
-            ));
+            );
         }
-        let sum: u64 = outs.iter().map(Pay::value).sum();
-        if let Some(Pay::Ironwood(a, v)) = outs.last().cloned() {
-            *outs.last_mut().unwrap() = Pay::Ironwood(a, v + (value - fee - sum));
+        let sum: u64 = amounts.iter().sum();
+        if let Some(last) = amounts.last_mut() {
+            *last += value - fee - sum;
         }
-        spec.outputs = outs;
+        spec.outputs = live.iter().zip(amounts).map(|((w, _), v)| pay(*w, v)).collect();
         Ok(spec)
     }
 
     /// The other side's check of a close PCZT before signing. The close is built by one
     /// party, so the other checks what the transaction will actually do, not what the
     /// PCZT's metadata claims:
-    /// - it spends exactly the funding outpoint, pays nothing transparent, has no lock
-    ///   time and the agreed expiry;
+    /// - it spends exactly the funding outpoint, has no lock time and the agreed expiry;
     /// - every Ironwood output's note (recipient, value, rho, rseed) re-derives its `cmx`,
     ///   so the claimed recipient and value are what the chain commits to;
-    /// - the outputs are exactly the agreed (recipient, value) pairs;
+    /// - the outputs, Ironwood and transparent, are exactly the agreed (recipient, value)
+    ///   pairs, every beneficiary included;
     /// - this party's own output trial-decrypts with its viewing key, so its wallet will
     ///   find the note.
     pub fn check_close(&self, pczt: &Pczt, spec: &Spec) -> Result<()> {
         let bad = |m: String| Error::Build(format!("close PCZT refused: {m}"));
-        let mut want: Vec<([u8; 43], u64)> = spec
+        let mut want: Vec<(Out, u64)> = spec
             .outputs
             .iter()
             .map(|o| match o {
-                Pay::Ironwood(a, v) => Ok((a.to_raw_address_bytes(), *v)),
-                _ => Err(bad("the agreed close pays something other than plain Ironwood".into())),
+                Pay::Ironwood(a, v) => Ok((Out::Ironwood(a.to_raw_address_bytes()), *v)),
+                Pay::Transparent(a, v) => Ok((Out::Transparent(*a), *v)),
+                _ => Err(bad("the agreed close pays a memo".into())),
             })
             .collect::<Result<_>>()?;
         let effects = pczt
@@ -849,7 +1029,7 @@ impl Contract {
         }
         let me = if self.is_offerer { &self.offer } else { &self.accept };
         let mine = me.close.to_raw_address_bytes();
-        let my_value = want.iter().find(|(a, _)| *a == mine).map(|(_, v)| *v);
+        let my_value = want.iter().find(|(a, _)| *a == Out::Ironwood(mine)).map(|(_, v)| *v);
         let funding = (self.txs.funding_txid, self.txs.funding_coin.index);
         let ivk = &self.close_ivk;
         let mut transparent: std::result::Result<(), String> = Err("not checked".into());
@@ -864,9 +1044,16 @@ impl Contract {
                     != funding
                 {
                     Err("input is not the funding output".into())
-                } else if !t.outputs().is_empty() {
-                    Err("transparent outputs".into())
                 } else {
+                    for o in t.outputs() {
+                        match TransparentAddress::from_script_pubkey(o.script_pubkey()) {
+                            Some(a) => got.push((Out::Transparent(a), o.value().into_u64())),
+                            None => {
+                                transparent = Err("a transparent output to a non-standard script".into());
+                                return Ok(());
+                            }
+                        }
+                    }
                     Ok(())
                 };
                 Ok(())
@@ -885,7 +1072,7 @@ impl Contract {
                         _ => unreachable!("verify_note_commitment requires both"),
                     };
                     if v > 0 {
-                        got.push((r, v));
+                        got.push((Out::Ironwood(r), v));
                     }
                     if r == mine && v > 0 {
                         match a.decrypt_output_with_ivk(ivk, version) {
@@ -915,5 +1102,92 @@ impl Contract {
 
     pub fn sign_close(&self, pczt: Pczt) -> Result<Pczt> {
         tx::sign(pczt, 0, &self.funding_sk)
+    }
+}
+
+/// A close output's recipient, for comparing what was agreed with what the PCZT pays.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+enum Out {
+    Transparent(TransparentAddress),
+    Ironwood([u8; 43]),
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn b(i: usize) -> Payee {
+        Payee::Beneficiary(i)
+    }
+
+    #[test]
+    fn default_split_pays_each_side_to_itself() {
+        let s = Splits::default();
+        assert_eq!(s.outputs(7, 3_000, None), vec![(Payee::Accept, 3_007)], "dust side goes across");
+        assert_eq!(s.outputs(500, 0, None), vec![(Payee::Offer, 500)]);
+        assert_eq!(s.outputs(500, 600, None), vec![(Payee::Offer, 500), (Payee::Accept, 600)]);
+    }
+
+    #[test]
+    fn shares_round_down_and_the_remainder_goes_first() {
+        let s = Splits {
+            accept: Split(vec![(b(0), 5_000), (b(1), 3_000), (b(2), 2_000)]),
+            ..Default::default()
+        };
+        assert_eq!(
+            s.outputs(0, 1_5000_0000, None),
+            vec![(b(0), 7500_0000), (b(1), 4500_0000), (b(2), 3000_0000)]
+        );
+        // 1,001 zat: 500.5 / 300.3 / 200.2 round down to 500 / 300 / 200; 1 to the first.
+        assert_eq!(s.outputs(0, 1_001, None), vec![(b(0), 501), (b(1), 300), (b(2), 200)]);
+    }
+
+    #[test]
+    fn dust_shares_stay_on_their_side() {
+        let s = Splits {
+            offer: Split(vec![(Payee::Offer, 9_900), (b(1), 100)]),
+            accept: Split(vec![(b(0), 9_000), (Payee::Accept, 1_000)]),
+            ..Default::default()
+        };
+        // 100 bps of 5,000 is 50 zat: dust, merged into the offer side's first payee.
+        assert_eq!(
+            s.outputs(5_000, 10_000, None),
+            vec![(Payee::Offer, 5_000), (Payee::Accept, 1_000), (b(0), 9_000)]
+        );
+        // A side's own payee may appear on both sides: its outputs merge.
+        let t = Splits { accept: Split(vec![(Payee::Offer, 5_000), (b(0), 5_000)]), ..Default::default() };
+        assert_eq!(t.outputs(1_000, 2_000, None), vec![(Payee::Offer, 2_000), (b(0), 1_000)]);
+    }
+
+    #[test]
+    fn overrides_replace_the_split_for_their_outcome() {
+        let s = Splits {
+            accept: Split(vec![(b(0), 10_000)]),
+            outcomes: vec![("paid".into(), vec![(b(0), 600), (Payee::Offer, 400)])],
+            ..Default::default()
+        };
+        assert_eq!(s.outputs(0, 1_000, Some("paid")), vec![(Payee::Offer, 400), (b(0), 600)]);
+        assert_eq!(s.outputs(0, 1_000, Some("other")), vec![(b(0), 1_000)]);
+    }
+
+    #[test]
+    fn splits_are_checked() {
+        let ben = Beneficiary { label: "x".into(), payout: TransparentAddress::PublicKeyHash([1; 20]), close: None };
+        let with = |offer: Vec<(Payee, u32)>, outcomes| Splits {
+            beneficiaries: vec![ben.clone()],
+            offer: Split(offer),
+            accept: Split::default(),
+            outcomes,
+        };
+        let names = ["a".to_string()];
+        assert!(with(vec![(b(0), 10_000)], vec![]).check(100, &names).is_ok());
+        assert!(with(vec![(b(0), 9_999)], vec![]).check(100, &names).is_err(), "bps sum");
+        assert!(with(vec![(b(1), 10_000)], vec![]).check(100, &names).is_err(), "unknown beneficiary");
+        assert!(with(vec![(b(0), 10_000), (Payee::Offer, 0)], vec![]).check(100, &names).is_err(), "zero share");
+        assert!(with(vec![], vec![("a".into(), vec![(b(0), 99)])]).check(100, &names).is_err(), "override sum");
+        assert!(with(vec![], vec![("a".into(), vec![(b(0), 60), (Payee::Offer, 40)])]).check(100, &names).is_err(), "override dust");
+        assert!(with(vec![], vec![("z".into(), vec![(b(0), 100)])]).check(100, &names).is_err(), "unknown outcome");
+        let many = Splits { beneficiaries: vec![ben; MAX_BENEFICIARIES + 1], ..Default::default() };
+        assert!(many.check(100, &names).is_err(), "too many");
     }
 }

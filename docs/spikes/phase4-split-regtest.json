@@ -1,0 +1,318 @@
+{
+  "maker": [
+    {
+      "result": {
+        "identity": "02ca7f3a59e44c91f9f85e8b5735ad613537789ec5fd74fa4cbc615d8ca2734521",
+        "oracles": [
+          "3a616b5009ca9944472d22775b2c56fea40445c6c35c76d39562f679c1953881",
+          "31c19da3eaefe6ad94ee1ba76fb6f3c21a6f9b84dd92d58ea91914a9cab8a1da"
+        ],
+        "treasury": "tmWZ2H21SZ5kMMy5fnigybNboeGMxbM8ezB"
+      },
+      "step": "ready"
+    },
+    {
+      "result": {
+        "premium": 50000,
+        "quote": "1760689463fd55c38c99d92c",
+        "rfq": "9d0ade266acced065d77f5bd",
+        "valid_until": 322
+      },
+      "step": "quoted"
+    },
+    {
+      "result": {
+        "cets": 98,
+        "index": 1,
+        "quote": "1760689463fd55c38c99d92c"
+      },
+      "step": "accepted"
+    },
+    {
+      "result": {
+        "quote": "1760689463fd55c38c99d92c",
+        "txid": "fcbaec8f1ad18f075c11bf94ac8cbc15b393e646d4fef387f5a350fd574f87b0"
+      },
+      "step": "funded"
+    },
+    {
+      "result": {
+        "quote": "1760689463fd55c38c99d92c"
+      },
+      "step": "co-signed close"
+    },
+    {
+      "result": {
+        "done": 1,
+        "quote": "1760689463fd55c38c99d92c"
+      },
+      "step": "contract finished"
+    },
+    {
+      "result": {
+        "premium": 50000,
+        "quote": "f5e24eaa5f12bad0f02b56f7",
+        "rfq": "1f6201e4d54213bea507bb15",
+        "valid_until": 357
+      },
+      "step": "quoted"
+    },
+    {
+      "result": {
+        "cets": 98,
+        "index": 2,
+        "quote": "f5e24eaa5f12bad0f02b56f7"
+      },
+      "step": "accepted"
+    },
+    {
+      "result": {
+        "quote": "f5e24eaa5f12bad0f02b56f7",
+        "txid": "49025e1251ca69e9c7cf212bb134660d35520a462e86ef1e3e9c8841330a9cac"
+      },
+      "step": "funded"
+    },
+    {
+      "result": {
+        "done": 2,
+        "quote": "f5e24eaa5f12bad0f02b56f7"
+      },
+      "step": "contract finished"
+    },
+    {
+      "result": {
+        "premium": 50000,
+        "quote": "eaae4ec3d91faec1be42ee73",
+        "rfq": "3a548b4f5b6c5df5eab1f707",
+        "valid_until": 385
+      },
+      "step": "quoted"
+    },
+    {
+      "result": {
+        "cets": 98,
+        "index": 3,
+        "quote": "eaae4ec3d91faec1be42ee73"
+      },
+      "step": "accepted"
+    },
+    {
+      "result": {
+        "quote": "eaae4ec3d91faec1be42ee73",
+        "txid": "dfa7aef5b0ba0a304440e4bddaf222707550feb67123d2a9afb4bb3b294a4fdc"
+      },
+      "step": "funded"
+    },
+    {
+      "result": {
+        "quote": "eaae4ec3d91faec1be42ee73"
+      },
+      "step": "co-signed close"
+    },
+    {
+      "result": {
+        "done": 3,
+        "quote": "eaae4ec3d91faec1be42ee73"
+      },
+      "step": "contract finished"
+    }
+  ],
+  "split": {
+    "partner_bps": 4000,
+    "partner_received_zat": 3996667,
+    "taker_side_zat": 10000000
+  },
+  "taker_cet": [
+    {
+      "result": {
+        "id": "1f6201e4d54213bea507bb15",
+        "q_recipient": 10000000,
+        "taker": "02787574d157df9cbc25c3e339175a253c43c3324ed3b1efc7966897f3acd0d0db"
+      },
+      "step": "rfq posted"
+    },
+    {
+      "result": {
+        "id": "f5e24eaa5f12bad0f02b56f7",
+        "inputs": 1,
+        "maker": "02ca7f3a59e44c91f9f85e8b5735ad613537789ec5fd74fa4cbc615d8ca2734521",
+        "premium": 50000,
+        "q_hedger": 10000000,
+        "valid_until": 357
+      },
+      "step": "quote chosen"
+    },
+    {
+      "result": {
+        "event": "zecusd-1792506180",
+        "index": 2,
+        "owed_usd_cents": 12139,
+        "split_bps": [],
+        "spot_cents": 121393
+      },
+      "step": "offer sent"
+    },
+    {
+      "result": {
+        "adaptor_sigs_verified": 497,
+        "cets": 98
+      },
+      "step": "accepted and signed"
+    },
+    {
+      "result": {
+        "height": 307,
+        "txid": "49025e1251ca69e9c7cf212bb134660d35520a462e86ef1e3e9c8841330a9cac"
+      },
+      "step": "funded"
+    },
+    {
+      "result": {
+        "agree": true,
+        "payout": [
+          10000000,
+          10050000
+        ],
+        "price_usd": 1213
+      },
+      "step": "attested"
+    },
+    {
+      "result": {
+        "height": 321,
+        "index": 50,
+        "txid": "2c170023e274034fbbc36a88733f909a33f7000749642cf55b3523e9e73dbe62"
+      },
+      "step": "settled by CET"
+    }
+  ],
+  "taker_close": [
+    {
+      "result": {
+        "id": "9d0ade266acced065d77f5bd",
+        "q_recipient": 10000000,
+        "taker": "02787574d157df9cbc25c3e339175a253c43c3324ed3b1efc7966897f3acd0d0db"
+      },
+      "step": "rfq posted"
+    },
+    {
+      "result": {
+        "id": "1760689463fd55c38c99d92c",
+        "inputs": 1,
+        "maker": "02ca7f3a59e44c91f9f85e8b5735ad613537789ec5fd74fa4cbc615d8ca2734521",
+        "premium": 50000,
+        "q_hedger": 10000000,
+        "valid_until": 322
+      },
+      "step": "quote chosen"
+    },
+    {
+      "result": {
+        "event": "zecusd-1792506120",
+        "index": 1,
+        "owed_usd_cents": 12131,
+        "split_bps": [],
+        "spot_cents": 121311
+      },
+      "step": "offer sent"
+    },
+    {
+      "result": {
+        "adaptor_sigs_verified": 502,
+        "cets": 98
+      },
+      "step": "accepted and signed"
+    },
+    {
+      "result": {
+        "height": 273,
+        "txid": "fcbaec8f1ad18f075c11bf94ac8cbc15b393e646d4fef387f5a350fd574f87b0"
+      },
+      "step": "funded"
+    },
+    {
+      "result": {
+        "agree": true,
+        "payout": [
+          10000000,
+          10050000
+        ],
+        "price_usd": 1212
+      },
+      "step": "attested"
+    },
+    {
+      "result": {
+        "height": 293,
+        "txid": "b85701ce4c5f7998b2bd03271532fe57234f0b8f21ae31a5af3c9dd8db815586"
+      },
+      "step": "closed to Ironwood"
+    }
+  ],
+  "taker_split": [
+    {
+      "result": {
+        "id": "3a548b4f5b6c5df5eab1f707",
+        "q_recipient": 10000000,
+        "taker": "02787574d157df9cbc25c3e339175a253c43c3324ed3b1efc7966897f3acd0d0db"
+      },
+      "step": "rfq posted"
+    },
+    {
+      "result": {
+        "id": "eaae4ec3d91faec1be42ee73",
+        "inputs": 1,
+        "maker": "02ca7f3a59e44c91f9f85e8b5735ad613537789ec5fd74fa4cbc615d8ca2734521",
+        "premium": 50000,
+        "q_hedger": 10000000,
+        "valid_until": 385
+      },
+      "step": "quote chosen"
+    },
+    {
+      "result": {
+        "event": "zecusd-1792506180",
+        "index": 3,
+        "owed_usd_cents": 12139,
+        "split_bps": [
+          6000,
+          4000
+        ],
+        "spot_cents": 121393
+      },
+      "step": "offer sent"
+    },
+    {
+      "result": {
+        "adaptor_sigs_verified": 497,
+        "cets": 98
+      },
+      "step": "accepted and signed"
+    },
+    {
+      "result": {
+        "height": 334,
+        "txid": "dfa7aef5b0ba0a304440e4bddaf222707550feb67123d2a9afb4bb3b294a4fdc"
+      },
+      "step": "funded"
+    },
+    {
+      "result": {
+        "agree": true,
+        "payout": [
+          10000000,
+          10050000
+        ],
+        "price_usd": 1213
+      },
+      "step": "attested"
+    },
+    {
+      "result": {
+        "height": 344,
+        "txid": "65eaf60c53580a9c6dd340206a363838d3c1de4839227c7f2b00e90a9d0df12f"
+      },
+      "step": "closed to Ironwood"
+    }
+  ]
+}

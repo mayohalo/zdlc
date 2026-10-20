@@ -1,7 +1,9 @@
 //! Phase 4 on Zakura regtest: two counterparties trade through the desk. Every party is
 //! its own process with its own seed: the desk, two oracles, a maker, and a taker run
-//! twice (settled by cooperative close, then by CET). The test only funds the wallets and
-//! mines a block a second. Needs internet access for the ZEC/USD feed:
+//! three times: settled by cooperative close, by CET, and by a close whose taker side
+//! pays two addresses (60 % to the taker, 40 % to a partner's Ironwood receiver). The
+//! test only funds the wallets and mines a block a second. Needs internet access for the
+//! ZEC/USD feed:
 //!
 //! ```sh
 //! infra/zakura/scripts/up.sh
@@ -11,7 +13,8 @@
 use std::process::{Child, Command, Stdio};
 
 use serde_json::Value;
-use zdlc::{params::NU7_AT, regtest::Regtest, wallet::Wallet};
+use orchard::keys::Scope;
+use zdlc::{feeds, keys, params::NU7_AT, regtest::{dev_beneficiary, Regtest}, wallet::Wallet};
 
 struct Proc(Child);
 
@@ -50,7 +53,8 @@ async fn phase4_two_counterparties_trade_through_the_desk() {
     std::fs::write(path("maker.seed"), hex::encode(maker_seed)).unwrap();
     std::fs::write(path("taker.seed"), hex::encode(taker_seed)).unwrap();
     let (mw, tw) = (Wallet::from_seed(maker_seed), Wallet::from_seed(taker_seed));
-    rt.pay(&[(mw.coin_address(0), 3000_0000), (mw.coin_address(0), 3000_0000), (tw.coin_address(0), 3000_0000), (tw.coin_address(0), 3000_0000)])
+    rt.pay(&[(mw.coin_address(0), 3000_0000), (mw.coin_address(0), 3000_0000), (mw.coin_address(0), 3000_0000),
+        (tw.coin_address(0), 3000_0000), (tw.coin_address(0), 3000_0000), (tw.coin_address(0), 3000_0000)])
         .await
         .unwrap();
 
@@ -77,18 +81,26 @@ async fn phase4_two_counterparties_trade_through_the_desk() {
 
     let mut maker = Command::new(env!("CARGO_BIN_EXE_zdlc-trader"))
         .args(["maker", "--seed", &path("maker.seed"), "--node", &node, "--desk", desk, "--oracles", oracles])
-        .args(["--cap", "20000000", "--premium-bps", "50", "--ttl", "60", "--contracts", "2", "--log", &path("maker.json")])
+        .args(["--cap", "20000000", "--premium-bps", "50", "--ttl", "60", "--contracts", "3", "--log", &path("maker.json")])
         .spawn()
         .unwrap();
 
-    for (settle, log) in [("close", "taker-close.json"), ("cet", "taker-cet.json")] {
+    // The partner only gave addresses: a transparent one for CETs, an Ironwood one for the close.
+    let (partner, partner_fvk) = dev_beneficiary(&format!("phase4-{}", std::process::id()), "partner", 0x5A, true);
+    let split = format!(
+        "self:6000,{}+{}:4000",
+        keys::encode_regtest(&partner.payout),
+        hex::encode(partner.close.unwrap().to_raw_address_bytes())
+    );
+    let start = rt.tip().await.unwrap();
+    for (settle, log, split) in [("close", "taker-close.json", ""), ("cet", "taker-cet.json", ""), ("close", "taker-split.json", split.as_str())] {
         let st = Command::new(env!("CARGO_BIN_EXE_zdlc-trader"))
             .args(["taker", "--seed", &path("taker.seed"), "--node", &node, "--desk", desk, "--oracles", oracles])
             .args(["--collateral", "10000000", "--maturity", "4", "--refund", "300", "--event-offset-min", "-3"])
-            .args(["--quote-wait", "3", "--settle", settle, "--log", &path(log)])
+            .args(["--quote-wait", "3", "--settle", settle, "--log", &path(log), "--split", split])
             .status()
             .unwrap();
-        assert!(st.success(), "taker ({settle}) failed");
+        assert!(st.success(), "taker ({log}) failed");
     }
     let st = maker.wait().unwrap();
     miner.abort();
@@ -96,11 +108,20 @@ async fn phase4_two_counterparties_trade_through_the_desk() {
 
     let read = |f: &str| -> Vec<Value> { serde_json::from_slice(&std::fs::read(path(f)).unwrap()).unwrap() };
     let steps = |l: &[Value]| l.iter().map(|s| s["step"].as_str().unwrap().to_string()).collect::<Vec<_>>();
-    let (tc, tt, mk) = (read("taker-close.json"), read("taker-cet.json"), read("maker.json"));
+    let (tc, tt, ts, mk) = (read("taker-close.json"), read("taker-cet.json"), read("taker-split.json"), read("maker.json"));
     assert!(steps(&tc).contains(&"closed to Ironwood".to_string()), "{:?}", steps(&tc));
     assert!(steps(&tt).contains(&"settled by CET".to_string()), "{:?}", steps(&tt));
-    assert_eq!(steps(&mk).iter().filter(|s| *s == "contract finished").count(), 2);
-    let all = serde_json::json!({"taker_close": tc, "taker_cet": tt, "maker": mk});
+    assert!(steps(&ts).contains(&"closed to Ironwood".to_string()), "{:?}", steps(&ts));
+    assert_eq!(steps(&mk).iter().filter(|s| *s == "contract finished").count(), 3);
+
+    // The partner finds 40 % of the taker's side with its viewing key; the taker the rest.
+    let tip = rt.tip().await.unwrap();
+    let got = feeds::received(&rt.node, &partner_fvk.to_ivk(Scope::External), start, tip).await.unwrap();
+    let owed = ts.iter().find(|s| s["step"] == "attested").unwrap()["result"]["payout"][0].as_u64().unwrap();
+    println!("[split] taker side {owed} zat; partner received {got} zat in Ironwood");
+    assert!(got > 0 && got.abs_diff(owed * 4 / 10) < 20_000, "partner got {got} of {owed}");
+    let all = serde_json::json!({"taker_close": tc, "taker_cet": tt, "taker_split": ts, "maker": mk,
+        "split": {"taker_side_zat": owed, "partner_received_zat": got, "partner_bps": 4000}});
     if let Ok(p) = std::env::var("ZDLC_RESULTS") {
         std::fs::write(p, serde_json::to_string_pretty(&all).unwrap()).unwrap();
     }

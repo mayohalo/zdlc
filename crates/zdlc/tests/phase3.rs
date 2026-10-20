@@ -11,7 +11,7 @@ use std::process::{Child, Command};
 use orchard::keys::Scope;
 use serde_json::{json, Value};
 use zdlc::{
-    contract::{Contract, Event, Party, Payouts, Terms},
+    contract::{Contract, Event, Party, Payouts, Splits, Terms},
     enclave::EventSpec,
     keys,
     oracle_client::{self, OracleClient},
@@ -113,6 +113,7 @@ async fn phase3_two_oracles() {
         sign_height: tip + 1,
         dual_sign: false,
         roll: None,
+        splits: Splits::default(),
     };
     let (ca, _cb, funding) = setup(&rt, &alice, &bob, terms.clone(), tip);
     rt.send_confirm(&funding).await.unwrap();
@@ -152,6 +153,7 @@ async fn phase3_two_oracles() {
         sign_height: tip + 1,
         dual_sign: false,
         roll: None,
+        splits: Splits::default(),
     };
     let (ca, _cb, funding) = setup(&rt, &alice, &bob, terms, tip);
     rt.send_confirm(&funding).await.unwrap();

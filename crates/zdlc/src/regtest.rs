@@ -7,7 +7,7 @@ use zcash_protocol::local_consensus::LocalNetwork;
 use zcash_transparent::address::TransparentAddress;
 
 use crate::{
-    contract::{Party, PartyInfo},
+    contract::{Beneficiary, Party, PartyInfo},
     keys,
     node::Node,
     params::{self, NU7_AT},
@@ -145,6 +145,15 @@ pub fn dev_party(tag: &str, who: &str, close_seed: u8) -> DevParty {
         change: keys::p2pkh(&keys::pubkey(&input_sk)),
         payout: keys::p2pkh(&keys::pubkey(&keys::dev_key(&format!("{tag}/{who}/payout")))),
     }
+}
+
+/// A dev beneficiary (keys derived from `tag`) and the viewing key of its close address.
+/// Without `ironwood`, the cooperative close pays it transparently.
+pub fn dev_beneficiary(tag: &str, label: &str, seed: u8, ironwood: bool) -> (Beneficiary, FullViewingKey) {
+    let d = dev_party(tag, label, seed);
+    let close = d.close_fvk.address_at(0u32, Scope::External);
+    let b = Beneficiary { label: label.into(), payout: d.payout, close: ironwood.then_some(close) };
+    (b, d.close_fvk)
 }
 
 impl DevParty {

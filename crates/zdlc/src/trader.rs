@@ -8,9 +8,10 @@ use std::collections::{BTreeMap, BTreeSet};
 use secp256k1::SecretKey;
 use serde_json::{json, Value};
 use zcash_protocol::{consensus::NetworkType, local_consensus::LocalNetwork};
+use zcash_transparent::address::TransparentAddress;
 
 use crate::{
-    contract::{Contract, Event, Party, PartyInfo, Payouts, Terms},
+    contract::{Beneficiary, Contract, Event, Party, PartyInfo, Payee, Payouts, Splits, Terms},
     desk::{self, DeskClient, QuoteBody, RfqBody, Signed},
     enclave::EventSpec,
     feeds,
@@ -212,6 +213,39 @@ pub struct TakerArgs {
     pub event_offset_min: i64,
     pub quote_wait_s: u64,
     pub settle: String,
+    /// How the taker's side pays out (empty: all to the taker). The maker prices only its
+    /// own side and never needs these.
+    pub split: Vec<SplitTo>,
+}
+
+/// One payee of the taker's side, by basis points.
+#[derive(Clone, Debug)]
+pub struct SplitTo {
+    /// `None`: the taker itself.
+    pub payout: Option<TransparentAddress>,
+    /// Where the cooperative close pays this payee; `None` pays `payout` transparently.
+    pub close: Option<orchard::Address>,
+    pub bps: u32,
+}
+
+/// The taker's (offer side's) splits from `--split`.
+pub fn taker_splits(split: &[SplitTo]) -> Splits {
+    let mut s = Splits::default();
+    for t in split {
+        let who = match t.payout {
+            None => Payee::Offer,
+            Some(payout) => {
+                s.beneficiaries.push(Beneficiary {
+                    label: format!("payee {}", s.beneficiaries.len()),
+                    payout,
+                    close: t.close,
+                });
+                Payee::Beneficiary(s.beneficiaries.len() - 1)
+            }
+        };
+        s.offer.0.push((who, t.bps));
+    }
+    s
 }
 
 /// Runs one contract as taker, from RFQ to settlement. Returns a JSON log.
@@ -243,7 +277,7 @@ pub async fn run_taker(a: &mut Agent, args: &TakerArgs) -> Result<Vec<Value>> {
             return Err(Error::Build("the desk's quote does not match the invitation".into()));
         }
         a.desk = desk;
-        let t = TakerArgs { q_recipient: inv.q_recipient, maturity_blocks: inv.maturity_blocks, refund_blocks: inv.refund_blocks, invitations_from: None, settle: args.settle.clone(), ..*args };
+        let t = TakerArgs { q_recipient: inv.q_recipient, maturity_blocks: inv.maturity_blocks, refund_blocks: inv.refund_blocks, invitations_from: None, settle: args.settle.clone(), split: args.split.clone(), ..*args };
         return trade(a, &t, "private".into(), inv.quote_id, quote, lg).await;
     }
     let oracle_keys = a.oracle_keys().await?;
@@ -319,10 +353,12 @@ async fn trade(a: &mut Agent, args: &TakerArgs, rfq_id: String, quote_id: String
         sign_height: tip + 1,
         dual_sign: false,
         roll: None,
+        splits: taker_splits(&args.split),
     };
     let offer = me.offer(terms.clone());
     a.send(&quote.from, &quote_id, "offer", json!({"rfq_id": rfq_id, "offer": wire::offer_to_wire(&offer)?})).await?;
-    lg.note("offer sent", json!({"event": event_id, "owed_usd_cents": curve.d_cents, "spot_cents": spot, "index": i}));
+    lg.note("offer sent", json!({"event": event_id, "owed_usd_cents": curve.d_cents, "spot_cents": spot, "index": i,
+        "split_bps": args.split.iter().map(|s| s.bps).collect::<Vec<_>>()}));
 
     let env = a.wait_for(&quote_id, "accept", &quote.from, 300).await?;
     let accept = wire::accept_from_wire(&serde_json::from_value(env.body["accept"].clone()).map_err(|e| Error::Build(e.to_string()))?)?;
@@ -543,6 +579,10 @@ pub async fn run_maker(a: &mut Agent, args: &MakerArgs) -> Result<Vec<Value>> {
                             || t.refund_height.saturating_sub(t.sign_height) + 1 != o.rfq.refund_blocks
                         {
                             return Err(Error::Build("offer does not match the quote".into()));
+                        }
+                        // The taker may split its own side; ours is paid to us alone.
+                        if !t.splits.accept.0.is_empty() || !t.splits.outcomes.is_empty() {
+                            return Err(Error::Build("offer splits the maker's side".into()));
                         }
                         // The announcements must be the oracles' own.
                         for (oc, ann) in a.oracles.iter().zip(anns) {

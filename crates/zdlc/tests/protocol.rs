@@ -3,7 +3,7 @@
 use std::time::Instant;
 
 use zdlc::{
-    contract::{Event, Party, Payouts, Terms},
+    contract::{Event, Party, Payouts, Splits, Terms},
     oracle,
     params::{self, NU7_AT},
     payout::StableValue,
@@ -49,6 +49,7 @@ fn enumerated_contract_end_to_end() {
         sign_height: tip + 1,
         dual_sign: false,
         roll: None,
+        splits: Splits::default(),
     };
     let offer = alice.offer(terms);
     let (accept, bob_txs) = bob.accept(&p, tip, &offer).unwrap();
@@ -85,6 +86,7 @@ fn stable_value_contract_end_to_end() {
         sign_height: tip + 1,
         dual_sign: false,
         roll: None,
+        splits: Splits::default(),
     };
     let offer = alice.offer(terms.clone());
     let t0 = Instant::now();
@@ -142,6 +144,7 @@ fn upgrade_guard_refuses_a_contract_spanning_nu7() {
         sign_height: 121,
         dual_sign: false,
         roll: None,
+        splits: Splits::default(),
     };
     let err = bob.accept(&p, 120, &alice.offer(terms.clone())).err().unwrap();
     println!("guard: {err}");
@@ -198,6 +201,7 @@ fn close_check_binds_metadata_to_the_note() {
         sign_height: tip + 1,
         dual_sign: false,
         roll: None,
+        splits: Splits::default(),
     };
     let offer = alice.offer(terms.clone());
     let (accept, bob_txs) = bob.accept(&p, tip, &offer).unwrap();
@@ -277,6 +281,7 @@ fn dual_signed_contract_covers_both_eras() {
         sign_height: tip + 1,
         dual_sign: false,
         roll: None,
+        splits: Splits::default(),
     };
     assert!(terms.validate(&p, tip).is_err(), "spanning refused without dual signing");
     terms.dual_sign = true;
@@ -313,6 +318,7 @@ fn recovery_record_rebuilds_the_refund() {
         sign_height: tip + 1,
         dual_sign: false,
         roll: None,
+        splits: Splits::default(),
     };
     let offer = alice.offer(terms);
     let (accept, bob_txs) = bob.accept(&p, tip, &offer).unwrap();

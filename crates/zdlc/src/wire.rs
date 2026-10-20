@@ -14,7 +14,7 @@ use zcash_transparent::address::TransparentAddress;
 
 use crate::{
     adaptor::AdaptorSignature,
-    contract::{Accept, Event, Offer, PartyInfo, Payouts, SignMsg, Terms},
+    contract::{Accept, Beneficiary, Event, Offer, PartyInfo, Payee, Payouts, SignMsg, Split, Splits, Terms},
     oracle::{Announcement, NumericAnnouncement},
     payout::StableValue,
     tx::{Coin, Spend},
@@ -114,6 +114,112 @@ pub struct WireTerms {
     pub refund_height: u32,
     pub sign_height: u32,
     pub dual_sign: bool,
+    /// Beneficiaries and splits. Absent (older agents, default contracts): each side is
+    /// paid to its own party.
+    #[serde(default, skip_serializing_if = "WireSplits::is_empty")]
+    pub splits: WireSplits,
+}
+
+/// Payees are "offer", "accept" or "b<index>" (a beneficiary).
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
+pub struct WireSplits {
+    #[serde(default)]
+    pub beneficiaries: Vec<WireBeneficiary>,
+    #[serde(default)]
+    pub offer: Vec<(String, u32)>,
+    #[serde(default)]
+    pub accept: Vec<(String, u32)>,
+    #[serde(default)]
+    pub outcomes: Vec<(String, Vec<(String, u64)>)>,
+}
+
+impl WireSplits {
+    pub fn is_empty(&self) -> bool {
+        *self == WireSplits::default()
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct WireBeneficiary {
+    pub label: String,
+    pub payout: String,
+    /// Raw Ironwood address (43 bytes, hex), if the close pays it shielded.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub close: Option<String>,
+}
+
+fn payee_to_wire(p: &Payee) -> String {
+    match p {
+        Payee::Offer => "offer".into(),
+        Payee::Accept => "accept".into(),
+        Payee::Beneficiary(i) => format!("b{i}"),
+    }
+}
+
+fn payee_from_wire(s: &str) -> Result<Payee> {
+    match s {
+        "offer" => Ok(Payee::Offer),
+        "accept" => Ok(Payee::Accept),
+        b => b
+            .strip_prefix('b')
+            .and_then(|i| i.parse().ok())
+            .map(Payee::Beneficiary)
+            .ok_or(err("payee")),
+    }
+}
+
+fn ironwood_from_hex(h: &str) -> Result<orchard::Address> {
+    Option::from(orchard::Address::from_raw_address_bytes(&unhex(h)?)).ok_or(err("Ironwood address"))
+}
+
+pub fn splits_to_wire(s: &Splits) -> WireSplits {
+    let split = |x: &Split| x.0.iter().map(|(p, b)| (payee_to_wire(p), *b)).collect();
+    WireSplits {
+        beneficiaries: s
+            .beneficiaries
+            .iter()
+            .map(|b| WireBeneficiary {
+                label: b.label.clone(),
+                payout: taddr(&b.payout),
+                close: b.close.map(|a| hex::encode(a.to_raw_address_bytes())),
+            })
+            .collect(),
+        offer: split(&s.offer),
+        accept: split(&s.accept),
+        outcomes: s
+            .outcomes
+            .iter()
+            .map(|(o, l)| (o.clone(), l.iter().map(|(p, v)| (payee_to_wire(p), *v)).collect()))
+            .collect(),
+    }
+}
+
+pub fn splits_from_wire(w: &WireSplits) -> Result<Splits> {
+    let split = |x: &[(String, u32)]| -> Result<Split> {
+        Ok(Split(x.iter().map(|(p, b)| Ok((payee_from_wire(p)?, *b))).collect::<Result<_>>()?))
+    };
+    Ok(Splits {
+        beneficiaries: w
+            .beneficiaries
+            .iter()
+            .map(|b| {
+                Ok(Beneficiary {
+                    label: b.label.clone(),
+                    payout: parse_taddr(&b.payout)?,
+                    close: b.close.as_deref().map(ironwood_from_hex).transpose()?,
+                })
+            })
+            .collect::<Result<_>>()?,
+        offer: split(&w.offer)?,
+        accept: split(&w.accept)?,
+        outcomes: w
+            .outcomes
+            .iter()
+            .map(|(o, l)| {
+                Ok((o.clone(), l.iter().map(|(p, v)| Ok((payee_from_wire(p)?, *v))).collect::<Result<_>>()?))
+            })
+            .collect::<Result<_>>()?,
+    })
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -224,6 +330,7 @@ pub fn terms_to_wire(t: &Terms) -> WireTerms {
         refund_height: t.refund_height,
         sign_height: t.sign_height,
         dual_sign: t.dual_sign,
+        splits: splits_to_wire(&t.splits),
     }
 }
 
@@ -277,6 +384,7 @@ pub fn terms_from_wire(w: &WireTerms) -> Result<Terms> {
         sign_height: w.sign_height,
         dual_sign: w.dual_sign,
         roll: None,
+        splits: splits_from_wire(&w.splits)?,
     })
 }
 

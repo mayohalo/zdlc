@@ -10,6 +10,7 @@ zdlc is oracle-settled contracts on Zcash, entered and exited through Ironwood. 
 | [docs/core.md](docs/core.md) | rust-dlc reuse map, TEE oracle network, Ironwood payout spike |
 | [docs/applications.md](docs/applications.md) | Shielded payments, private markets, cross-chain, Zcash-native extensions |
 | [docs/plan.md](docs/plan.md) | Phased plan with gates, open questions, sources |
+| [docs/beneficiaries.md](docs/beneficiaries.md) | Multi-beneficiary payouts: splits, per-outcome overrides, multi-output CETs and closes |
 
 ## Demo
 
@@ -53,7 +54,11 @@ cargo run -p zdlc --release --bin zdlc-trader -- taker --seed taker.seed --desk 
 # private quote by memo invitation: no public RFQ
 cargo run -p zdlc --release --bin zdlc-trader -- maker ... --invite <taker inbox hex> --invite-collateral 1000000
 cargo run -p zdlc --release --bin zdlc-trader -- taker ... --invitations-from <height>
+# the taker's side paid 60 % to itself, 40 % to a partner (Ironwood on the close)
+cargo run -p zdlc --release --bin zdlc-trader -- taker ... --split self:6000,<tm address>+<raw Ironwood hex>:4000
 ```
+
+A contract can pay up to 16 beneficiaries who never sign: each side's payout splits by basis points, and enumerated outcomes can carry fixed output lists (see [docs/beneficiaries.md](docs/beneficiaries.md)).
 
 ## Build and test
 
@@ -68,8 +73,9 @@ cargo test -p zdlc --release --test phase2 -- --ignored --nocapture  # Phase 2 g
 cargo test -p zdlc --release --test phase3 -- --ignored --nocapture  # two oracle daemons, 2-of-2 (needs internet)
 cargo test -p zdlc --release --test phase4 -- --ignored --nocapture  # maker and taker processes trade through the desk
 cargo test -p zdlc --release --test products -- --ignored --nocapture --test-threads=1  # invitation, escrow, payroll roll
+cargo test -p zdlc --release --test beneficiaries -- --ignored --nocapture  # team escrow: 3 payees by CET and by close
 cargo run -p zdlc --release --bin zdlc-oracle -- announce zecusd-1    # dev oracle
 cargo run -p zdlc --release --bin zdlc-watch -- kit.json              # refund watcher
 ```
 
-Results: [Phase 0](docs/spikes/phase0.md), [Phase 1](docs/phase1.md), [Phase 2](docs/phase2.md), [testnet](docs/testnet.md), [Phase 3](docs/phase3.md), [Phase 4](docs/phase4.md).
+Results: [Phase 0](docs/spikes/phase0.md), [Phase 1](docs/phase1.md), [Phase 2](docs/phase2.md), [testnet](docs/testnet.md), [Phase 3](docs/phase3.md), [Phase 4](docs/phase4.md), [beneficiaries](docs/beneficiaries.md).

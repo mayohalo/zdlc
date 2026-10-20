@@ -26,7 +26,7 @@ use std::{path::PathBuf, time::Instant};
 use serde_json::{json, Value};
 use zcash_protocol::{consensus::NetworkType, local_consensus::LocalNetwork};
 use zdlc::{
-    contract::{Event, Payouts, Terms},
+    contract::{Event, Payouts, Splits, Terms},
     enclave::EventSpec,
     feeds, keys,
     node::Node,
@@ -406,6 +406,7 @@ async fn run(ctx: &mut Ctx, args: &[String]) -> Result<()> {
         sign_height: tip + 1,
         dual_sign: false,
         roll: None,
+        splits: Splits::default(),
     };
     terms.check_cap(ctx.cap())?;
     let t = Instant::now();

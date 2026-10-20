@@ -6,12 +6,17 @@
 //! zdlc-trader maker   --seed s.hex --node URL --desk URL --oracles A,B [--premium-bps 50] [--cap ZAT] [--ttl 40] [--contracts N]
 //! zdlc-trader taker   --seed s.hex --node URL --desk URL --oracles A,B --collateral ZAT [--maturity 6] [--refund 60]
 //!                     [--event-offset-min 2] [--quote-wait 8] [--settle close|cet]
+//!                     [--split self:6000,tmADDR+IRONWOOD_HEX:3000,tmADDR:1000]
 //! zdlc-trader maker   ... --invite INBOX_HEX --invite-collateral ZAT [--invite-maturity 6] [--invite-refund 60]
 //! zdlc-trader taker   ... --invitations-from HEIGHT          (trade on a memo invitation, no RFQ)
 //! ```
 //!
 //! `--seed` is a file holding 32 bytes of hex (created if missing, mode 600). `--node`
 //! may come from `ZDLC_RPC`. `--log FILE` writes the steps as JSON.
+//!
+//! `--split` divides the taker's payout by basis points (summing to 10,000): `self` is
+//! the taker; `ADDR` is a transparent address the CETs pay, and `+IRONWOOD_HEX` (a raw
+//! Ironwood address) is where the cooperative close pays it, shielded.
 
 use std::{io::Write, os::unix::fs::OpenOptionsExt};
 
@@ -27,6 +32,30 @@ fn arg(args: &[String], name: &str, default: &str) -> String {
 fn die(m: impl std::fmt::Display) -> ! {
     eprintln!("zdlc-trader: {m}");
     std::process::exit(1)
+}
+
+fn split(s: &str) -> Vec<trader::SplitTo> {
+    s.split(',')
+        .filter(|x| !x.is_empty())
+        .map(|item| {
+            let (who, bps) = item.rsplit_once(':').unwrap_or_else(|| die("--split takes ADDR:BPS,..."));
+            let bps = bps.parse().unwrap_or_else(|_| die("--split: basis points"));
+            if who == "self" {
+                return trader::SplitTo { payout: None, close: None, bps };
+            }
+            let (t, z) = match who.split_once('+') {
+                Some((t, z)) => (t, Some(z)),
+                None => (who, None),
+            };
+            let payout = zdlc::keys::decode(t).unwrap_or_else(|| die(format!("--split: {t} is not a transparent address"))).1;
+            let close = z.map(|h| {
+                hex::decode(h).ok().and_then(|b| <[u8; 43]>::try_from(b).ok())
+                    .and_then(|b| Option::from(orchard::Address::from_raw_address_bytes(&b)))
+                    .unwrap_or_else(|| die("--split: +IRONWOOD_HEX takes a raw Ironwood address"))
+            });
+            trader::SplitTo { payout: Some(payout), close, bps }
+        })
+        .collect()
 }
 
 fn seed(path: &str) -> [u8; 32] {
@@ -97,6 +126,7 @@ async fn main() {
                 event_offset_min: arg(&args, "--event-offset-min", "2").parse().unwrap_or_else(|_| die("--event-offset-min")),
                 quote_wait_s: arg(&args, "--quote-wait", "8").parse().unwrap_or_else(|_| die("--quote-wait")),
                 settle: arg(&args, "--settle", "close"),
+                split: split(&arg(&args, "--split", "")),
             };
             trader::run_taker(&mut agent, &a).await
         }

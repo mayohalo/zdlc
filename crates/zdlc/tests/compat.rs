@@ -9,7 +9,7 @@
 use kormir::{storage::MemoryStorage, Oracle, OracleAnnouncement, OracleAttestation};
 use secp256k1_zkp::{Keypair, Secp256k1, SecretKey};
 use zdlc::{
-    contract::{Event, Party, Payouts, Terms},
+    contract::{Event, Party, Payouts, Splits, Terms},
     oracle::{self, NumericAnnouncement, NumericAttestation, NumericOracle},
     params::{self, NU7_AT},
     payout::StableValue,
@@ -78,6 +78,7 @@ fn terms(event: Event, tip: u32) -> Terms {
         sign_height: tip + 1,
         dual_sign: false,
         roll: None,
+        splits: Splits::default(),
     }
 }
 

@@ -15,7 +15,7 @@
 
 use serde_json::{json, Value};
 use zdlc::{
-    contract::{Contract, Event, Payouts, Terms},
+    contract::{Contract, Event, Payouts, Splits, Terms},
     oracle::NumericOracle,
     params::NU7_AT,
     payout::StableValue,
@@ -67,6 +67,7 @@ impl Run {
             sign_height: tip + 1,
             dual_sign: false,
             roll: None,
+            splits: Splits::default(),
         };
         let offer = alice.offer(terms.clone());
         let (accept, bob_txs) = bob.accept(&self.rt.p, tip, &offer).unwrap();
