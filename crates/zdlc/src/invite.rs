@@ -95,6 +95,7 @@ pub fn invitation_tx(
         inputs: vec![coin.clone()],
         outputs: vec![Pay::IronwoodMemo(inbox, INVITE_VALUE, inv.encode()?), Pay::Transparent(change, 1)],
         ironwood_anchor: Some(anchor),
+        ironwood_spends: vec![],
     };
     let fee = tx::fee(p, &spec)?;
     spec.outputs[1] = Pay::Transparent(

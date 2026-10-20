@@ -1,0 +1,23 @@
+{
+  "alice_leg_paid_from": "Ironwood notes",
+  "auto_shield_height": 283,
+  "bob_leg_paid_from": "transparent",
+  "cet_height": 282,
+  "cet_txid": "cd4ebcd0ba43cc8aaf5925eda9150bd81adedbd2ff4ff5d2fd54cb72cbe4eb98",
+  "funding_height": 281,
+  "funding_outputs_zat": [
+    200010000
+  ],
+  "funding_txid": "87d66ea63be19e40aa70b5bea82ee3dfb86dd7df9a6a06b383e30ff200a006e1",
+  "leg_links": [
+    "zcash:t2N2YiVLBuxsTbccvXFNZwafkBKB6xV3JQP?amount=1.000175&label=zDLC%20c2-alice",
+    "zcash:t2UXGzVjWsKsEpXVFngVRX6H9GG8v6UkYhr?amount=1.000175&label=zDLC%20c2-bob"
+  ],
+  "leg_zat": [
+    100017500,
+    100017500
+  ],
+  "shielded_zat": 199990000,
+  "withdraw_height": 284,
+  "withdrawn_zat": 199980000
+}

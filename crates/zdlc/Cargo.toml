@@ -32,12 +32,18 @@ hex = "0.4"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 zcash_note_encryption = "=0.5.1"
+# Witnesses for spending Ironwood notes (the version orchard uses).
+incrementalmerkletree = "=0.9.0"
 thiserror = "2"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "time", "net", "sync", "process"] }
 # The oracle service (zdlc-oracled) and its sealed state.
 axum = "0.8"
 chacha20poly1305 = "0.10"
+# Payment links (ZIP 321) and their QR codes.
+qrcode = { version = "0.14", default-features = false, features = ["svg"] }
+percent-encoding = "2.3"
+base64 = "0.22"
 
 [dev-dependencies]
 # Forging PCZT metadata in tests (tests/protocol.rs).

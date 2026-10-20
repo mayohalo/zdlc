@@ -251,7 +251,7 @@ async fn pay(ctx: &Ctx, args: &[String]) -> Result<()> {
     let have: u64 = inputs.iter().map(|c| c.value).sum();
     let mut outputs: Vec<Pay> = to.iter().map(|a| Pay::Transparent(*a, amount)).collect();
     outputs.push(Pay::Transparent(w.coin_address(0), 1));
-    let mut spec = Spec { target_height: tip + 1, expiry_height: tip + 40, lock_height: None, inputs: inputs.clone(), outputs, ironwood_anchor: None };
+    let mut spec = Spec { target_height: tip + 1, expiry_height: tip + 40, lock_height: None, inputs: inputs.clone(), outputs, ironwood_anchor: None, ironwood_spends: vec![] };
     let fee = tx::fee(&ctx.p, &spec)?;
     let last = spec.outputs.len() - 1;
     spec.outputs[last] = Pay::Transparent(w.coin_address(0), have.checked_sub(amount * to.len() as u64 + fee).ok_or(Error::Build("treasury too small".into()))?);
@@ -290,6 +290,7 @@ async fn sweep(ctx: &Ctx) -> Result<()> {
         inputs,
         outputs: vec![Pay::Transparent(w.coin_address(0), 1)],
         ironwood_anchor: None,
+        ironwood_spends: vec![],
     };
     spec.outputs[0] = Pay::Transparent(w.coin_address(0), total - tx::fee(&ctx.p, &spec)?);
     let mut pczt = tx::build(&ctx.p, &spec)?;
@@ -341,6 +342,7 @@ async fn run(ctx: &mut Ctx, args: &[String]) -> Result<()> {
             Pay::Transparent(w.coin_address(0), 1),
         ],
         ironwood_anchor: None,
+        ironwood_spends: vec![],
     };
     let fee = tx::fee(&ctx.p, &spec)?;
     let change = have.checked_sub(need + fee).ok_or(Error::Build(format!("treasury {} < {}", taz(have), taz(need + fee))))?;

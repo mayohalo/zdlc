@@ -1,0 +1,15 @@
+{
+  "alice_change_zat": 25012500,
+  "deposit_height": 219,
+  "deposit_zat": 100020000,
+  "fee_zat": 15000,
+  "funding_height": 220,
+  "funding_txid": "df8ee86f2fe1af3e98c036576cf716961485819b5db370e4ca6d85ee487a8b12",
+  "memo_kept": true,
+  "prove_ms": 538,
+  "redacted_pczt_bytes": 6191,
+  "transparent_outputs_zat": [
+    150000000,
+    24992500
+  ]
+}

@@ -80,6 +80,28 @@ impl Wallet {
         self.close_fvk(i).address_at(0u32, Scope::External)
     }
 
+    /// Contract `i`'s deposit key (path A of funding by QR): a shielded payment to its
+    /// address funds the contract, and the deposit is identified by the receiver alone.
+    pub fn deposit_sk(&self, i: u32) -> SpendingKey {
+        (0u8..=255)
+            .find_map(|n| Option::<SpendingKey>::from(SpendingKey::from_bytes(self.derive("deposit", i, n))))
+            .expect("a valid spending key")
+    }
+
+    pub fn deposit_fvk(&self, i: u32) -> FullViewingKey {
+        FullViewingKey::from(&self.deposit_sk(i))
+    }
+
+    pub fn deposit_address(&self, i: u32) -> orchard::Address {
+        self.deposit_fvk(i).address_at(0u32, Scope::External)
+    }
+
+    /// The owner key of this wallet's leg in contract `i` (path B): it reclaims the leg
+    /// alone from the refund height.
+    pub fn leg_key(&self, i: u32) -> SecretKey {
+        self.secp_key("leg", i)
+    }
+
     pub fn close_ivk(&self, i: u32) -> PreparedIncomingViewingKey {
         PreparedIncomingViewingKey::new(&self.close_fvk(i).to_ivk(Scope::External))
     }
@@ -93,12 +115,14 @@ impl Wallet {
             input_keys: vec![self.coin_key(i); inputs.len()],
             close_fvk: self.close_fvk(i),
             roll_key: None,
+            ironwood: None,
             info: PartyInfo {
                 funding_pubkey: keys::pubkey(&funding_sk),
                 inputs,
                 change: self.coin_address(i),
                 payout: self.payout_address(i),
                 close: self.close_address(i),
+                ironwood: false,
             },
         }
     }

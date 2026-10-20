@@ -36,6 +36,11 @@ pub struct QuoteBody {
     /// The maker's funding inputs, reserved for this quote until `valid_until`.
     pub inputs: Vec<WireCoin>,
     pub valid_until: u32,
+    /// The maker's whole side of the contract (keys, inputs, addresses), fixed by the
+    /// quote: a taker funding from Ironwood builds the funding transaction from it
+    /// before offering.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub party: Option<wire::WireParty>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

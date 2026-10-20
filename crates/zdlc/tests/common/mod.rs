@@ -56,6 +56,7 @@ pub fn split(
             .map(|(a, _)| Pay::Transparent(*a, 1))
             .collect(),
         ironwood_anchor: None,
+        ironwood_spends: vec![],
     };
     let total: u64 = spec.inputs.iter().map(|c| c.value).sum::<u64>() - tx::fee(params, &spec).unwrap();
     let mut left = total;
@@ -87,6 +88,7 @@ pub fn close_to_ironwood(
         inputs,
         outputs: vec![Pay::Ironwood(to[0], 1), Pay::Ironwood(to[1], 1)],
         ironwood_anchor: Some(anchor),
+        ironwood_spends: vec![],
     };
     let total = spec.inputs.iter().map(|c| c.value).sum::<u64>() - tx::fee(params, &spec).unwrap();
     spec.outputs = vec![Pay::Ironwood(to[0], total / 2), Pay::Ironwood(to[1], total - total / 2)];

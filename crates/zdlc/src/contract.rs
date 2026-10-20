@@ -282,12 +282,27 @@ pub struct PartyInfo {
     pub payout: TransparentAddress,
     /// Where the cooperative close pays this party.
     pub close: IronwoodAddress,
+    /// The party funds from its own Ironwood notes (path A of funding by QR) and brings
+    /// no transparent inputs. It builds the funding transaction; the other side checks it.
+    pub ironwood: bool,
+}
+
+/// An Ironwood funder's notes: spent into the funding output, change back to `change`.
+#[derive(Clone)]
+pub struct IronwoodFunds {
+    pub sk: orchard::keys::SpendingKey,
+    pub spends: Vec<tx::IronwoodSpend>,
+    pub anchor: orchard::Anchor,
+    pub change: IronwoodAddress,
 }
 
 #[derive(Clone)]
 pub struct Offer {
     pub terms: Terms,
     pub offer: PartyInfo,
+    /// An Ironwood-funding offerer's funding PCZT: proved, its spends authorized, its
+    /// secrets and binding key redacted. It fixes the funding txid before anyone signs.
+    pub funding: Option<Vec<u8>>,
 }
 
 #[derive(Clone)]
@@ -296,17 +311,24 @@ pub struct Accept {
     /// Per CET, per unlock.
     pub cet_adaptors: Vec<Vec<AdaptorSignature>>,
     pub refund_sig: ecdsa::Signature,
+    /// An Ironwood-funding accepter's funding PCZT, redacted as in [`Offer::funding`].
+    pub funding: Option<Vec<u8>>,
 }
 
 #[derive(Clone)]
 pub struct SignMsg {
     pub cet_adaptors: Vec<Vec<AdaptorSignature>>,
     pub refund_sig: ecdsa::Signature,
-    /// The funding PCZT with the offerer's inputs signed.
+    /// The funding PCZT with the offerer's inputs signed (and, for an Ironwood-funding
+    /// offerer, its binding key, so the accepter can extract the transaction).
     pub funding_pczt: Vec<u8>,
+    /// The offerer's signatures on funding inputs that are legs, by input index.
+    pub leg_sigs: Vec<(usize, ecdsa::Signature)>,
 }
 
 pub struct TxSet {
+    /// The funding transaction's inputs, in order.
+    funding_inputs: Vec<Coin>,
     pub params: LocalNetwork,
     pub redeem: FromChain,
     pub funding: Pczt,
@@ -314,10 +336,27 @@ pub struct TxSet {
     pub funding_coin: Coin,
     /// Part of the funding output set aside for the CET or refund fee.
     pub reserve: u64,
+    /// The Ironwood funder's own unredacted funding PCZT (accepter side), kept for
+    /// `finish`.
+    own_funding: Option<Pczt>,
     /// (terms, PCZT, sighash, target height): one entry per CET per era.
     pub cets: Vec<(CetTerms, Pczt, [u8; 32], u32)>,
     pub refund: Pczt,
     pub refund_sighash: [u8; 32],
+}
+
+impl TxSet {
+    fn has_legs(&self) -> bool {
+        self.funding_inputs.iter().any(|c| matches!(c.spend, Spend::Leg(_)))
+    }
+
+    fn funding_inputs(&self) -> usize {
+        self.funding_inputs.len()
+    }
+
+    fn funding_inputs_coins(&self) -> &[Coin] {
+        &self.funding_inputs
+    }
 }
 
 impl Terms {
@@ -478,6 +517,7 @@ fn payout_spec(
         inputs: vec![funding.clone()],
         outputs: to.iter().map(|(a, v)| Pay::Transparent(*a, *v)).collect(),
         ironwood_anchor: None,
+        ironwood_spends: vec![],
     };
     let fee = tx::fee(p, &spec)?;
     let left = reserve
@@ -531,6 +571,147 @@ pub fn build_txs(
     offer: &PartyInfo,
     accept: &PartyInfo,
 ) -> Result<TxSet> {
+    build_txs_with(p, terms, offer, accept, None)
+}
+
+fn pczt_bytes(pczt: &Pczt) -> Result<Vec<u8>> {
+    pczt.clone().serialize().map_err(|e| Error::Pczt(format!("serialize: {e:?}")))
+}
+
+fn parse_pczt(bytes: &[u8]) -> Result<Pczt> {
+    Pczt::parse(bytes).map_err(|e| Error::Pczt(format!("parse: {e:?}")))
+}
+
+/// Checks a funding PCZT built by an Ironwood funder against the transparent spec both
+/// sides derive: exactly the agreed inputs and transparent outputs, lock time, expiry
+/// and branch, and Ironwood only flowing in. Whatever else it spends or pays is the
+/// builder's own notes and change.
+fn check_funding(p: &LocalNetwork, pczt: &Pczt, spec: &Spec) -> Result<()> {
+    let bad = |m: &str| Error::Build(format!("funding PCZT refused: {m}"));
+    let fx = pczt.clone().into_effects().map_err(|e| Error::Pczt(format!("effects: {e:?}")))?;
+    if fx.lock_time() != 0 || u32::from(fx.expiry_height()) != spec.expiry_height {
+        return Err(bad("lock time or expiry"));
+    }
+    if u32::from(fx.consensus_branch_id()) != params::branch_at(p, spec.target_height) {
+        return Err(bad("branch"));
+    }
+    if fx.sapling_bundle().is_some() || fx.orchard_bundle().is_some() {
+        return Err(bad("Sapling or Orchard parts"));
+    }
+    match fx.ironwood_bundle() {
+        Some(b) if i64::from(*b.value_balance()) > 0 => {}
+        _ => return Err(bad("no Ironwood value flowing in")),
+    }
+    let t = fx.transparent_bundle().ok_or(bad("no transparent part"))?;
+    let ins: Vec<([u8; 32], u32)> = t.vin.iter().map(|i| (*i.prevout().hash(), i.prevout().n())).collect();
+    let want_ins: Vec<([u8; 32], u32)> = spec.inputs.iter().map(|c| (c.txid, c.index)).collect();
+    if ins != want_ins {
+        return Err(bad("inputs differ"));
+    }
+    let outs: Vec<(Option<TransparentAddress>, u64)> =
+        t.vout.iter().map(|o| (o.recipient_address(), o.value().into_u64())).collect();
+    let want: Vec<(Option<TransparentAddress>, u64)> = spec
+        .outputs
+        .iter()
+        .map(|o| match o {
+            Pay::Transparent(a, v) => (Some(*a), *v),
+            _ => (None, 0),
+        })
+        .collect();
+    if outs != want {
+        return Err(bad("transparent outputs differ"));
+    }
+    Ok(())
+}
+
+/// The Ironwood funder's side: the agreed transparent spec plus its notes and change,
+/// proved and with its spends authorized. Returns the full PCZT (keep it) .
+fn build_ironwood_funding(p: &LocalNetwork, spec: &Spec, funds: &IronwoodFunds) -> Result<Pczt> {
+    let notes: u64 = funds.spends.iter().map(|s| s.note.value().inner()).sum();
+    let ins: u64 = spec.inputs.iter().map(|c| c.value).sum();
+    let outs: u64 = spec.outputs.iter().map(Pay::value).sum();
+    let mut full = spec.clone();
+    full.ironwood_spends = funds.spends.clone();
+    full.ironwood_anchor = Some(funds.anchor);
+    full.outputs.push(Pay::Ironwood(funds.change, 0));
+    let fee = tx::fee(p, &full)?;
+    let change = (notes + ins)
+        .checked_sub(outs + fee)
+        .ok_or(Error::Build(format!("notes ({notes} zat) do not cover the contract, share and fee")))?;
+    *full.outputs.last_mut().unwrap() = Pay::Ironwood(funds.change, change);
+    let (pczt, n) = tx::sign_ironwood(tx::build(p, &full)?, &orchard::keys::SpendAuthorizingKey::from(&funds.sk))?;
+    if n != funds.spends.len() {
+        return Err(Error::Build(format!("authorized {n} of {} spends", funds.spends.len())));
+    }
+    check_funding(p, &pczt, spec)?;
+    Ok(pczt)
+}
+
+/// What each side's legs must hold (offer, accept): its collateral and share of the
+/// reserve and funding fee. `offer.inputs` and `accept.inputs` are the legs (one coin
+/// each, any value); a side that funds nothing needs 0. The amounts leg links ask for.
+pub fn leg_amounts(p: &LocalNetwork, terms: &Terms, offer: &PartyInfo, accept: &PartyInfo) -> Result<(u64, u64)> {
+    let big = terms.total() + 1_0000_0000;
+    let probe = |info: &PartyInfo| {
+        let mut i = info.clone();
+        for c in &mut i.inputs {
+            c.value = big;
+        }
+        i
+    };
+    let (o, a) = (probe(offer), probe(accept));
+    let plan = plan(p, terms, &o, &a)?;
+    let need = |info: &PartyInfo| -> u64 {
+        if info.inputs.is_empty() {
+            return 0;
+        }
+        let back: u64 = plan
+            .spec
+            .outputs
+            .iter()
+            .filter_map(|x| match x {
+                Pay::Transparent(t, v) if *t == info.change => Some(*v),
+                _ => None,
+            })
+            .sum();
+        big * info.inputs.len() as u64 - back
+    };
+    Ok((need(&o), need(&a)))
+}
+
+/// Derives the transaction set; `funding` is the Ironwood funder's PCZT when one party
+/// funds from Ironwood (built by that party, checked here), and `None` otherwise.
+pub fn build_txs_with(
+    p: &LocalNetwork,
+    terms: &Terms,
+    offer: &PartyInfo,
+    accept: &PartyInfo,
+    funding: Option<&Pczt>,
+) -> Result<TxSet> {
+    let (txs, _) = derive_txs(p, terms, offer, accept, Funding::Given(funding))?;
+    Ok(txs)
+}
+
+enum Funding<'a> {
+    /// Build it (no Ironwood funder) or check the given one.
+    Given(Option<&'a Pczt>),
+    /// Build it as the Ironwood funder.
+    Mine(&'a IronwoodFunds),
+}
+
+/// Returns the transaction set and, for the Ironwood funder, its full funding PCZT.
+/// The funding transaction's transparent part, as both sides derive it.
+struct Plan {
+    redeem: FromChain,
+    reserve: u64,
+    fund_value: u64,
+    spec: Spec,
+    /// How many parties fund from Ironwood (0 or 1).
+    iron: usize,
+    all: Vec<CetTerms>,
+}
+
+fn plan(p: &LocalNetwork, terms: &Terms, offer: &PartyInfo, accept: &PartyInfo) -> Result<Plan> {
     let redeem = script::multisig_2of2(&offer.funding_pubkey, &accept.funding_pubkey)?;
     let total = terms.total();
     let probe = Coin {
@@ -551,6 +732,7 @@ pub fn build_txs(
             inputs: vec![probe],
             outputs: vec![Pay::Transparent(offer.payout, 1); widest],
             ironwood_anchor: None,
+            ironwood_spends: vec![],
         },
     )?;
     reserve += reserve % 2;
@@ -575,8 +757,29 @@ pub fn build_txs(
     // Each funder's leftover goes to its change address, or on a roll to its payout address.
     let funders: Vec<(&PartyInfo, u64, u64)> = [(offer, terms.offer_collateral, credit_o), (accept, terms.accept_collateral, credit_a)]
         .into_iter()
-        .filter(|(info, collateral, credit)| !info.inputs.is_empty() || *collateral > 0 || *credit > 0)
+        .filter(|(info, collateral, credit)| !info.inputs.is_empty() || *collateral > 0 || *credit > 0 || info.ironwood)
         .collect();
+    let iron = [offer, accept].iter().filter(|i| i.ironwood).count();
+    if iron > 1 {
+        return Err(Error::Build("both parties fund from Ironwood: one must first move to transparent".into()));
+    }
+    if iron == 1 && (roll.is_some() || [offer, accept].iter().any(|i| i.ironwood && !i.inputs.is_empty())) {
+        return Err(Error::Build("an Ironwood funder brings notes only, and does not roll".into()));
+    }
+    // Legs: every funding input is one, keyed to this contract's 2-of-2 and refund height.
+    let legs = inputs.iter().filter(|c| matches!(c.spend, Spend::Leg(_))).count();
+    if legs > 0 {
+        if legs != inputs.len() || iron > 0 {
+            return Err(Error::Build("a contract funded by legs is funded by legs only".into()));
+        }
+        for c in &inputs {
+            if let Spend::Leg(l) = &c.spend {
+                if l.a != offer.funding_pubkey || l.b != accept.funding_pubkey || l.reclaim_height != terms.refund_height {
+                    return Err(Error::Build("a leg is not keyed to this contract".into()));
+                }
+            }
+        }
+    }
     if funders.is_empty() {
         return Err(Error::Build("nobody funds the contract".into()));
     }
@@ -590,6 +793,7 @@ pub fn build_txs(
             .chain(funders.iter().map(|(info, _, _)| Pay::Transparent(rest_to(info), 1)))
             .collect(),
         ironwood_anchor: None,
+        ironwood_spends: vec![],
     };
     let fee = tx::fee(p, &spec)?;
     let owed = (reserve + fee).checked_sub(old_extra).ok_or(Error::Build("old reserve exceeds the new costs".into()))?;
@@ -597,6 +801,11 @@ pub fn build_txs(
     let mut live = vec![Pay::Transparent(p2sh, fund_value)];
     for (k, (info, collateral, credit)) in funders.iter().enumerate() {
         let share = owed / n + if k == 0 { owed % n } else { 0 };
+        if info.ironwood {
+            // Brings exactly its collateral and share from Ironwood, plus whatever its
+            // own Ironwood actions add to the fee; its change stays shielded.
+            continue;
+        }
         let have: u64 = info.inputs.iter().map(|c| c.value).sum::<u64>() + credit;
         let rest = have
             .checked_sub(collateral + share)
@@ -607,7 +816,8 @@ pub fn build_txs(
             return Err(Error::Build("change below dust; use other inputs".into()));
         }
     }
-    if live.len() != spec.outputs.len() {
+    let iron_change = (iron > 0) as usize;
+    if live.len() + iron_change != spec.outputs.len() {
         // A funder's leftover was dust (a roll that nets to nothing): the fee absorbs it.
         spec.outputs = live;
         let refee = tx::fee(p, &spec)?;
@@ -617,8 +827,47 @@ pub fn build_txs(
     } else {
         spec.outputs = live;
     }
-    let funding = tx::build(p, &spec)?;
+    Ok(Plan { redeem, reserve, fund_value, spec, iron, all })
+}
+
+/// What an Ironwood funder's notes must hold for this contract when it spends `notes`
+/// of them: its collateral and share of the reserve and fee, plus the Ironwood actions
+/// (one per note; the first also carries the change). The amount a deposit link asks
+/// for; a top-up link asks for the two-note amount less what arrived.
+pub fn ironwood_deposit(p: &LocalNetwork, terms: &Terms, offer: &PartyInfo, accept: &PartyInfo, notes: usize) -> Result<u64> {
+    let plan = plan(p, terms, offer, accept)?;
+    let ins: u64 = plan.spec.inputs.iter().map(|c| c.value).sum();
+    let outs: u64 = plan.spec.outputs.iter().map(Pay::value).sum();
+    let mut full = plan.spec.clone();
+    // Ironwood actions = max(spends, outputs): `notes` placeholder outputs count the same.
+    full.outputs.extend(std::iter::repeat_n(Pay::Ironwood(offer.close, 0), notes.max(1)));
+    full.ironwood_anchor = Some(orchard::Anchor::empty_tree());
+    Ok(outs + tx::fee(p, &full)? - ins)
+}
+
+fn derive_txs(
+    p: &LocalNetwork,
+    terms: &Terms,
+    offer: &PartyInfo,
+    accept: &PartyInfo,
+    given: Funding<'_>,
+) -> Result<(TxSet, Option<Pczt>)> {
+    let Plan { redeem, reserve, fund_value, spec, iron, all } = plan(p, terms, offer, accept)?;
+    let (funding, full) = match given {
+        Funding::Given(None) if iron == 0 => (tx::build(p, &spec)?, None),
+        Funding::Given(None) => return Err(Error::Build("needs the Ironwood funder's funding PCZT".into())),
+        Funding::Given(Some(_)) if iron == 0 => return Err(Error::Build("a funding PCZT without an Ironwood funder".into())),
+        Funding::Given(Some(pczt)) => {
+            check_funding(p, pczt, &spec)?;
+            (pczt.clone(), None)
+        }
+        Funding::Mine(funds) => {
+            let full = build_ironwood_funding(p, &spec, funds)?;
+            (tx::redact_ironwood(full.clone(), false), Some(full))
+        }
+    };
     let funding_txid = tx::txid(&funding)?;
+    let spec_inputs = spec.inputs.clone();
     let funding_coin = Coin {
         txid: funding_txid,
         index: 0,
@@ -653,17 +902,22 @@ pub fn build_txs(
         )?,
     )?;
     let refund_sighash = tx::sighash(&refund, 0)?;
-    Ok(TxSet {
-        params: *p,
-        redeem,
-        funding,
-        funding_txid,
-        funding_coin,
-        reserve,
-        cets,
-        refund,
-        refund_sighash,
-    })
+    Ok((
+        TxSet {
+            params: *p,
+            redeem,
+            funding,
+            funding_txid,
+            funding_coin,
+            reserve,
+            funding_inputs: spec_inputs,
+            own_funding: full.clone(),
+            cets,
+            refund,
+            refund_sighash,
+        },
+        full,
+    ))
 }
 
 fn adaptors(txs: &TxSet, sk: &SecretKey) -> Vec<Vec<AdaptorSignature>> {
@@ -709,6 +963,8 @@ pub struct Party {
     pub close_fvk: FullViewingKey,
     /// This party's funding key in the contract being rolled from, if any.
     pub roll_key: Option<SecretKey>,
+    /// Notes to fund from, when `info.ironwood`.
+    pub ironwood: Option<IronwoodFunds>,
     pub info: PartyInfo,
 }
 
@@ -747,18 +1003,39 @@ impl Party {
         Offer {
             terms,
             offer: self.info.clone(),
+            funding: None,
         }
     }
 
+    /// An Ironwood-funding offerer's offer: it needs the accepter's info in advance (a
+    /// desk maker's quote carries it) to build the funding transaction, which fixes the
+    /// txid every CET spends. Keep the returned PCZT for [`Party::sign_funded`].
+    pub fn offer_funded(&self, p: &LocalNetwork, terms: Terms, accept: &PartyInfo) -> Result<(Offer, Pczt)> {
+        let funds = self.ironwood.as_ref().ok_or(Error::Build("no Ironwood funds".into()))?;
+        let (txs, full) = derive_txs(p, &terms, &self.info, accept, Funding::Mine(funds))?;
+        let offer = Offer { terms, offer: self.info.clone(), funding: Some(pczt_bytes(&txs.funding)?) };
+        Ok((offer, full.expect("built as the funder")))
+    }
+
     /// Accepter: checks the terms, derives the transactions, adaptor-signs every CET and
-    /// signs the refund.
+    /// signs the refund. An Ironwood-funding accepter builds the funding transaction here
+    /// and sends it, redacted, with its signatures.
     pub fn accept(&self, p: &LocalNetwork, tip: u32, offer: &Offer) -> Result<(Accept, TxSet)> {
         offer.terms.validate(p, tip)?;
-        let txs = build_txs(p, &offer.terms, &offer.offer, &self.info)?;
+        let txs = match (&self.ironwood, &offer.funding) {
+            (Some(_), Some(_)) => return Err(Error::Build("both parties fund from Ironwood".into())),
+            (Some(funds), None) => derive_txs(p, &offer.terms, &offer.offer, &self.info, Funding::Mine(funds))?.0,
+            (None, Some(b)) => build_txs_with(p, &offer.terms, &offer.offer, &self.info, Some(&parse_pczt(b)?))?,
+            (None, None) => build_txs(p, &offer.terms, &offer.offer, &self.info)?,
+        };
         let accept = Accept {
             accept: self.info.clone(),
             cet_adaptors: adaptors(&txs, &self.funding_sk),
             refund_sig: ecdsa::sign(Message::from_digest(txs.refund_sighash), &self.funding_sk),
+            funding: match self.ironwood {
+                Some(_) => Some(pczt_bytes(&txs.funding)?),
+                None => None,
+            },
         };
         Ok((accept, txs))
     }
@@ -772,21 +1049,53 @@ impl Party {
         offer: &Offer,
         accept: &Accept,
     ) -> Result<(SignMsg, Contract)> {
+        self.sign_funded(p, tip, offer, accept, None)
+    }
+
+    /// [`Party::sign`], for an offerer that funds from Ironwood with `own` (from
+    /// [`Party::offer_funded`]): its message carries the binding key, so the accepter
+    /// can extract the funding transaction once it has signed its own inputs.
+    pub fn sign_funded(
+        &self,
+        p: &LocalNetwork,
+        tip: u32,
+        offer: &Offer,
+        accept: &Accept,
+        own: Option<&Pczt>,
+    ) -> Result<(SignMsg, Contract)> {
         offer.terms.validate(p, tip)?;
-        let txs = build_txs(p, &offer.terms, &self.info, &accept.accept)?;
+        let txs = match (own, &accept.funding) {
+            (Some(_), Some(_)) => return Err(Error::Build("both parties fund from Ironwood".into())),
+            (Some(full), None) => build_txs_with(p, &offer.terms, &self.info, &accept.accept, Some(&tx::redact_ironwood(full.clone(), false)))?,
+            (None, Some(b)) => build_txs_with(p, &offer.terms, &self.info, &accept.accept, Some(&parse_pczt(b)?))?,
+            (None, None) => build_txs(p, &offer.terms, &self.info, &accept.accept)?,
+        };
         check_adaptors(&txs, &accept.cet_adaptors, &accept.accept.funding_pubkey)?;
         check_sig(&accept.refund_sig, txs.refund_sighash, &accept.accept.funding_pubkey)?;
-        let mut funding = txs.funding.clone();
-        let base = self.sign_roll(&offer.terms, &mut funding)?;
-        for (i, k) in self.input_keys.iter().enumerate() {
-            funding = tx::sign(funding, base + i, k)?;
-        }
+        let mut leg_sigs = vec![];
+        let funding = if let Some(full) = own {
+            if tx::txid(full)? != txs.funding_txid {
+                return Err(Error::Build("own funding PCZT is not this contract's".into()));
+            }
+            tx::redact_ironwood(full.clone(), true)
+        } else if txs.has_legs() {
+            for i in 0..txs.funding_inputs() {
+                leg_sigs.push((i, crate::leg::sign(&txs.funding, i, &self.funding_sk)?));
+            }
+            txs.funding.clone()
+        } else {
+            let mut funding = txs.funding.clone();
+            let base = self.sign_roll(&offer.terms, &mut funding)?;
+            for (i, k) in self.input_keys.iter().enumerate() {
+                funding = tx::sign(funding, base + i, k)?;
+            }
+            funding
+        };
         let msg = SignMsg {
             cet_adaptors: adaptors(&txs, &self.funding_sk),
             refund_sig: ecdsa::sign(Message::from_digest(txs.refund_sighash), &self.funding_sk),
-            funding_pczt: funding
-                .serialize()
-                .map_err(|e| Error::Pczt(format!("serialize: {e:?}")))?,
+            funding_pczt: pczt_bytes(&funding)?,
+            leg_sigs,
         };
         let contract = Contract {
             is_offerer: true,
@@ -812,17 +1121,39 @@ impl Party {
     ) -> Result<(tx::Final, Contract)> {
         check_adaptors(&txs, &sign.cet_adaptors, &offer.offer.funding_pubkey)?;
         check_sig(&sign.refund_sig, txs.refund_sighash, &offer.offer.funding_pubkey)?;
-        let mut funding = Pczt::parse(&sign.funding_pczt)
-            .map_err(|e| Error::Pczt(format!("parse funding: {e:?}")))?;
+        let mut funding = parse_pczt(&sign.funding_pczt)?;
         if tx::txid(&funding)? != txs.funding_txid {
             return Err(Error::Build("funding PCZT is not the agreed transaction".into()));
         }
-        let base = self.sign_roll(&offer.terms, &mut funding)?;
-        let first = base + offer.offer.inputs.len();
-        for (i, k) in self.input_keys.iter().enumerate() {
-            funding = tx::sign(funding, first + i, k)?;
+        if let Some(full) = &txs.own_funding {
+            // Our proofs, spend authorizations and binding key, with their signatures.
+            funding = pczt::roles::combiner::Combiner::new(vec![full.clone(), funding])
+                .combine()
+                .map_err(|e| Error::Pczt(format!("combine: {e:?}")))?;
         }
-        let f = tx::extract(funding)?;
+        let f = if txs.has_legs() {
+            let mut script_sigs = vec![];
+            for (i, c) in txs.funding_inputs_coins().iter().enumerate() {
+                let Spend::Leg(leg) = &c.spend else { unreachable!("checked in derive_txs") };
+                let theirs = sign
+                    .leg_sigs
+                    .iter()
+                    .find(|(j, _)| *j == i)
+                    .map(|(_, s)| *s)
+                    .ok_or(Error::Build(format!("no offerer signature on leg input {i}")))?;
+                check_sig(&theirs, tx::sighash(&funding, i)?, &offer.offer.funding_pubkey)?;
+                let mine = crate::leg::sign(&funding, i, &self.funding_sk)?;
+                script_sigs.push(leg.joint_script_sig(&theirs, &mine));
+            }
+            tx::extract_with_script_sigs(funding, script_sigs)?
+        } else {
+            let base = self.sign_roll(&offer.terms, &mut funding)?;
+            let first = base + offer.offer.inputs.len();
+            for (i, k) in self.input_keys.iter().enumerate() {
+                funding = tx::sign(funding, first + i, k)?;
+            }
+            tx::extract(funding)?
+        };
         let contract = Contract {
             is_offerer: false,
             terms: offer.terms.clone(),
@@ -973,6 +1304,7 @@ impl Contract {
             inputs: vec![self.txs.funding_coin.clone()],
             outputs: live.iter().map(|(w, v)| pay(*w, *v)).collect(),
             ironwood_anchor: Some(anchor),
+            ironwood_spends: vec![],
         };
         let fee = tx::fee(p, &spec)?;
         // The reserve and any dust go into the fee first; the rest is split.

@@ -7,8 +7,12 @@
 //! zdlc-trader taker   --seed s.hex --node URL --desk URL --oracles A,B --collateral ZAT [--maturity 6] [--refund 60]
 //!                     [--event-offset-min 2] [--quote-wait 8] [--settle close|cet]
 //!                     [--split self:6000,tmADDR+IRONWOOD_HEX:3000,tmADDR:1000]
+//!                     [--fund treasury|deposit] [--link-out FILE]
 //! zdlc-trader maker   ... --invite INBOX_HEX --invite-collateral ZAT [--invite-maturity 6] [--invite-refund 60]
 //! zdlc-trader taker   ... --invitations-from HEIGHT          (trade on a memo invitation, no RFQ)
+//! zdlc-trader balance  --seed s.hex --node URL [--from HEIGHT] [--gap 20]
+//! zdlc-trader shield   --seed s.hex --node URL [--gap 20]     (payouts into the shielded balance)
+//! zdlc-trader withdraw --seed s.hex --node URL --to UA [--from HEIGHT] [--gap 20]
 //! ```
 //!
 //! `--seed` is a file holding 32 bytes of hex (created if missing, mode 600). `--node`
@@ -17,6 +21,11 @@
 //! `--split` divides the taker's payout by basis points (summing to 10,000): `self` is
 //! the taker; `ADDR` is a transparent address the CETs pay, and `+IRONWOOD_HEX` (a raw
 //! Ironwood address) is where the cooperative close pays it, shielded.
+//!
+//! `--fund deposit` funds the taker's side from a shielded deposit: the taker prints a
+//! ZIP 321 link and QR for the contract's own Ironwood receiver, any wallet pays it,
+//! and the taker builds the funding transaction from that note against the maker's
+//! quoted inputs.
 
 use std::{io::Write, os::unix::fs::OpenOptionsExt};
 
@@ -93,6 +102,37 @@ async fn main() {
             println!("inbox (Ironwood, raw) {}", hex::encode(agent.wallet.close_address(0).to_raw_address_bytes()));
             return;
         }
+        "balance" | "shield" | "withdraw" => {
+            let gap: u32 = arg(&args, "--gap", "20").parse().unwrap_or_else(|_| die("--gap"));
+            let from: u32 = arg(&args, "--from", "1").parse().unwrap_or_else(|_| die("--from HEIGHT"));
+            let r: zdlc::Result<()> = async {
+                match cmd.as_str() {
+                    "shield" => {
+                        for i in 0..gap {
+                            if let Some(f) = zdlc::funds::auto_shield(&agent.node, &agent.p, agent.net, &agent.wallet, i).await? {
+                                println!("contract {i}: shielded payout {} at {}", zdlc::txid_hex(&f.txid), agent.send_wait(&f).await?);
+                            }
+                        }
+                    }
+                    _ => {
+                        let held = zdlc::funds::balance(&agent.node, &agent.wallet, from, gap).await?;
+                        let total: u64 = held.iter().flat_map(|(_, n)| n.iter().map(|x| x.value())).sum();
+                        println!("shielded balance {} ZEC in {} notes", zdlc::paylink::zec(total), held.iter().map(|(_, n)| n.len()).sum::<usize>());
+                        if cmd == "withdraw" {
+                            let to = arg(&args, "--to", "");
+                            for (i, notes) in &held {
+                                let f = zdlc::funds::withdraw(&agent.node, &agent.p, &agent.wallet, *i, notes, &to).await?;
+                                println!("contract {i}: withdrew {} at {}", zdlc::txid_hex(&f.txid), agent.send_wait(&f).await?);
+                            }
+                        }
+                    }
+                }
+                Ok(())
+            }
+            .await;
+            r.unwrap_or_else(|e| die(e));
+            return;
+        }
         "maker" => {
             let invite = match arg(&args, "--invite", "").as_str() {
                 "" => None,
@@ -127,10 +167,15 @@ async fn main() {
                 quote_wait_s: arg(&args, "--quote-wait", "8").parse().unwrap_or_else(|_| die("--quote-wait")),
                 settle: arg(&args, "--settle", "close"),
                 split: split(&arg(&args, "--split", "")),
+                fund: arg(&args, "--fund", "treasury"),
+                link_out: match arg(&args, "--link-out", "").as_str() {
+                    "" => None,
+                    f => Some(f.to_string()),
+                },
             };
             trader::run_taker(&mut agent, &a).await
         }
-        _ => die("command must be address, maker or taker"),
+        _ => die("command must be address, maker, taker, balance, shield or withdraw"),
     };
     match out {
         Ok(log) => {

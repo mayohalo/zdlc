@@ -20,7 +20,7 @@ use crate::{
     params,
     payout::StableValue,
     tx::{self, Coin, Spend},
-    txid_hex,
+    txid_from_hex, txid_hex,
     wallet::Wallet,
     wire::{self, Envelope, WireCoin},
     Error, Result,
@@ -137,12 +137,14 @@ impl Agent {
             input_keys: vec![w.coin_key(0); inputs.len()],
             close_fvk: w.close_fvk(i),
             roll_key: None,
+            ironwood: None,
             info: PartyInfo {
                 funding_pubkey: crate::keys::pubkey(&w.funding_key(i)),
                 inputs,
                 change: w.coin_address(0),
                 payout: w.payout_address(i),
                 close: w.close_address(i),
+                ironwood: false,
             },
         }
     }
@@ -216,6 +218,12 @@ pub struct TakerArgs {
     /// How the taker's side pays out (empty: all to the taker). The maker prices only its
     /// own side and never needs these.
     pub split: Vec<SplitTo>,
+    /// "treasury": fund from treasury coins. "deposit": show a deposit link (ZIP 321 and
+    /// QR) for the contract's own Ironwood receiver, wait for any wallet to pay it, and
+    /// fund from that note (path A of funding by QR).
+    pub fund: String,
+    /// Also write the deposit link to this file.
+    pub link_out: Option<String>,
 }
 
 /// One payee of the taker's side, by basis points.
@@ -277,7 +285,7 @@ pub async fn run_taker(a: &mut Agent, args: &TakerArgs) -> Result<Vec<Value>> {
             return Err(Error::Build("the desk's quote does not match the invitation".into()));
         }
         a.desk = desk;
-        let t = TakerArgs { q_recipient: inv.q_recipient, maturity_blocks: inv.maturity_blocks, refund_blocks: inv.refund_blocks, invitations_from: None, settle: args.settle.clone(), split: args.split.clone(), ..*args };
+        let t = TakerArgs { q_recipient: inv.q_recipient, maturity_blocks: inv.maturity_blocks, refund_blocks: inv.refund_blocks, invitations_from: None, settle: args.settle.clone(), split: args.split.clone(), fund: args.fund.clone(), link_out: args.link_out.clone(), ..*args };
         return trade(a, &t, "private".into(), inv.quote_id, quote, lg).await;
     }
     let oracle_keys = a.oracle_keys().await?;
@@ -340,8 +348,27 @@ async fn trade(a: &mut Agent, args: &TakerArgs, rfq_id: String, quote_id: String
         premium: quote.body.premium,
     };
     let i = a.next_index()?;
-    let inputs = a.select(args.q_recipient + quote.body.premium + CUSHION).await?;
-    let me = a.party(i, inputs);
+    let deposit = args.fund == "deposit";
+    let inputs = if deposit { vec![] } else { a.select(args.q_recipient + quote.body.premium + CUSHION).await? };
+    let mut me = a.party(i, inputs);
+    let maker_info = match &quote.body.party {
+        Some(w) => Some(wire::party_from_wire(w)?),
+        None if deposit => return Err(Error::Build("the quote carries no maker party: cannot fund from a deposit".into())),
+        None => None,
+    };
+    let mut own_funding = None;
+    if deposit {
+        let maker_info = maker_info.as_ref().unwrap();
+        if maker_info.inputs.iter().map(|c| (c.txid, c.index, c.value)).collect::<Vec<_>>()
+            != quote.body.inputs.iter().map(|c| Ok((txid_from_hex(&c.txid)?, c.index, c.value))).collect::<Result<Vec<_>>>()?
+        {
+            return Err(Error::Build("the quote's party does not fund from the quoted inputs".into()));
+        }
+        me.info.ironwood = true;
+        me.input_keys.clear();
+        let funds = wait_for_deposit(a, args, i, &curve, &anns, &me.info, maker_info, &quote_id, &mut lg).await?;
+        me.ironwood = Some(funds);
+    }
     let tip = a.node.height().await?;
     let terms = Terms {
         event: Event::Numeric(anns.clone()),
@@ -355,14 +382,20 @@ async fn trade(a: &mut Agent, args: &TakerArgs, rfq_id: String, quote_id: String
         roll: None,
         splits: taker_splits(&args.split),
     };
-    let offer = me.offer(terms.clone());
+    let offer = if deposit {
+        let (offer, full) = me.offer_funded(&a.p, terms.clone(), maker_info.as_ref().unwrap())?;
+        own_funding = Some(full);
+        offer
+    } else {
+        me.offer(terms.clone())
+    };
     a.send(&quote.from, &quote_id, "offer", json!({"rfq_id": rfq_id, "offer": wire::offer_to_wire(&offer)?})).await?;
     lg.note("offer sent", json!({"event": event_id, "owed_usd_cents": curve.d_cents, "spot_cents": spot, "index": i,
         "split_bps": args.split.iter().map(|s| s.bps).collect::<Vec<_>>()}));
 
     let env = a.wait_for(&quote_id, "accept", &quote.from, 300).await?;
     let accept = wire::accept_from_wire(&serde_json::from_value(env.body["accept"].clone()).map_err(|e| Error::Build(e.to_string()))?)?;
-    let (sign, contract) = me.sign(&a.p, a.node.height().await?, &offer, &accept)?;
+    let (sign, contract) = me.sign_funded(&a.p, a.node.height().await?, &offer, &accept, own_funding.as_ref())?;
     a.send(&quote.from, &quote_id, "sign", json!({"sign": wire::sign_to_wire(&sign)})).await?;
     lg.note("accepted and signed", json!({"cets": contract.txs.cets.len(), "adaptor_sigs_verified": contract.adaptor_count()}));
 
@@ -375,7 +408,75 @@ async fn trade(a: &mut Agent, args: &TakerArgs, rfq_id: String, quote_id: String
     lg.note("funded", json!({"txid": fund_txid, "height": h}));
 
     settle(a, &contract, &terms, &quote.from, &quote_id, &args.settle, &mut lg).await?;
+    if deposit {
+        // A CET pays the transparent payout address: move it into the zDLC wallet.
+        if let Some(f) = crate::funds::auto_shield(&a.node, &a.p, a.net, &a.wallet, i).await? {
+            let h = a.send_wait(&f).await?;
+            lg.note("payout shielded", json!({"txid": txid_hex(&f.txid), "height": h}));
+        }
+    }
     Ok(lg.out)
+}
+
+/// Shows the deposit link for contract `i` and waits until any wallet has paid it
+/// (topping up as needed); returns the notes, witnessed, to fund from.
+#[allow(clippy::too_many_arguments)]
+async fn wait_for_deposit(
+    a: &mut Agent,
+    args: &TakerArgs,
+    i: u32,
+    curve: &StableValue,
+    anns: &[crate::oracle::NumericAnnouncement],
+    me: &PartyInfo,
+    maker: &PartyInfo,
+    quote_id: &str,
+    lg: &mut Log,
+) -> Result<crate::contract::IronwoodFunds> {
+    let tip = a.node.height().await?;
+    // The amount depends on the collateral and fee shares, not on the heights.
+    let probe = Terms {
+        event: Event::Numeric(anns.to_vec()),
+        payouts: Payouts::StableValue(curve.clone()),
+        offer_collateral: args.q_recipient + curve.premium,
+        accept_collateral: curve.q_hedger,
+        maturity: tip + args.maturity_blocks,
+        refund_height: tip + args.refund_blocks,
+        sign_height: tip + 1,
+        dual_sign: false,
+        roll: None,
+        splits: taker_splits(&args.split),
+    };
+    let id = &quote_id[..quote_id.len().min(8)];
+    let fvk = a.wallet.deposit_fvk(i);
+    let from = tip + 1;
+    let mut shown = 0;
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(900);
+    loop {
+        let (_, notes) = crate::watch::deposit(&a.node, &fvk, from, 0, 1).await?;
+        let need = crate::contract::ironwood_deposit(&a.p, &probe, me, maker, notes.len().max(1))?;
+        let got: u64 = notes.iter().map(|n| n.value()).sum();
+        if got >= need {
+            lg.note("deposit received", json!({"notes": notes.len(), "zat": got, "over": got - need}));
+            let tip = a.node.height().await?;
+            let (spends, anchor) = crate::notes::spends(&a.node, &fvk, &notes, tip).await?;
+            return Ok(crate::contract::IronwoodFunds { sk: a.wallet.deposit_sk(i), spends, anchor, change: a.wallet.deposit_address(i) });
+        }
+        // A further note costs one more Ironwood action: ask for that too.
+        let ask = if notes.is_empty() { need } else { crate::contract::ironwood_deposit(&a.p, &probe, me, maker, notes.len() + 1)? - got };
+        if ask != shown {
+            let uri = crate::paylink::deposit_uri(&a.wallet.deposit_address(i), a.net, ask, id);
+            println!("[{}] pay this link from any Zcash wallet ({} ZEC):\n{uri}\n{}", a.name, crate::paylink::zec(ask), crate::paylink::qr_text(&uri)?);
+            if let Some(f) = &args.link_out {
+                std::fs::write(f, &uri).map_err(|e| Error::Build(e.to_string()))?;
+            }
+            lg.note(if notes.is_empty() { "deposit link" } else { "top-up link" }, json!({"uri": uri, "zat": ask}));
+            shown = ask;
+        }
+        if std::time::Instant::now() > deadline {
+            return Err(Error::Build("no deposit within 15 minutes".into()));
+        }
+        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+    }
 }
 
 async fn attestations(a: &Agent, terms: &Terms) -> Result<Vec<crate::oracle::NumericAttestation>> {
@@ -452,6 +553,8 @@ struct Open {
     rfq: RfqBody,
     quote: QuoteBody,
     inputs: Vec<Coin>,
+    /// The contract index the quote's party was derived at.
+    index: u32,
     /// Who may offer on this quote: the RFQ's poster, or (private quotes) whoever first
     /// presents the quote id from the invitation.
     taker: Option<String>,
@@ -472,6 +575,7 @@ pub async fn run_maker(a: &mut Agent, args: &MakerArgs) -> Result<Vec<Value>> {
     lg.note("ready", json!({"identity": a.identity(), "treasury": a.treasury_address(), "oracles": trusted}));
     if let Some(inv) = &args.invite {
         let inputs = a.select(inv.q_recipient + CUSHION).await?;
+        let index = a.next_index()?;
         let tip = a.node.height().await?;
         let mut nonce = [0u8; 8];
         rand10::fill(&mut nonce);
@@ -482,6 +586,7 @@ pub async fn run_maker(a: &mut Agent, args: &MakerArgs) -> Result<Vec<Value>> {
             rounding: (2 * inv.q_recipient / 100).max(1),
             inputs: inputs.iter().map(coin_to_wire).collect(),
             valid_until: tip + args.quote_ttl_blocks,
+            party: Some(wire::party_to_wire(&a.party(index, inputs.clone()).info)?),
         };
         let qid = a.desk.post_quote(&Signed::new(desk::QUOTE_TAG, quote.clone(), &a.id_key), true).await?;
         let memo = crate::invite::Invitation {
@@ -509,7 +614,7 @@ pub async fn run_maker(a: &mut Agent, args: &MakerArgs) -> Result<Vec<Value>> {
             nb_digits: 14,
             nonce: hex::encode(nonce),
         };
-        open.insert(qid, Open { taker: None, rfq, quote, inputs, contract: None, party: None, offer: None, txs: None });
+        open.insert(qid, Open { taker: None, rfq, quote, inputs, index, contract: None, party: None, offer: None, txs: None });
     }
     loop {
         // Quote new requests.
@@ -536,6 +641,7 @@ pub async fn run_maker(a: &mut Agent, args: &MakerArgs) -> Result<Vec<Value>> {
                 }
             };
             let tip = a.node.height().await?;
+            let index = a.next_index()?;
             let quote = QuoteBody {
                 rfq_id: rfq_id.clone(),
                 q_hedger,
@@ -543,11 +649,12 @@ pub async fn run_maker(a: &mut Agent, args: &MakerArgs) -> Result<Vec<Value>> {
                 rounding: (2 * q_hedger / 100).max(1),
                 inputs: inputs.iter().map(coin_to_wire).collect(),
                 valid_until: tip + args.quote_ttl_blocks,
+                party: Some(wire::party_to_wire(&a.party(index, inputs.clone()).info)?),
             };
             let signed = Signed::new(desk::QUOTE_TAG, quote.clone(), &a.id_key);
             let qid = a.desk.post_quote(&signed, false).await?;
             lg.note("quoted", json!({"rfq": rfq_id, "quote": qid, "premium": quote.premium, "valid_until": quote.valid_until}));
-            open.insert(qid, Open { taker: Some(rfq.from.clone()), rfq: rfq.body, quote, inputs, contract: None, party: None, offer: None, txs: None });
+            open.insert(qid, Open { taker: Some(rfq.from.clone()), rfq: rfq.body, quote, inputs, index, contract: None, party: None, offer: None, txs: None });
         }
 
         // Handle mail.
@@ -596,7 +703,7 @@ pub async fn run_maker(a: &mut Agent, args: &MakerArgs) -> Result<Vec<Value>> {
                     .await;
                     match check {
                         Ok(offer) => {
-                            let i = a.next_index()?;
+                            let i = o.index;
                             let me = a.party(i, o.inputs.clone());
                             let (accept, txs) = me.accept(&a.p, tip, &offer)?;
                             a.send(&taker, &env.thread, "accept", json!({"accept": wire::accept_to_wire(&accept)?})).await?;

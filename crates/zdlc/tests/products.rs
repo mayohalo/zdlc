@@ -64,12 +64,14 @@ fn party(w: &Wallet, i: u32, inputs: Vec<Coin>, roll_key: Option<secp256k1::Secr
         input_keys: vec![w.coin_key(0); inputs.len()],
         close_fvk: w.close_fvk(i),
         roll_key,
+        ironwood: None,
         info: PartyInfo {
             funding_pubkey: keys::pubkey(&w.funding_key(i)),
             inputs,
             change: w.coin_address(0),
             payout: w.payout_address(i),
             close: w.close_address(i),
+            ironwood: false,
         },
     }
 }

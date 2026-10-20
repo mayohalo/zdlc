@@ -1,0 +1,11 @@
+{
+  "leg_zat": 50017500,
+  "reclaim_height": 296,
+  "reclaim_mined": 297,
+  "reclaimed_zat": [
+    50002500
+  ],
+  "record_height": 286,
+  "refused_before_h": "rpc: sendrawtransaction: {\"code\":-25,\"message\":\"failed to validate tx: WtxId(\\\"private\\\"), error: transaction did not pass consensus validation: transaction is locked until after block height 296\"}",
+  "txid": "74fe156b3cba8569856f63f73edfdff87dec9f96e439e17ad7b858e943b75fb3"
+}

@@ -148,6 +148,7 @@ async fn phase2_gate() {
         inputs: vec![Coin { txid, index: 0, value: 100_000, spend: Spend::P2pkh(keys::pubkey(&w.coin_key(0))) }],
         outputs: vec![Pay::Transparent(w.payout_address(0), 30), Pay::Transparent(w.coin_address(0), 1)],
         ironwood_anchor: None,
+        ironwood_spends: vec![],
     };
     let fee = tx::fee(&r.rt.p, &spec).unwrap();
     spec.outputs[1] = Pay::Transparent(w.coin_address(0), 100_000 - 30 - fee);
@@ -182,6 +183,7 @@ async fn phase2_gate() {
         inputs: vec![coin.clone()],
         outputs: vec![Pay::Transparent(alice.info.change, 1)],
         ironwood_anchor: None,
+        ironwood_spends: vec![],
     };
     spec.outputs[0] = Pay::Transparent(alice.info.change, coin.value - tx::fee(&r.rt.p, &spec).unwrap());
     let cancel = tx::extract(tx::sign(tx::build(&r.rt.p, &spec).unwrap(), 0, &alice.input_keys[0]).unwrap()).unwrap();

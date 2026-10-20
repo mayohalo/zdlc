@@ -57,7 +57,7 @@ pub struct WireCoin {
     pub pubkey: String,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct WireParty {
     pub funding_pubkey: String,
     pub inputs: Vec<WireCoin>,
@@ -65,6 +65,9 @@ pub struct WireParty {
     pub payout: String,
     /// Raw Ironwood address, 43 bytes.
     pub close: String,
+    /// Funds from its own Ironwood notes (it builds the funding transaction).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub ironwood: bool,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -226,6 +229,9 @@ pub fn splits_from_wire(w: &WireSplits) -> Result<Splits> {
 pub struct WireOffer {
     pub terms: WireTerms,
     pub offer: WireParty,
+    /// The Ironwood-funding offerer's redacted funding PCZT, hex.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub funding: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -233,6 +239,9 @@ pub struct WireAccept {
     pub accept: WireParty,
     pub cet_adaptors: Vec<Vec<String>>,
     pub refund_sig: String,
+    /// The Ironwood-funding accepter's redacted funding PCZT, hex.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub funding: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -240,6 +249,9 @@ pub struct WireSign {
     pub cet_adaptors: Vec<Vec<String>>,
     pub refund_sig: String,
     pub funding_pczt: String,
+    /// The offerer's signatures on leg inputs: (input index, compact signature hex).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub leg_sigs: Vec<(usize, String)>,
 }
 
 pub fn party_to_wire(p: &PartyInfo) -> Result<WireParty> {
@@ -255,12 +267,13 @@ pub fn party_to_wire(p: &PartyInfo) -> Result<WireParty> {
                     value: c.value,
                     pubkey: hex::encode(pk.serialize()),
                 }),
-                Spend::P2sh(_) => Err(err("funding inputs must be P2PKH")),
+                Spend::P2sh(_) | Spend::Leg(_) => Err(err("funding inputs must be P2PKH")),
             })
             .collect::<Result<_>>()?,
         change: taddr(&p.change),
         payout: taddr(&p.payout),
         close: hex::encode(p.close.to_raw_address_bytes()),
+        ironwood: p.ironwood,
     })
 }
 
@@ -284,6 +297,7 @@ pub fn party_from_wire(w: &WireParty) -> Result<PartyInfo> {
         payout: parse_taddr(&w.payout)?,
         close: Option::from(orchard::Address::from_raw_address_bytes(&unhex::<43>(&w.close)?))
             .ok_or(err("Ironwood address"))?,
+        ironwood: w.ironwood,
     })
 }
 
@@ -410,11 +424,15 @@ pub fn offer_to_wire(o: &Offer) -> Result<WireOffer> {
     if o.terms.roll.is_some() {
         return Err(err("rolled contracts are negotiated in-process for now, not over the desk"));
     }
-    Ok(WireOffer { terms: terms_to_wire(&o.terms), offer: party_to_wire(&o.offer)? })
+    Ok(WireOffer { terms: terms_to_wire(&o.terms), offer: party_to_wire(&o.offer)?, funding: o.funding.as_ref().map(hex::encode) })
 }
 
 pub fn offer_from_wire(w: &WireOffer) -> Result<Offer> {
-    Ok(Offer { terms: terms_from_wire(&w.terms)?, offer: party_from_wire(&w.offer)? })
+    Ok(Offer {
+        terms: terms_from_wire(&w.terms)?,
+        offer: party_from_wire(&w.offer)?,
+        funding: w.funding.as_deref().map(hex::decode).transpose().map_err(err)?,
+    })
 }
 
 pub fn accept_to_wire(a: &Accept) -> Result<WireAccept> {
@@ -422,6 +440,7 @@ pub fn accept_to_wire(a: &Accept) -> Result<WireAccept> {
         accept: party_to_wire(&a.accept)?,
         cet_adaptors: adaptors_to_wire(&a.cet_adaptors),
         refund_sig: hex::encode(a.refund_sig.serialize_compact()),
+        funding: a.funding.as_ref().map(hex::encode),
     })
 }
 
@@ -430,6 +449,7 @@ pub fn accept_from_wire(w: &WireAccept) -> Result<Accept> {
         accept: party_from_wire(&w.accept)?,
         cet_adaptors: adaptors_from_wire(&w.cet_adaptors)?,
         refund_sig: sig(&w.refund_sig)?,
+        funding: w.funding.as_deref().map(hex::decode).transpose().map_err(err)?,
     })
 }
 
@@ -438,6 +458,7 @@ pub fn sign_to_wire(s: &SignMsg) -> WireSign {
         cet_adaptors: adaptors_to_wire(&s.cet_adaptors),
         refund_sig: hex::encode(s.refund_sig.serialize_compact()),
         funding_pczt: hex::encode(&s.funding_pczt),
+        leg_sigs: s.leg_sigs.iter().map(|(i, g)| (*i, hex::encode(g.serialize_compact()))).collect(),
     }
 }
 
@@ -446,6 +467,7 @@ pub fn sign_from_wire(w: &WireSign) -> Result<SignMsg> {
         cet_adaptors: adaptors_from_wire(&w.cet_adaptors)?,
         refund_sig: sig(&w.refund_sig)?,
         funding_pczt: hex::decode(&w.funding_pczt).map_err(err)?,
+        leg_sigs: w.leg_sigs.iter().map(|(i, g)| Ok((*i, sig(g)?))).collect::<Result<_>>()?,
     })
 }
 

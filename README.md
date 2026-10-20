@@ -11,6 +11,7 @@ zdlc is oracle-settled contracts on Zcash, entered and exited through Ironwood. 
 | [docs/applications.md](docs/applications.md) | Shielded payments, private markets, cross-chain, Zcash-native extensions |
 | [docs/plan.md](docs/plan.md) | Phased plan with gates, open questions, sources |
 | [docs/beneficiaries.md](docs/beneficiaries.md) | Multi-beneficiary payouts: splits, per-outcome overrides, multi-output CETs and closes |
+| [docs/funding.md](docs/funding.md) | Shielded funding by QR: deposit links (path A), legs paid from any wallet (path B), auto-shield and withdraw |
 
 ## Demo
 
@@ -58,6 +59,21 @@ cargo run -p zdlc --release --bin zdlc-trader -- taker ... --invitations-from <h
 cargo run -p zdlc --release --bin zdlc-trader -- taker ... --split self:6000,<tm address>+<raw Ironwood hex>:4000
 ```
 
+## Funding by QR
+
+A user funds a contract from any Zcash wallet by scanning a ZIP 321 link (see [docs/funding.md](docs/funding.md)):
+
+- **Path A:** pay a deposit receiver in your own zDLC wallet, which funds the contract from that shielded note after every payout is signed.
+- **Path B:** pay the contract's leg address. The legs are swept into the 2-of-2 once every payout is signed, and each payer can reclaim its own leg from the refund height.
+
+```sh
+# the taker funds its side from a shielded deposit: it prints a link and QR, any wallet pays it
+cargo run -p zdlc --release --bin zdlc-trader -- taker ... --fund deposit
+cargo run -p zdlc --release --bin zdlc-trader -- balance --seed taker.seed
+cargo run -p zdlc --release --bin zdlc-trader -- shield --seed taker.seed            # CET payouts into the shielded balance
+cargo run -p zdlc --release --bin zdlc-trader -- withdraw --seed taker.seed --to <unified address>
+```
+
 A contract can pay up to 16 beneficiaries who never sign: each side's payout splits by basis points, and enumerated outcomes can carry fixed output lists (see [docs/beneficiaries.md](docs/beneficiaries.md)).
 
 ## Build and test
@@ -74,8 +90,9 @@ cargo test -p zdlc --release --test phase3 -- --ignored --nocapture  # two oracl
 cargo test -p zdlc --release --test phase4 -- --ignored --nocapture  # maker and taker processes trade through the desk
 cargo test -p zdlc --release --test products -- --ignored --nocapture --test-threads=1  # invitation, escrow, payroll roll
 cargo test -p zdlc --release --test beneficiaries -- --ignored --nocapture  # team escrow: 3 payees by CET and by close
+cargo test -p zdlc --release --test funding -- --ignored --nocapture --test-threads=1  # funding by QR: deposits, legs, desk trade
 cargo run -p zdlc --release --bin zdlc-oracle -- announce zecusd-1    # dev oracle
 cargo run -p zdlc --release --bin zdlc-watch -- kit.json              # refund watcher
 ```
 
-Results: [Phase 0](docs/spikes/phase0.md), [Phase 1](docs/phase1.md), [Phase 2](docs/phase2.md), [testnet](docs/testnet.md), [Phase 3](docs/phase3.md), [Phase 4](docs/phase4.md), [beneficiaries](docs/beneficiaries.md).
+Results: [Phase 0](docs/spikes/phase0.md), [Phase 1](docs/phase1.md), [Phase 2](docs/phase2.md), [testnet](docs/testnet.md), [Phase 3](docs/phase3.md), [Phase 4](docs/phase4.md), [beneficiaries](docs/beneficiaries.md), [funding by QR](docs/funding.md).

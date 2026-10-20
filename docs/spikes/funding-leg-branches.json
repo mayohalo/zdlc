@@ -1,0 +1,11 @@
+{
+  "input_size_for_fees": 309,
+  "joint_bytes": 365,
+  "joint_height": 222,
+  "joint_txid": "6313b995487d454864b084dee0c33f48c17d37f2a558a18ce789ddcc3a360794",
+  "owner_height": 227,
+  "owner_refused_before_h": "rpc: sendrawtransaction: {\"code\":-25,\"message\":\"failed to validate tx: WtxId(\\\"private\\\"), error: transaction did not pass consensus validation: transaction is locked until after block height 226\"}",
+  "owner_txid": "d48250b7824d7ba42bcbb9b443c4d6dab6fa2092b44759e265ca622f94e8467d",
+  "reclaim_height": 226,
+  "redeem_bytes": 114
+}

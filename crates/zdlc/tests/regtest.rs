@@ -72,6 +72,7 @@ impl Chain {
             inputs: vec![cb.clone()],
             outputs: vec![Pay::Transparent(p2sh, FUNDING), Pay::Transparent(miner, 1)],
             ironwood_anchor: None,
+            ironwood_spends: vec![],
         };
         let fee = tx::fee(&self.p, &spec).unwrap();
         spec.outputs[1] = Pay::Transparent(miner, cb.value - FUNDING - fee);

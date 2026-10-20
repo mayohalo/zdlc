@@ -95,6 +95,7 @@ impl Regtest {
             }],
             outputs: outs,
             ironwood_anchor: None,
+            ironwood_spends: vec![],
         };
         let fee = tx::fee(&self.p, &spec)?;
         let paid: u64 = outputs.iter().map(|(_, v)| v).sum();
@@ -164,6 +165,7 @@ impl DevParty {
             input_keys: vec![self.input_sk],
             close_fvk: self.close_fvk,
             roll_key: None,
+            ironwood: None,
             info: PartyInfo {
                 funding_pubkey: keys::pubkey(&self.funding_sk),
                 inputs: vec![Coin {
@@ -175,6 +177,7 @@ impl DevParty {
                 change: self.change,
                 payout: self.payout,
                 close,
+                ironwood: false,
             },
         }
     }

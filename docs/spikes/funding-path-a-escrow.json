@@ -1,0 +1,30 @@
+{
+  "accept_with_proving_ms": 887,
+  "cet_height": 277,
+  "cet_outputs_zat": [
+    150000000
+  ],
+  "cet_txid": "183693782f0dbd9cf0bc341c8d4d0392e3f7ca8519421d7afe830d5be130f270",
+  "deposit_after_funding": "Waiting",
+  "deposit_link": "zcash:uregtest1z83y8h8fh9njc3sf2z9pmca4wgdu90644n08003esy5qvs4vd4uww5wafmvp8vxa5y8rw4llr97j5nncacexaau60tyeqlh6fqntqtlv?amount=1.5002&label=zDLC%20escrow-1&memo=ekRMQzE6ZXNjcm93LTE",
+  "deposit_zat": 150025000,
+  "funding_height": 276,
+  "funding_outputs_zat": [
+    150010000
+  ],
+  "funding_pczt_bytes": 9232,
+  "funding_txid": "411b4ac27b7c2fe23abfff9750eb3993ffc2f943af8440cd7900239e35757724",
+  "payments": [
+    {
+      "height": 274,
+      "state_after": "underpaid",
+      "zat": 100000000
+    },
+    {
+      "height": 275,
+      "state_after": "paid",
+      "zat": 50025000
+    }
+  ],
+  "topup_link": "zcash:uregtest1z83y8h8fh9njc3sf2z9pmca4wgdu90644n08003esy5qvs4vd4uww5wafmvp8vxa5y8rw4llr97j5nncacexaau60tyeqlh6fqntqtlv?amount=0.50025&label=zDLC%20escrow-1&memo=ekRMQzE6ZXNjcm93LTE"
+}

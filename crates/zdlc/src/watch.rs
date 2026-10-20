@@ -94,3 +94,62 @@ impl Kit {
         Ok(self.status.clone())
     }
 }
+
+// ---- Payment links ------------------------------------------------------------------
+
+/// What a payment link (deposit receiver or leg) has received.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub enum Payment {
+    /// Nothing confirmed yet.
+    Waiting,
+    /// Confirmed, but short: show a top-up link for `want - got` to the same address.
+    Underpaid { got: u64, want: u64 },
+    /// Enough. `over` stays with the payer: shielded balance (deposit) or funding change
+    /// (leg).
+    Paid { got: u64, over: u64 },
+}
+
+fn payment(got: u64, want: u64) -> Payment {
+    match got {
+        0 => Payment::Waiting,
+        g if g < want => Payment::Underpaid { got: g, want },
+        g => Payment::Paid { got: g, over: g - want },
+    }
+}
+
+/// A deposit receiver (path A): notes to `fvk` confirmed `confirmations` deep, from the
+/// height the link was made.
+pub async fn deposit(
+    node: &Node,
+    fvk: &orchard::keys::FullViewingKey,
+    from: u32,
+    want: u64,
+    confirmations: u32,
+) -> Result<(Payment, Vec<crate::notes::OwnedNote>)> {
+    let tip = node.height().await?;
+    let deep = (tip + 1).saturating_sub(confirmations.max(1));
+    if deep < from {
+        return Ok((Payment::Waiting, vec![]));
+    }
+    let notes = crate::notes::unspent(node, fvk, from, deep).await?;
+    Ok((payment(notes.iter().map(|n| n.value()).sum(), want), notes))
+}
+
+/// A leg (path B): its unspent coins confirmed `confirmations` deep.
+pub async fn leg(
+    node: &Node,
+    net: zcash_protocol::consensus::NetworkType,
+    leg: &crate::leg::Leg,
+    want: u64,
+    confirmations: u32,
+) -> Result<(Payment, Vec<crate::tx::Coin>)> {
+    let tip = node.height().await?;
+    let coins: Vec<crate::tx::Coin> = node
+        .utxos(&crate::keys::encode(&leg.address(), net))
+        .await?
+        .into_iter()
+        .filter(|(_, _, _, h)| *h > 0 && tip + 1 - h >= confirmations.max(1))
+        .map(|(txid, i, v, _)| leg.coin(txid, i, v))
+        .collect();
+    Ok((payment(coins.iter().map(|c| c.value).sum(), want), coins))
+}

@@ -1,0 +1,132 @@
+{
+  "deposit_link": "zcash:utest139d4c9llaqr4agvz3kr6kw3dkvc0hnvcf495rsrez0jz6sd5qvs474jfxznkvavp6thd2n66fvt9nkkypup26pfu3qt0ejfv453cjck9?amount=0.100625&label=zDLC%2092b58291&memo=ekRMQzE6OTJiNTgyOTE",
+  "deposit_zat": 10062500,
+  "maker": [
+    {
+      "result": {
+        "identity": "029fb944a69d426ef64411ae2bc618e12fc9161932e99ca0bbcc9e0a9692ce26f1",
+        "oracles": [
+          "dfe88183c7d7ee872054304226ec050a4a5bdd1bad310bea8d0be7b2df017a4f",
+          "cf5fe89901d33bf14f26fd9a5b08c21dad3c268ded7c8f9162775b5e7bd232ae"
+        ],
+        "treasury": "tmGupFphcmTXmK3CkKdfuH1dDE4fRNhgzLt"
+      },
+      "step": "ready"
+    },
+    {
+      "result": {
+        "premium": 50000,
+        "quote": "92b58291d6141fe901861362",
+        "rfq": "94797dbe6cd47f62ff7da17a",
+        "valid_until": 430
+      },
+      "step": "quoted"
+    },
+    {
+      "result": {
+        "cets": 98,
+        "index": 1,
+        "quote": "92b58291d6141fe901861362"
+      },
+      "step": "accepted"
+    },
+    {
+      "result": {
+        "quote": "92b58291d6141fe901861362",
+        "txid": "980a093a9dfc83eb020c9153946f958121217f8fcac16bae14c45e7f08be0d35"
+      },
+      "step": "funded"
+    },
+    {
+      "result": {
+        "quote": "92b58291d6141fe901861362"
+      },
+      "step": "co-signed close"
+    },
+    {
+      "result": {
+        "done": 1,
+        "quote": "92b58291d6141fe901861362"
+      },
+      "step": "contract finished"
+    }
+  ],
+  "taker": [
+    {
+      "result": {
+        "id": "94797dbe6cd47f62ff7da17a",
+        "q_recipient": 10000000,
+        "taker": "02c08c1a397c15ee5bec0300c35102f7c9abc92b3ed5b9ab896b079cd584fd82c2"
+      },
+      "step": "rfq posted"
+    },
+    {
+      "result": {
+        "id": "92b58291d6141fe901861362",
+        "inputs": 1,
+        "maker": "029fb944a69d426ef64411ae2bc618e12fc9161932e99ca0bbcc9e0a9692ce26f1",
+        "premium": 50000,
+        "q_hedger": 10000000,
+        "valid_until": 430
+      },
+      "step": "quote chosen"
+    },
+    {
+      "result": {
+        "uri": "zcash:utest139d4c9llaqr4agvz3kr6kw3dkvc0hnvcf495rsrez0jz6sd5qvs474jfxznkvavp6thd2n66fvt9nkkypup26pfu3qt0ejfv453cjck9?amount=0.100625&label=zDLC%2092b58291&memo=ekRMQzE6OTJiNTgyOTE",
+        "zat": 10062500
+      },
+      "step": "deposit link"
+    },
+    {
+      "result": {
+        "notes": 1,
+        "over": 0,
+        "zat": 10062500
+      },
+      "step": "deposit received"
+    },
+    {
+      "result": {
+        "event": "zecusd-1792508700",
+        "index": 1,
+        "owed_usd_cents": 12149,
+        "split_bps": [],
+        "spot_cents": 121493
+      },
+      "step": "offer sent"
+    },
+    {
+      "result": {
+        "adaptor_sigs_verified": 515,
+        "cets": 98
+      },
+      "step": "accepted and signed"
+    },
+    {
+      "result": {
+        "height": 249,
+        "txid": "980a093a9dfc83eb020c9153946f958121217f8fcac16bae14c45e7f08be0d35"
+      },
+      "step": "funded"
+    },
+    {
+      "result": {
+        "agree": true,
+        "payout": [
+          10000000,
+          10050000
+        ],
+        "price_usd": 1210
+      },
+      "step": "attested"
+    },
+    {
+      "result": {
+        "height": 267,
+        "txid": "a9dc390dbe50f1913fcd6816df54523546a4fea1a32b19d27e5a0e476230c895"
+      },
+      "step": "closed to Ironwood"
+    }
+  ]
+}

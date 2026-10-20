@@ -143,6 +143,74 @@ impl Record {
     }
 }
 
+/// Version 2: a leg (path B of funding by QR), before the contract is funded. The seed
+/// gives the owner and own funding keys; the record adds what it cannot: the other
+/// party's funding key and the reclaim height. A wallet restored from its seed finds
+/// the record, rebuilds the leg's script and address and reclaims the leg from H.
+pub const LEG_VERSION: u8 = 2;
+const LEG_LEN: usize = 4 + 1 + 1 + 4 + 33 + 4;
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct LegRecord {
+    pub index: u32,
+    pub is_offerer: bool,
+    pub counterparty_pubkey: PublicKey,
+    pub reclaim_height: u32,
+}
+
+impl LegRecord {
+    pub fn encode(&self) -> Vec<u8> {
+        let mut b = Vec::with_capacity(LEG_LEN);
+        b.extend_from_slice(MAGIC);
+        b.push(LEG_VERSION);
+        b.push(self.is_offerer as u8);
+        b.extend_from_slice(&self.index.to_le_bytes());
+        b.extend_from_slice(&self.counterparty_pubkey.serialize());
+        b.extend_from_slice(&self.reclaim_height.to_le_bytes());
+        b
+    }
+
+    pub fn decode(m: &[u8]) -> Option<Self> {
+        if m.len() < LEG_LEN || &m[..4] != MAGIC || m[4] != LEG_VERSION {
+            return None;
+        }
+        Some(Self {
+            is_offerer: m[5] == 1,
+            index: u32::from_le_bytes(m[6..10].try_into().ok()?),
+            counterparty_pubkey: PublicKey::from_slice(&m[10..43]).ok()?,
+            reclaim_height: u32::from_le_bytes(m[43..47].try_into().ok()?),
+        })
+    }
+
+    /// The leg this record names, from the wallet's own keys.
+    pub fn leg(&self, wallet: &Wallet) -> crate::leg::Leg {
+        let own = crate::keys::pubkey(&wallet.funding_key(self.index));
+        let (a, b) = if self.is_offerer { (own, self.counterparty_pubkey) } else { (self.counterparty_pubkey, own) };
+        crate::leg::Leg { owner: crate::keys::pubkey(&wallet.leg_key(self.index)), a, b, reclaim_height: self.reclaim_height }
+    }
+}
+
+/// A leg record paid from a transparent coin at `wallet.coin_address(i)`, as
+/// [`record_tx`] pays a contract record.
+pub fn leg_record_tx(p: &LocalNetwork, tip: u32, wallet: &Wallet, record: &LegRecord, coin: Coin, anchor: orchard::Anchor) -> Result<tx::Final> {
+    memo_tx(p, tip, wallet, record.index, record.encode(), coin, anchor)
+}
+
+/// Scans blocks `from..=to` for leg records of indices `0..gap`.
+pub async fn scan_legs(node: &Node, wallet: &Wallet, from: u32, to: u32, gap: u32) -> Result<Vec<LegRecord>> {
+    let mut out = vec![];
+    for i in 0..gap {
+        for n in crate::notes::unspent(node, &wallet.close_fvk(i), from, to).await? {
+            if let Some(r) = LegRecord::decode(&n.memo) {
+                if r.index == i {
+                    out.push(r);
+                }
+            }
+        }
+    }
+    Ok(out)
+}
+
 /// The record transaction: `coin` (at `wallet.coin_address(i)`) pays `RECORD_VALUE` to
 /// the contract's own Ironwood address with the record as memo; change back to the coin
 /// address.
@@ -154,7 +222,10 @@ pub fn record_tx(
     coin: Coin,
     anchor: orchard::Anchor,
 ) -> Result<tx::Final> {
-    let i = record.index;
+    memo_tx(p, tip, wallet, record.index, record.encode(), coin, anchor)
+}
+
+fn memo_tx(p: &LocalNetwork, tip: u32, wallet: &Wallet, i: u32, memo: Vec<u8>, coin: Coin, anchor: orchard::Anchor) -> Result<tx::Final> {
     let change = wallet.coin_address(i);
     let mut spec = Spec {
         target_height: tip + 1,
@@ -162,10 +233,11 @@ pub fn record_tx(
         lock_height: None,
         inputs: vec![coin.clone()],
         outputs: vec![
-            Pay::IronwoodMemo(wallet.close_address(i), RECORD_VALUE, record.encode()),
+            Pay::IronwoodMemo(wallet.close_address(i), RECORD_VALUE, memo),
             Pay::Transparent(change, 1),
         ],
         ironwood_anchor: Some(anchor),
+        ironwood_spends: vec![],
     };
     let fee = tx::fee(p, &spec)?;
     spec.outputs[1] = Pay::Transparent(

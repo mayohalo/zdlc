@@ -171,6 +171,7 @@ async fn phase3_two_oracles() {
         inputs: vec![Coin { txid, index: 0, value: 6000_0000, spend: Spend::P2pkh(keys::pubkey(&wa.coin_key(0))) }],
         outputs: vec![Pay::Ironwood(wb.close_address(0), 5000_0000), Pay::Transparent(wa.coin_address(0), 1)],
         ironwood_anchor: Some(anchor),
+        ironwood_spends: vec![],
     };
     let fee = tx::fee(&rt.p, &spec).unwrap();
     spec.outputs[1] = Pay::Transparent(wa.coin_address(0), 1000_0000 - fee);

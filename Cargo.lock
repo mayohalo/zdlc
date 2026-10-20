@@ -1920,6 +1920,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "qrcode"
+version = "0.14.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d68782463e408eb1e668cf6152704bd856c78c5b6417adaee3203d8f4c1fc9ec"
+
+[[package]]
 name = "quinn"
 version = "0.11.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3275,14 +3281,18 @@ name = "zdlc"
 version = "0.0.1"
 dependencies = [
  "axum",
+ "base64 0.22.1",
  "chacha20poly1305 0.10.1",
  "dlc",
  "dlc-trie",
  "hex",
+ "incrementalmerkletree",
  "kormir",
  "orchard",
  "pczt",
+ "percent-encoding",
  "postcard",
+ "qrcode",
  "rand 0.10.3",
  "reqwest",
  "secp256k1 0.33.1",
