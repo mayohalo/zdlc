@@ -13,6 +13,30 @@ pub const BRANCH_NU6_3: u32 = 0x37A5_165B;
 /// NU7 branch ID.
 pub const BRANCH_NU7: u32 = 0x7719_0AD9;
 
+/// Largest collateral per side the testnet runner accepts (0.05 TAZ). Mainnet gets its
+/// own, smaller cap when it is enabled.
+pub const TESTNET_CAP: u64 = 500_0000;
+
+/// Zcash testnet, as a `LocalNetwork` so every builder takes one parameter type. The
+/// heights are the pinned zcash_protocol's (NU6.3 at 4,134,000, NU7 at 4,465,026).
+pub fn testnet() -> LocalNetwork {
+    use zcash_protocol::consensus::{NetworkUpgrade as U, Parameters, TEST_NETWORK};
+    let h = |u| TEST_NETWORK.activation_height(u);
+    LocalNetwork {
+        overwinter: h(U::Overwinter),
+        sapling: h(U::Sapling),
+        blossom: h(U::Blossom),
+        heartwood: h(U::Heartwood),
+        canopy: h(U::Canopy),
+        nu5: h(U::Nu5),
+        nu6: h(U::Nu6),
+        nu6_1: h(U::Nu6_1),
+        nu6_2: h(U::Nu6_2),
+        nu6_3: h(U::Nu6_3),
+        nu7: h(U::Nu7),
+    }
+}
+
 pub fn regtest(nu7: Option<u32>) -> LocalNetwork {
     let one = Some(BlockHeight::from_u32(1));
     LocalNetwork {
@@ -65,6 +89,9 @@ mod tests {
         assert!(spans_upgrade(&p, 150, NU7_AT));
         assert!(!spans_upgrade(&p, 150, NU7_AT - 1));
         assert!(!spans_upgrade(&p, NU7_AT, 10_000));
+        let t = testnet();
+        assert_eq!(branch_at(&t, 4_521_962), BRANCH_NU7);
+        assert_eq!(branch_at(&t, 4_465_025), BRANCH_NU6_3);
         let _ = p.network_type();
     }
 }

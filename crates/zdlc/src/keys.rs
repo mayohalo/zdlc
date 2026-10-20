@@ -25,16 +25,17 @@ pub fn p2pkh(pk: &PublicKey) -> TransparentAddress {
     TransparentAddress::from_pubkey(pk)
 }
 
+/// Encodes a transparent address for a network (`t1…`, or `tm…` on testnet and regtest).
+pub fn encode(addr: &TransparentAddress, net: NetworkType) -> String {
+    match addr {
+        TransparentAddress::PublicKeyHash(h) => ZcashAddress::from_transparent_p2pkh(net, *h).encode(),
+        TransparentAddress::ScriptHash(h) => ZcashAddress::from_transparent_p2sh(net, *h).encode(),
+    }
+}
+
 /// Encodes a transparent address for regtest (`tm…` / `t2…`).
 pub fn encode_regtest(addr: &TransparentAddress) -> String {
-    match addr {
-        TransparentAddress::PublicKeyHash(h) => {
-            ZcashAddress::from_transparent_p2pkh(NetworkType::Regtest, *h).encode()
-        }
-        TransparentAddress::ScriptHash(h) => {
-            ZcashAddress::from_transparent_p2sh(NetworkType::Regtest, *h).encode()
-        }
-    }
+    encode(addr, NetworkType::Regtest)
 }
 
 /// The regtest miner key: `infra/zakura/regtest.toml` pays coinbase to its P2PKH address.

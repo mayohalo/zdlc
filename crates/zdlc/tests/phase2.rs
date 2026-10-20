@@ -237,7 +237,7 @@ async fn phase2_gate() {
     let (a, _b, funding) = r.setup(&alice, &bob, r.terms(ev, Payouts::StableValue(curve()), tip, tip + 4, tip + 12, false), tip);
     // Alice posts her recovery record before the funding goes out.
     let rec = Record::from_contract(&a, 0).unwrap();
-    let rec_tx = recovery::record_tx(&r.rt.p, tip, &wallet, &rec, coin(1, 1000_0000)).unwrap();
+    let rec_tx = recovery::record_tx(&r.rt.p, tip, &wallet, &rec, coin(1, 1000_0000), orchard::Anchor::empty_tree()).unwrap();
     let h_rec = r.rt.send_confirm(&rec_tx).await.unwrap();
     let h_fund = r.rt.send_confirm(&funding).await.unwrap();
     let refund_height = a.terms.refund_height;

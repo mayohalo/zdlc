@@ -152,6 +152,7 @@ pub fn record_tx(
     wallet: &Wallet,
     record: &Record,
     coin: Coin,
+    anchor: orchard::Anchor,
 ) -> Result<tx::Final> {
     let i = record.index;
     let change = wallet.coin_address(i);
@@ -164,7 +165,7 @@ pub fn record_tx(
             Pay::IronwoodMemo(wallet.close_address(i), RECORD_VALUE, record.encode()),
             Pay::Transparent(change, 1),
         ],
-        ironwood_anchor: Some(orchard::Anchor::empty_tree()),
+        ironwood_anchor: Some(anchor),
     };
     let fee = tx::fee(p, &spec)?;
     spec.outputs[1] = Pay::Transparent(

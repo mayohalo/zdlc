@@ -83,6 +83,62 @@ impl Node {
         Ok(v["height"].as_u64().map(|h| h as u32))
     }
 
+    /// Unspent transparent outputs of an address: (txid internal order, index, zat, height).
+    pub async fn utxos(&self, address: &str) -> Result<Vec<([u8; 32], u32, u64, u32)>> {
+        let v = self
+            .call("getaddressutxos", json!([{"addresses": [address]}]))
+            .await?;
+        let mut out = vec![];
+        for u in v.as_array().cloned().unwrap_or_default() {
+            out.push((
+                crate::txid_from_hex(u["txid"].as_str().unwrap_or_default())?,
+                u["outputIndex"].as_u64().unwrap_or_default() as u32,
+                u["satoshis"].as_u64().unwrap_or_default(),
+                u["height"].as_u64().unwrap_or_default() as u32,
+            ));
+        }
+        Ok(out)
+    }
+
+    /// Waits (polling) until the tip reaches `h`. For networks without `generate`.
+    pub async fn wait_height(&self, h: u32) -> Result<u32> {
+        loop {
+            let tip = self.height().await?;
+            if tip >= h {
+                return Ok(tip);
+            }
+            tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+        }
+    }
+
+    /// Waits until a transaction is mined; returns its height.
+    pub async fn wait_mined(&self, txid_display: &str) -> Result<u32> {
+        loop {
+            if let Ok(Some(h)) = self.mined_height(txid_display).await {
+                return Ok(h);
+            }
+            tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+        }
+    }
+
+    /// The Ironwood note commitment tree root at `height`: a current anchor for outputs.
+    pub async fn ironwood_anchor(&self, height: u32) -> Result<orchard::Anchor> {
+        let v = self.call("z_gettreestate", json!([height.to_string()])).await?;
+        let hex_root = v["ironwood"]["commitments"]["finalRoot"]
+            .as_str()
+            .ok_or(Error::Rpc("z_gettreestate: no ironwood root".into()))?;
+        let mut b: [u8; 32] = hex::decode(hex_root)
+            .map_err(|e| Error::Rpc(format!("ironwood root: {e}")))?
+            .try_into()
+            .map_err(|_| Error::Rpc("ironwood root length".into()))?;
+        if let Some(a) = Option::<orchard::Anchor>::from(orchard::Anchor::from_bytes(b)) {
+            return Ok(a);
+        }
+        b.reverse();
+        Option::<orchard::Anchor>::from(orchard::Anchor::from_bytes(b))
+            .ok_or(Error::Rpc("ironwood root is not a field element".into()))
+    }
+
     /// Ironwood pool value, in zatoshis, from `getblockchaininfo`.
     pub async fn pool_zat(&self, id: &str) -> Result<i64> {
         let info = self.blockchain_info().await?;

@@ -136,6 +136,14 @@ impl Terms {
         self.offer_collateral + self.accept_collateral
     }
 
+    /// Refuses collateral above `cap` on either side (a per-contract cap for live networks).
+    pub fn check_cap(&self, cap: u64) -> Result<()> {
+        if self.offer_collateral > cap || self.accept_collateral > cap {
+            return Err(Error::Build(format!("collateral above the {cap} zat cap")));
+        }
+        Ok(())
+    }
+
     /// The target heights CETs are signed for: the current era, plus the next one when a
     /// dual-signed contract spans its activation.
     pub fn eras(&self, p: &LocalNetwork) -> Vec<u32> {
