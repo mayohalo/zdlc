@@ -13,48 +13,48 @@
   },
   {
     "result": {
-      "adaptor_sigs_each_way": 238,
+      "adaptor_sigs_each_way": 225,
       "branch": "77190ad9",
       "cets": 48,
-      "funding_txid": "79973edfe5850d9d98cbe8d783b90b40f4a1a75b0ed35eb48a5f1302008f707a",
-      "height": 212,
-      "refund_height": 251
+      "funding_txid": "e81db15ba4a4e12830d96b5f8da35147431b4df24a8f0a289f79afb3dc5d3a64",
+      "height": 216,
+      "refund_height": 255
     },
     "step": "p60: funded"
   },
   {
     "result": {
-      "bytes": 9424,
+      "bytes": 9425,
       "ironwood_outputs_zat": [
-        167995000,
-        231995000
+        159995000,
+        239995000
       ],
       "ironwood_pool_delta": 399990000,
-      "mined_height": 215,
+      "mined_height": 219,
       "payout_alice_bob_zat": [
-        168000000,
-        232000000
+        160000000,
+        240000000
       ],
       "price": "$60.00",
-      "txid": "51aaa2fff01c9e0525084e55fccd3b1a28bd97c41cf1ea8636234840da2262e7"
+      "txid": "94307d3c60ebac71ea15e0776ae4934bc0b36d3f704031b6d9bbb49948333875"
     },
     "step": "p60: cooperative close"
   },
   {
     "result": {
-      "adaptor_sigs_each_way": 238,
+      "adaptor_sigs_each_way": 225,
       "branch": "77190ad9",
       "cets": 48,
-      "funding_txid": "80c71ed99ec791539fd68dfdb36446ec66798c4e72cfc93415aab76678dd5616",
-      "height": 217,
-      "refund_height": 256
+      "funding_txid": "2f0d7a6d8789d761fedace3256222171f30d4197b17424c783f60d157760ee9e",
+      "height": 221,
+      "refund_height": 260
     },
     "step": "p40: funded"
   },
   {
     "result": {
       "cet_index": 19,
-      "mined_height": 220,
+      "mined_height": 224,
       "outputs_zat": [
         248000000,
         152000000
@@ -64,25 +64,25 @@
         152000000
       ],
       "price": "$40.00",
-      "txid": "0045d1c89e027c21ab4e2736920e961930768c039a92993a4855b6863ed009a3"
+      "txid": "4333b90f2daf4c9359de34e4c8b9874c6e6492dc61cafec6215a79be28c28182"
     },
     "step": "p40: CET"
   },
   {
     "result": {
-      "adaptor_sigs_each_way": 238,
+      "adaptor_sigs_each_way": 225,
       "branch": "77190ad9",
       "cets": 48,
-      "funding_txid": "c6dabc6d5789fecc17b12c22acb55843d16b8cb8767e99db5b1a1e0e179fda65",
-      "height": 222,
-      "refund_height": 261
+      "funding_txid": "360913d44762fe7011c0404d472983653088e236b4c65f301834db842ec3432a",
+      "height": 226,
+      "refund_height": 265
     },
     "step": "p20: funded"
   },
   {
     "result": {
       "cet_index": 0,
-      "mined_height": 225,
+      "mined_height": 229,
       "outputs_zat": [
         400000000
       ],
@@ -91,31 +91,31 @@
         0
       ],
       "price": "$20.00",
-      "txid": "2ada5da484af39e989355bb3ac7603015514ae4d04b431eaa14a39f6b674d8d7"
+      "txid": "dc7153ccb562e5ad9fc9f251b9007ca686ba48c0d096c96751b20ee3f6a21b5b"
     },
     "step": "p20: CET"
   },
   {
     "result": {
-      "adaptor_sigs_each_way": 238,
+      "adaptor_sigs_each_way": 225,
       "branch": "77190ad9",
       "cets": 48,
-      "funding_txid": "b1be2eb5d544207e5871b405eacebe9094601a26170d2b9a30942e89a48fe637",
-      "height": 227,
-      "refund_height": 234
+      "funding_txid": "2bcda823193f2dbea373bc7dcc88122245a34b4f7ab8d64b99656c76ea834e88",
+      "height": 231,
+      "refund_height": 238
     },
     "step": "silent: funded"
   },
   {
     "result": {
-      "early_rejected": "Some(Rpc(\"sendrawtransaction: {\\\"code\\\":-25,\\\"message\\\":\\\"failed to validate tx: WtxId(\\\\\\\"private\\\\\\\"), error: transaction did not pass consensus validation: transaction is locked until after block height 234\\\"}\"))",
-      "mined_height": 235,
+      "early_rejected": "Some(Rpc(\"sendrawtransaction: {\\\"code\\\":-25,\\\"message\\\":\\\"failed to validate tx: WtxId(\\\\\\\"private\\\\\\\"), error: transaction did not pass consensus validation: transaction is locked until after block height 238\\\"}\"))",
+      "mined_height": 239,
       "outputs_zat": [
         200000000,
         200000000
       ],
-      "refund_height": 234,
-      "txid": "e56a1365a343442a32448131e2d1c56cdd65ad8c6a70d879e680585da2cb16ad"
+      "refund_height": 238,
+      "txid": "ab84f7650b01fb1ee79201349396a8b5dd511e1eec05e97c0532d04941200340"
     },
     "step": "silent: refund"
   }

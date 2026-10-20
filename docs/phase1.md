@@ -1,6 +1,6 @@
 # Phase 1: stable-value ZEC payments
 
-The Phase 1 gate passed on 2026-10-20 on Zakura 1.6.0 regtest, in the NU7 era. One stable-value contract shape settled at three prices and refunded once, and its cooperative close landed in Ironwood. Raw log: [spikes/phase1-regtest.json](spikes/phase1-regtest.json).
+The Phase 1 gate passed on 2026-10-20 (re-run after the round-down change) on Zakura 1.6.0 regtest, in the NU7 era. One stable-value contract shape settled at three prices and refunded once, and its cooperative close landed in Ironwood. Raw log: [spikes/phase1-regtest.json](spikes/phase1-regtest.json).
 
 ```sh
 infra/zakura/scripts/down.sh; infra/zakura/scripts/up.sh
@@ -15,20 +15,20 @@ Alice is owed $100 in 30 days and holds 2 ZEC at $50.00. Bob, a hedger, puts up 
 | Setting | Value |
 | --- | --- |
 | Oracle event | ZEC/USD in units of $0.10, 12 binary digits (up to $409.50), one nonce per digit |
-| Payout rounding | 0.08 ZEC (2% of the pot) |
+| Payout rounding | Down to a multiple of 0.08 ZEC (2% of the pot): Alice never receives more than $100 |
 | CETs | 48, one per distinct payout |
-| Adaptor signatures | 238 each way, one per digit prefix covering a payout range |
-| Setup time | accept 184 ms, sign 206 ms, finish 26 ms (release, Apple Silicon) |
-| Funding PCZT on the wire | 429 B |
+| Adaptor signatures | 225 each way, one per digit prefix covering a payout range |
+| Setup time | accept 172 ms, sign 197 ms, finish 25 ms (release, Apple Silicon) |
+| Funding PCZT on the wire | 430 B |
 
 ## Gate run
 
 | Contract | Price | Settled by | Alice / Bob (zat) | Height |
 | --- | --- | --- | --- | --- |
-| p60 | $60.00 | Cooperative close, P2SH → two Ironwood outputs | 167,995,000 / 231,995,000 after a 20,000 zat fee split evenly; Ironwood pool +399,990,000 | 215 |
-| p40 | $40.00 | CET, completed by Alice alone | 248,000,000 / 152,000,000 | 220 |
-| p20 | $20.00, below the floor | CET with a single output | 400,000,000 / 0 | 225 |
-| silent | none | Refund, lock height 234 | 200,000,000 / 200,000,000; rejected at tip 233 ("locked until after block height 234") | 235 |
+| p60 | $60.00 | Cooperative close, P2SH → two Ironwood outputs | 159,995,000 / 239,995,000 after a 20,000 zat fee split evenly ($96.00 worth to Alice, rounded down); Ironwood pool +399,990,000 | 219 |
+| p40 | $40.00 | CET, completed by Alice alone | 248,000,000 / 152,000,000 | 224 |
+| p20 | $20.00, below the floor | CET with a single output | 400,000,000 / 0 | 229 |
+| silent | none | Refund, lock height 238 | 200,000,000 / 200,000,000; rejected at tip 237 ("locked until after block height 238") | 239 |
 
 Every contract was funded by a two-party transaction in which each side signed only its own input, offerer first. All transactions signed under NU7's branch ID (`77190ad9`).
 
@@ -55,7 +55,7 @@ Every contract was funded by a two-party transaction in which each side signed o
 | The close check ignored output index, expiry and lock time | Checks the funding outpoint (txid and index), no transparent outputs, lock time 0 and the agreed expiry | Same test: a close with another expiry is refused |
 | Oracle nonces derived from the event: losing the CLI state then attesting again would leak the key | Nonces are random per announcement and stored by `zdlc-oracle announce`; `attest` refuses unannounced events and marks the event attested before printing signatures | `numeric_prefix_scalar_opens_prefix_point` checks fresh nonces; the CLI refuses an unannounced event and a second attestation |
 
-Still open from the review: payouts round to the nearest grid point, so the recipient can receive slightly more than D (1.68 ZEC, $100.80, at $60.00); the close uses the empty-tree anchor; only regtest parameters exist.
+Payouts now round down (the recipient never receives more than D). Still open from the review: the close uses the empty-tree anchor; only regtest parameters exist.
 
 ## What this does not show yet
 

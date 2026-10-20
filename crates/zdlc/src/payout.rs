@@ -50,11 +50,12 @@ impl StableValue {
         zat.min(self.total() as u128) as u64
     }
 
-    /// The payout the contract pays at outcome `v`: rounded to `rounding`, capped.
+    /// The payout the contract pays at outcome `v`: rounded down to `rounding`, so the
+    /// recipient never receives more than `D` (the hedger keeps the remainder), capped.
     pub fn at(&self, v: usize) -> u64 {
         let e = self.exact(v.min(self.max_outcome()));
         let r = self.rounding.max(1);
-        (((e + r / 2) / r) * r).min(self.total())
+        ((e / r) * r).min(self.total())
     }
 
     /// Consecutive outcomes with equal payouts, covering `0..=max_outcome`.
@@ -106,7 +107,12 @@ mod tests {
         let c = curve();
         // $50: 2 ZEC. $40: 2.5 ZEC. $20 is below the $25 floor: the whole 4 ZEC pot.
         assert_eq!(c.at(500), 2_0000_0000);
-        assert_eq!(c.at(400), 2_4800_0000); // 2.5 rounded to the 0.08 grid
+        assert_eq!(c.at(400), 2_4800_0000); // 2.5 rounded down to the 0.08 grid
+        assert_eq!(c.at(600), 1_6000_0000); // 1.6667 rounded down: $96.00, never above D
+        for v in 1..=c.max_outcome() {
+            let price = v as u128 * c.unit_cents as u128;
+            assert!(c.at(v) as u128 * price <= c.d_cents as u128 * 100_000_000);
+        }
         assert_eq!(c.at(200), 4_0000_0000);
         assert_eq!(c.floor_cents(), 25_00);
         let ranges = c.ranges();
