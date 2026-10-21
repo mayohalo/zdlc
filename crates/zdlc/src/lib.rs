@@ -8,26 +8,37 @@
 pub mod adaptor;
 pub mod contract;
 pub mod desk;
+#[cfg(feature = "net")]
 pub mod enclave;
+pub mod events;
+#[cfg(feature = "net")]
 pub mod feeds;
+#[cfg(feature = "net")]
 pub mod funds;
 pub mod invite;
 pub mod keys;
 pub mod leg;
+#[cfg(feature = "net")]
 pub mod node;
+#[cfg(feature = "net")]
 pub mod notes;
 pub mod oracle;
+#[cfg(feature = "net")]
 pub mod oracle_client;
 pub mod params;
 pub mod paylink;
 pub mod payout;
 pub mod recovery;
+#[cfg(feature = "net")]
 pub mod regtest;
 pub mod script;
+pub mod templates;
+#[cfg(feature = "net")]
 pub mod trader;
 pub mod tx;
 pub mod wallet;
 pub mod wire;
+#[cfg(feature = "net")]
 pub mod watch;
 
 #[derive(Debug, thiserror::Error)]

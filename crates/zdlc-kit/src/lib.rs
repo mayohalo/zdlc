@@ -78,12 +78,7 @@ pub const CLOSE_WAIT: u32 = 6;
 /// chain (regtest) does not outrun the counterparty.
 pub const CLOSE_WAIT_SECS: i64 = 60;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum Role {
-    Offerer,
-    Accepter,
-}
+pub use zdlc::templates::Role;
 
 /// How a side funds its collateral.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]

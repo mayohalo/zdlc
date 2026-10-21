@@ -1,4 +1,4 @@
-# Developer kit: K1, K2 and the rest of item 5
+# Developer kit: K1, K2, K3 and the rest of item 5
 
 The first two milestones of the [developer kit plan](https://claude.ai/code/artifact/75411bc2-1e3b-4805-b91e-699af3568800) are built and pass on Zakura regtest. Two `zdlc-node`s, driven only by `zdlc-cli` or by `@zdlc/client`, settled four contracts: an escrow funded from a deposit link, a bet settled by CET while the loser's node was down, a stable payment priced from the live ZEC/USD feed, and a bet driven by the TypeScript client. Raw logs: [CLI](spikes/kit-cli.json), [stable payment](spikes/kit-stable-payment.json), [TypeScript](spikes/kit-ts.json).
 
@@ -51,7 +51,26 @@ More runs (item 5):
 | Kit agents | A maker and a taker process traded a 0.1 ZEC hedge through the desk's quote board; closed cooperatively (block 237) |
 | Dev stack | `scripts/dev.sh up` then `scripts/demo.sh escrow`, `bet` and `stable` all settled by close |
 
-Raw logs: [templates](spikes/kit-templates.json), [recovery](spikes/kit-recovery.json), [agents](spikes/kit-agents.json).
+Raw logs: [templates](spikes/kit-templates.json), [recovery](spikes/kit-recovery.json), [agents](spikes/kit-agents.json), [embedded nodes](spikes/kit-sdk.json).
+
+## K3: `@zdlc/sdk` (Node and WebAssembly; React Native skipped)
+
+| Piece | Where | What it does |
+| --- | --- | --- |
+| Native addon | `crates/zdlc-napi` (napi-rs), `sdk/sdk/index.js` | The whole kit inside a Node process: `Zdlc.open({ seed, rpc, desk, oracles, db })`, with the same calls as `@zdlc/client` |
+| WebAssembly core | `crates/zdlc-wasm` (wasm-bindgen, built by wasm-pack), `@zdlc/sdk/core` | The stateless protocol for browsers and Node: wallet addresses, templates, attestation checks, offer / accept / sign / finish, CET, refund, cooperative close (proved in WebAssembly), payment links and QR, an in-memory oracle |
+| A pure core crate | `zdlc` with `--no-default-features` | The node, oracle, desk and agent modules sit behind a `net` feature. Without it the crate is the protocol alone and builds for wasm32 (proving single-threaded: `multicore` only comes with `net`) |
+| `zdlc::events`, `zdlc::templates` | core | Oracle messages and checks, `MemoryOracle`, and the templates moved out of the kit so the WebAssembly build has them |
+
+| Run | Result |
+| --- | --- |
+| Core in Node (`sdk/sdk/test/core.test.mjs`) | Two wallets ran a bet offline with an in-memory oracle. Both sides agreed on the funding transaction, either side completed the CET, the refund was locked at its height, and the oracle refused a second outcome. The cooperative close was proved in WebAssembly: 19.3 s single-threaded, including the one-time proving key build. The browser build loads and runs. The module is 7.9 MB |
+| Two embedded nodes (`node_sdk_runs_two_nodes`) | Two `@zdlc/sdk` nodes in one Node process. Alice invoiced Bob a 0.5 ZEC escrow, and Bob funded it from a deposit link the dev wallet paid. The arbiters resolved, and both nodes settled by cooperative close (block 240) |
+
+```sh
+scripts/build-node.sh && scripts/build-wasm.sh && (cd sdk/sdk && npm install && npm test)
+cargo test -p zdlc-kit --release --test kit node_sdk -- --ignored --nocapture
+```
 
 ## Not done yet
 
@@ -60,4 +79,9 @@ Raw logs: [templates](spikes/kit-templates.json), [recovery](spikes/kit-recovery
 - **Firm quotes:** kit makers quote without naming inputs. Their node reserves coins when it accepts, so a quote can fail if the treasury is spent meanwhile.
 - **Recovery after withdrawal:** a record lives in a note at the close address. `withdraw` sweeps it, so recover before withdrawing.
 - **Hedge on chain:** the hedge template shares the stable-payment path and has offline tests only.
-- **K3 to K5:** `@zdlc/sdk` (UniFFI: WebAssembly, N-API, React Native), the hosted testnet and `just dev`, docs and a stable 1.0.
+- **K3 leftovers:**
+    - React Native (skipped).
+    - Browser proving runs on one thread; a threaded build needs cross-origin isolation.
+    - The stateless core funds from treasury coins only: no deposit or leg funding yet.
+    - The addon is built for the host platform only, with no prebuilt binaries.
+- **K4 and K5:** the hosted testnet, docs, and a stable 1.0.

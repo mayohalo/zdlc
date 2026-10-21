@@ -1,0 +1,22 @@
+{
+  "name": "@zdlc/sdk",
+  "version": "0.1.0",
+  "description": "Self-custodial zDLC: a full node inside Node.js (native), and the stateless protocol core for browsers (WebAssembly)",
+  "type": "module",
+  "exports": {
+    ".": { "types": "./index.d.ts", "node": "./index.js" },
+    "./core": {
+      "node": { "types": "./core/node/zdlc_core.d.ts", "default": "./core/node/zdlc_core.js" },
+      "default": { "types": "./core/web/zdlc_core.d.ts", "default": "./core/web/zdlc_core.js" }
+    }
+  },
+  "files": ["index.js", "index.d.ts", "native", "core", "README.md"],
+  "engines": { "node": ">=18" },
+  "dependencies": { "@zdlc/client": "file:../ts" },
+  "scripts": {
+    "build": "../../scripts/build-node.sh && ../../scripts/build-wasm.sh",
+    "test": "node --test test/core.test.mjs",
+    "live": "node scripts/live.mjs"
+  },
+  "license": "MIT"
+}

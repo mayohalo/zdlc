@@ -99,64 +99,73 @@ pub fn id_of<T: Serialize>(s: &Signed<T>) -> String {
     hex::encode(&h[..12])
 }
 
-/// The client side of the desk's HTTP API.
-pub struct DeskClient {
-    pub base: String,
-    http: reqwest::Client,
-}
+#[cfg(feature = "net")]
+pub use client::DeskClient;
 
-impl DeskClient {
-    pub fn new(base: impl Into<String>) -> Self {
-        Self { base: base.into().trim_end_matches('/').to_string(), http: reqwest::Client::new() }
+#[cfg(feature = "net")]
+mod client {
+    use super::*;
+
+    /// The client side of the desk's HTTP API.
+    pub struct DeskClient {
+        pub base: String,
+        http: reqwest::Client,
     }
 
-    async fn json(&self, r: reqwest::RequestBuilder) -> Result<serde_json::Value> {
-        let r = r.send().await.map_err(|e| Error::Rpc(format!("desk: {e}")))?;
-        let ok = r.status().is_success();
-        let v: serde_json::Value = r.json().await.map_err(|e| Error::Rpc(format!("desk: {e}")))?;
-        if !ok {
-            return Err(Error::Rpc(format!("desk: {v}")));
+    impl DeskClient {
+        pub fn new(base: impl Into<String>) -> Self {
+            Self { base: base.into().trim_end_matches('/').to_string(), http: reqwest::Client::new() }
         }
-        Ok(v)
+
+        async fn json(&self, r: reqwest::RequestBuilder) -> Result<serde_json::Value> {
+            let r = r.send().await.map_err(|e| Error::Rpc(format!("desk: {e}")))?;
+            let ok = r.status().is_success();
+            let v: serde_json::Value = r.json().await.map_err(|e| Error::Rpc(format!("desk: {e}")))?;
+            if !ok {
+                return Err(Error::Rpc(format!("desk: {v}")));
+            }
+            Ok(v)
+        }
+
+        pub async fn post_rfq(&self, s: &Signed<RfqBody>) -> Result<String> {
+            let v = self.json(self.http.post(format!("{}/rfqs", self.base)).json(s)).await?;
+            Ok(v["id"].as_str().unwrap_or_default().to_string())
+        }
+
+        pub async fn rfqs(&self) -> Result<Vec<(String, Signed<RfqBody>)>> {
+            let v = self.json(self.http.get(format!("{}/rfqs", self.base))).await?;
+            serde_json::from_value(v).map_err(|e| Error::Rpc(e.to_string()))
+        }
+
+        pub async fn post_quote(&self, s: &Signed<QuoteBody>, private: bool) -> Result<String> {
+            let path = if private { "quotes/private".to_string() } else { format!("rfqs/{}/quotes", s.body.rfq_id) };
+            let v = self.json(self.http.post(format!("{}/{path}", self.base)).json(s)).await?;
+            Ok(v["id"].as_str().unwrap_or_default().to_string())
+        }
+
+        pub async fn quotes(&self, rfq: &str) -> Result<Vec<(String, Signed<QuoteBody>)>> {
+            let v = self.json(self.http.get(format!("{}/rfqs/{rfq}/quotes", self.base))).await?;
+            serde_json::from_value(v).map_err(|e| Error::Rpc(e.to_string()))
+        }
+
+        pub async fn quote(&self, id: &str) -> Result<Signed<QuoteBody>> {
+            let v = self.json(self.http.get(format!("{}/quotes/{id}", self.base))).await?;
+            serde_json::from_value(v).map_err(|e| Error::Rpc(e.to_string()))
+        }
+
+        pub async fn send(&self, b: &wire::SealedBox) -> Result<()> {
+            self.json(self.http.post(format!("{}/mailbox", self.base)).json(b)).await.map(|_| ())
+        }
+
+        /// Boxes for `sk`'s identity from sequence `since`: (seq, box).
+        pub async fn read(&self, sk: &SecretKey, since: u64) -> Result<Vec<(u64, wire::SealedBox)>> {
+            let ts = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs() as i64;
+            let (who, sig) = read_auth(sk, since, ts);
+            let v = self
+                .json(self.http.get(format!("{}/mailbox/{who}?since={since}&ts={ts}&sig={sig}", self.base)))
+                .await?;
+            serde_json::from_value(v).map_err(|e| Error::Rpc(e.to_string()))
+        }
     }
 
-    pub async fn post_rfq(&self, s: &Signed<RfqBody>) -> Result<String> {
-        let v = self.json(self.http.post(format!("{}/rfqs", self.base)).json(s)).await?;
-        Ok(v["id"].as_str().unwrap_or_default().to_string())
-    }
-
-    pub async fn rfqs(&self) -> Result<Vec<(String, Signed<RfqBody>)>> {
-        let v = self.json(self.http.get(format!("{}/rfqs", self.base))).await?;
-        serde_json::from_value(v).map_err(|e| Error::Rpc(e.to_string()))
-    }
-
-    pub async fn post_quote(&self, s: &Signed<QuoteBody>, private: bool) -> Result<String> {
-        let path = if private { "quotes/private".to_string() } else { format!("rfqs/{}/quotes", s.body.rfq_id) };
-        let v = self.json(self.http.post(format!("{}/{path}", self.base)).json(s)).await?;
-        Ok(v["id"].as_str().unwrap_or_default().to_string())
-    }
-
-    pub async fn quotes(&self, rfq: &str) -> Result<Vec<(String, Signed<QuoteBody>)>> {
-        let v = self.json(self.http.get(format!("{}/rfqs/{rfq}/quotes", self.base))).await?;
-        serde_json::from_value(v).map_err(|e| Error::Rpc(e.to_string()))
-    }
-
-    pub async fn quote(&self, id: &str) -> Result<Signed<QuoteBody>> {
-        let v = self.json(self.http.get(format!("{}/quotes/{id}", self.base))).await?;
-        serde_json::from_value(v).map_err(|e| Error::Rpc(e.to_string()))
-    }
-
-    pub async fn send(&self, b: &wire::SealedBox) -> Result<()> {
-        self.json(self.http.post(format!("{}/mailbox", self.base)).json(b)).await.map(|_| ())
-    }
-
-    /// Boxes for `sk`'s identity from sequence `since`: (seq, box).
-    pub async fn read(&self, sk: &SecretKey, since: u64) -> Result<Vec<(u64, wire::SealedBox)>> {
-        let ts = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs() as i64;
-        let (who, sig) = read_auth(sk, since, ts);
-        let v = self
-            .json(self.http.get(format!("{}/mailbox/{who}?since={since}&ts={ts}&sig={sig}", self.base)))
-            .await?;
-        serde_json::from_value(v).map_err(|e| Error::Rpc(e.to_string()))
-    }
 }

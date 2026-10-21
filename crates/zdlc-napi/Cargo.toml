@@ -1,0 +1,23 @@
+[package]
+name = "zdlc-napi"
+description = "Node-API addon: the zDLC kit (a self-custodial node) inside a Node process"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+zdlc = { path = "../zdlc" }
+zdlc-kit = { path = "../zdlc-kit" }
+napi = { version = "3", default-features = false, features = ["napi9", "async", "tokio_rt", "serde-json"] }
+napi-derive = "3"
+serde_json = "1"
+hex = "0.4"
+tokio = { version = "1", features = ["rt-multi-thread", "time", "sync"] }
+
+[build-dependencies]
+napi-build = "2"

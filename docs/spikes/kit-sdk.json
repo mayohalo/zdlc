@@ -1,0 +1,28 @@
+{
+  "id": "f45c82e253d141c3",
+  "funding_txid": "071bfd5225eabcfc5c4446b211a736fbd6f52a4b4bd891be71922f290915e690",
+  "alice": {
+    "height": 240,
+    "how": "close",
+    "txid": "315d20eb7efef1a858cae9c7b14a7e2605d441a3f30607d2a83cddb0a3d7929b"
+  },
+  "bob": {
+    "height": 240,
+    "how": "close",
+    "txid": "315d20eb7efef1a858cae9c7b14a7e2605d441a3f30607d2a83cddb0a3d7929b"
+  },
+  "alice_events": [
+    "offered",
+    "signed",
+    "funded",
+    "attested",
+    "settled"
+  ],
+  "qr_svg_bytes": 30400,
+  "alice_balance": {
+    "inContractsZat": 0,
+    "shieldedNotes": 2,
+    "shieldedZat": 50005000,
+    "treasuryZat": 99980000
+  }
+}

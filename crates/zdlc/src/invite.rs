@@ -4,12 +4,15 @@
 //! quote itself sits on the desk unlisted (`POST /quotes/private`), so there is no public
 //! RFQ or order board; the payment's value and fee make spam cost something.
 
+#[cfg(feature = "net")]
 use serde_json::json;
+#[cfg(feature = "net")]
 use zcash_note_encryption::try_note_decryption;
 use zcash_protocol::local_consensus::LocalNetwork;
 
+#[cfg(feature = "net")]
+use crate::node::Node;
 use crate::{
-    node::Node,
     tx::{self, Coin, Pay, Spec},
     wallet::Wallet,
     Error, Result,
@@ -106,6 +109,7 @@ pub fn invitation_tx(
 }
 
 /// Invitations to `wallet`'s inbox in blocks `from..=to`.
+#[cfg(feature = "net")]
 pub async fn scan(node: &Node, wallet: &Wallet, from: u32, to: u32) -> Result<Vec<Invitation>> {
     let ivk = wallet.close_ivk(0);
     let mut out = vec![];

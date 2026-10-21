@@ -114,7 +114,7 @@ async fn private_trade_by_memo_invitation() {
     let mut maker = Command::new(env!("CARGO_BIN_EXE_zdlc-trader"))
         .args(["maker", "--seed", &path("maker.seed"), "--node", &node, "--desk", "http://127.0.0.1:17901", "--oracles", oracles])
         .args(["--cap", "20000000", "--ttl", "80", "--contracts", "1", "--log", &path("maker.json")])
-        .args(["--invite", &inbox, "--invite-collateral", "10000000", "--invite-maturity", "4", "--invite-refund", "300"])
+        .args(["--invite", &inbox, "--invite-collateral", "10000000", "--invite-maturity", "12", "--invite-refund", "300"])
         .spawn()
         .unwrap();
     // The taker knows no desk and posts nothing: everything comes from the invitation.

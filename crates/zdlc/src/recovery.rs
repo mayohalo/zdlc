@@ -12,15 +12,21 @@
 //! signature commits to the funding txid, which would commit to the record.
 
 use secp256k1::{ecdsa, PublicKey};
+#[cfg(feature = "net")]
 use serde_json::json;
+#[cfg(feature = "net")]
 use zcash_note_encryption::try_note_decryption;
+#[cfg(feature = "net")]
 use zcash_primitives::transaction::Transaction;
-use zcash_protocol::{consensus::BranchId, local_consensus::LocalNetwork};
+#[cfg(feature = "net")]
+use zcash_protocol::consensus::BranchId;
+use zcash_protocol::local_consensus::LocalNetwork;
 use zcash_transparent::address::TransparentAddress;
 
+#[cfg(feature = "net")]
+use crate::node::Node;
 use crate::{
     contract::{self, Contract},
-    node::Node,
     script,
     tx::{self, Coin, Pay, Spec, Spend},
     wallet::Wallet,
@@ -197,6 +203,7 @@ pub fn leg_record_tx(p: &LocalNetwork, tip: u32, wallet: &Wallet, record: &LegRe
 }
 
 /// Scans blocks `from..=to` for leg records of indices `0..gap`.
+#[cfg(feature = "net")]
 pub async fn scan_legs(node: &Node, wallet: &Wallet, from: u32, to: u32, gap: u32) -> Result<Vec<LegRecord>> {
     let mut out = vec![];
     for i in 0..gap {
@@ -261,6 +268,7 @@ pub fn memo_tx_from(
     tx::extract(tx::sign(tx::build(p, &spec)?, 0, key)?)
 }
 
+#[cfg(feature = "net")]
 pub(crate) fn parse_tx(raw: &[u8]) -> Option<Transaction> {
     let branch = BranchId::try_from(u32::from_le_bytes(raw.get(8..12)?.try_into().ok()?)).ok()?;
     Transaction::read(raw, branch).ok()
@@ -268,6 +276,7 @@ pub(crate) fn parse_tx(raw: &[u8]) -> Option<Transaction> {
 
 /// Scans blocks `from..=to` for records addressed to the wallet's contract indices
 /// `0..gap`, by trial decryption of every Ironwood output.
+#[cfg(feature = "net")]
 pub async fn scan(node: &Node, wallet: &Wallet, from: u32, to: u32, gap: u32) -> Result<Vec<Record>> {
     let ivks: Vec<_> = (0..gap).map(|i| (i, wallet.close_ivk(i))).collect();
     let mut found = vec![];

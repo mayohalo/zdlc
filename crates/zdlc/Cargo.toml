@@ -9,13 +9,13 @@ publish = false
 
 [dependencies]
 # Zcash stack, pinned exactly: the NU7 (ZIP 259) pre-releases.
-zcash_primitives = { version = "=0.31.0-pre.1", features = ["transparent-inputs"] }
+zcash_primitives = { version = "=0.31.0-pre.1", default-features = false, features = ["transparent-inputs", "std", "circuits"] }
 zcash_transparent = { version = "=0.11.0-pre.1", features = ["transparent-inputs"] }
 zcash_protocol = { version = "=0.11.0-pre.0", features = ["local-consensus"] }
 zcash_address = "=0.14.0-pre.1"
 zcash_script = { version = "0.6", default-features = false }
 pczt = { version = "=0.10.0-pre.1", features = ["orchard", "transparent", "io-finalizer", "prover", "signer", "spend-finalizer", "tx-extractor", "zcp-builder"] }
-orchard = { version = "=0.16.0", features = ["circuit"] }
+orchard = { version = "=0.16.0", default-features = false, features = ["circuit", "std", "zeroize"] }
 # secp256k1 0.33 is what pczt and zcash_transparent sign with.
 secp256k1 = { version = "0.33", features = ["alloc"] }
 # ECDSA adaptor signatures and the dev oracle; on secp256k1 0.29, so keys and
@@ -35,15 +35,53 @@ zcash_note_encryption = "=0.5.1"
 # Witnesses for spending Ironwood notes (the version orchard uses).
 incrementalmerkletree = "=0.9.0"
 thiserror = "2"
-reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
-tokio = { version = "1", features = ["macros", "rt-multi-thread", "time", "net", "sync", "process"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"], optional = true }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "time", "net", "sync", "process"], optional = true }
 # The oracle service (zdlc-oracled) and its sealed state.
-axum = "0.8"
+axum = { version = "0.8", optional = true }
 chacha20poly1305 = "0.10"
 # Payment links (ZIP 321) and their QR codes.
 qrcode = { version = "0.14", default-features = false, features = ["svg"] }
 percent-encoding = "2.3"
 base64 = "0.22"
+
+[features]
+default = ["net"]
+# The node, oracle, desk and agent code: JSON-RPC, HTTP and a Tokio runtime. Without it
+# the crate is the pure protocol (contracts, transactions, templates, payment links)
+# and builds for WebAssembly (crates/zdlc-wasm).
+net = ["dep:tokio", "dep:axum", "dep:reqwest", "multicore"]
+# Parallel proving (rayon); not on plain wasm32.
+multicore = ["zcash_primitives/multicore", "orchard/multicore"]
+
+[[bin]]
+name = "zdlc-demo"
+required-features = ["net"]
+[[bin]]
+name = "zdlc-desk"
+required-features = ["net"]
+[[bin]]
+name = "zdlc-live"
+required-features = ["net"]
+[[bin]]
+name = "zdlc-oracle"
+required-features = ["net"]
+[[bin]]
+name = "zdlc-oracled"
+required-features = ["net"]
+[[bin]]
+name = "zdlc-trader"
+required-features = ["net"]
+[[bin]]
+name = "zdlc-watch"
+required-features = ["net"]
+
+[[example]]
+name = "wallet"
+required-features = ["net"]
+[[example]]
+name = "dev_addresses"
+required-features = ["net"]
 
 [dev-dependencies]
 # Forging PCZT metadata in tests (tests/protocol.rs).

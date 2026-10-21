@@ -456,3 +456,38 @@ async fn agents_trade_through_the_desk() {
         std::fs::write(p, serde_json::to_string_pretty(&json!({"taker": log, "maker": m})).unwrap()).unwrap();
     }
 }
+
+/// `@zdlc/sdk`: two self-custodial nodes inside one Node process run an escrow funded
+/// from a deposit link. Needs `scripts/build-node.sh` and `npm install` in sdk/sdk.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+#[ignore = "needs infra/zakura, node and the built addon"]
+async fn node_sdk_runs_two_nodes() {
+    let st = stack(18100).await;
+    let (sa, sb) = ([0x61u8; 32], [0x62u8; 32]);
+    st.rt.pay(&[(Wallet::from_seed(sa).coin_address(0), 1_0000_0000), (Wallet::from_seed(sb).coin_address(0), 1_0000_0000)]).await.unwrap();
+    let dir = std::env::temp_dir().join(format!("zdlc-sdk-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let desk = st.a.args[st.a.args.iter().position(|x| x == "--desk").unwrap() + 1].clone();
+    let sdk = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../sdk/sdk");
+    let out = tokio::process::Command::new("node")
+        .arg("scripts/live.mjs")
+        .current_dir(&sdk)
+        .env("ZDLC_RPC", &st.chain)
+        .env("ZDLC_DESK", &desk)
+        .env("ZDLC_ORACLES", &st.oracles)
+        .env("ZDLC_ADMIN", "let-me-resolve")
+        .env("ZDLC_A_SEED", hex::encode(sa))
+        .env("ZDLC_B_SEED", hex::encode(sb))
+        .env("ZDLC_DIR", dir.to_str().unwrap())
+        .env("ZDLC_DEV_BIN", bin("zdlc-dev"))
+        .output()
+        .await
+        .unwrap();
+    st.miner.abort();
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    println!("{stdout}{}", String::from_utf8_lossy(&out.stderr));
+    assert!(out.status.success(), "live.mjs failed");
+    if let Ok(p) = std::env::var("ZDLC_RESULTS_SDK") {
+        std::fs::write(p, stdout.lines().last().unwrap_or_default()).unwrap();
+    }
+}

@@ -1,0 +1,5 @@
+# WebAssembly builds of crates/zdlc-wasm: browser randomness. The C libraries (secp256k1)
+# need a clang with a wasm32 target: scripts/build-wasm.sh sets CC for it.
+[target.wasm32-unknown-unknown]
+rustflags = ['--cfg', 'getrandom_backend="wasm_js"']
+

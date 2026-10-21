@@ -33,3 +33,9 @@ resolve ID OUTCOME:
 test:
     cargo test --release -p zdlc -p zdlc-kit
     cd sdk/ts && npm run build && npm test
+
+# Build @zdlc/sdk: the Node addon and the WebAssembly core, then its offline tests.
+sdk:
+    scripts/build-node.sh
+    scripts/build-wasm.sh
+    cd sdk/sdk && npm install && npm test

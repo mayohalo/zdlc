@@ -67,6 +67,7 @@ Build apps on zDLC without touching the protocol ([docs/kit.md](docs/kit.md)):
 - **Rust:** one `Zdlc` object ([crates/zdlc-kit](crates/zdlc-kit)).
 - **Any language:** `zdlc-node`, a REST node ([OpenAPI spec](crates/zdlc-kit/openapi.json)), driven by `zdlc-cli`.
 - **TypeScript:** [`@zdlc/client`](sdk/ts).
+- **Self-custodial JavaScript:** [`@zdlc/sdk`](sdk/sdk). It runs a full node inside Node.js, and its WebAssembly core runs the stateless protocol in browsers.
 
 Templates: stable payment, escrow, bet.
 
@@ -107,7 +108,8 @@ cargo test -p zdlc --release --test phase4 -- --ignored --nocapture  # maker and
 cargo test -p zdlc --release --test products -- --ignored --nocapture --test-threads=1  # invitation, escrow, payroll roll
 cargo test -p zdlc --release --test beneficiaries -- --ignored --nocapture  # team escrow: 3 payees by CET and by close
 cargo test -p zdlc --release --test funding -- --ignored --nocapture --test-threads=1  # funding by QR: deposits, legs, desk trade
-cargo test -p zdlc-kit --release --test kit -- --ignored --nocapture --test-threads=1   # two zdlc-nodes via zdlc-cli and @zdlc/client
+cargo test -p zdlc-kit --release --test kit -- --ignored --nocapture --test-threads=1   # zdlc-cli, @zdlc/client, @zdlc/sdk, templates, agents
+scripts/build-node.sh && scripts/build-wasm.sh && (cd sdk/sdk && npm install && npm test)  # @zdlc/sdk: native addon and WebAssembly core
 cargo run -p zdlc --release --bin zdlc-oracle -- announce zecusd-1    # dev oracle
 cargo run -p zdlc --release --bin zdlc-watch -- kit.json              # refund watcher
 ```

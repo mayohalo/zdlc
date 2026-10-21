@@ -25,6 +25,7 @@ use secp256k1_zkp::{schnorr, Keypair, Message, Secp256k1, SecretKey, XOnlyPublic
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
+pub use crate::events::{parse_ivk, AnnouncementMsg, AttestationMsg, EventSpec};
 use crate::{feeds, node::Node, oracle, Error, Result};
 
 pub trait Sealer: Send + Sync {
@@ -86,30 +87,6 @@ impl Sealer for DevSealer {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-pub enum EventSpec {
-    /// ZEC/USD close of the UTC minute starting at `minute`, in `unit_cents` units.
-    ZecUsd {
-        minute: i64,
-        unit_cents: u64,
-        nb_digits: usize,
-    },
-    /// "paid" if notes to `ivk` (64-byte raw Ironwood IVK, hex) in `from_height..=by_height`
-    /// sum to at least `min_zat`, else "unpaid".
-    Payment {
-        ivk: String,
-        min_zat: u64,
-        from_height: u32,
-        by_height: u32,
-    },
-    /// An outcome a human arbiter resolves (a milestone delivered or not). The oracle signs
-    /// only after `resolve`, through the operator's admin endpoint.
-    Arbiter {
-        question: String,
-        outcomes: Vec<String>,
-    },
-}
-
 #[derive(Clone, Debug, Serialize, Deserialize)]
 struct EventRec {
     spec: EventSpec,
@@ -126,27 +103,6 @@ struct State {
     nonce_seed: [u8; 32],
     next_nonce: u64,
     events: BTreeMap<String, EventRec>,
-}
-
-/// An announcement as the oracle publishes it.
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct AnnouncementMsg {
-    pub event_id: String,
-    pub pubkey: String,
-    pub nonces: Vec<String>,
-    pub spec: EventSpec,
-    /// Outcome strings: "0"/"1" per digit (numeric) or the outcome names (payment).
-    pub outcomes: Vec<String>,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct AttestationMsg {
-    pub event_id: String,
-    pub pubkey: String,
-    /// One per nonce: the digits, or the single outcome name.
-    pub outcomes: Vec<String>,
-    pub signatures: Vec<String>,
-    pub detail: serde_json::Value,
 }
 
 pub struct Enclave {
@@ -392,10 +348,3 @@ impl Enclave {
     }
 }
 
-pub fn parse_ivk(h: &str) -> Result<orchard::keys::IncomingViewingKey> {
-    let b: [u8; 64] = hex::decode(h)
-        .ok()
-        .and_then(|b| b.try_into().ok())
-        .ok_or(Error::Build("ivk must be 64 bytes of hex".into()))?;
-    Option::from(orchard::keys::IncomingViewingKey::from_bytes(&b)).ok_or(Error::Build("invalid ivk".into()))
-}
