@@ -45,9 +45,23 @@ let id = z.offer(Template::Escrow { amount_zat: 150_000_000, question: "Mileston
 | --- | --- | --- |
 | `stable_payment` | Is owed `usd_cents` in ZEC at the price minute | Hedges with the same collateral and earns `premium_zat` |
 | `escrow` | Contractor: paid `amount_zat` on "delivered", optionally split among `payees` | Client: funds alone; refunded on "not delivered" or by the refund |
+| `hedge` | Protects `amount_zat` at `price_cents` a ZEC | Hedges, earns the premium |
+| `payroll` | Employee: owed `usd_cents` a period for `periods` periods | Employer; later periods are accepted automatically |
+| `pay_on_payment` | Lender: takes the collateral unless repaid to its `repay_to` | Borrower: collateral back once it repays |
 | `bet` | Wins both stakes on `offerer_wins` | Wins on the other outcomes |
 
 The accepter derives the terms from the template and its own oracles' announcements, and requires them to equal the offer's terms byte for byte. What it reviews is what it signs.
+
+## Local stack
+
+```sh
+just dev            # or scripts/dev.sh up: regtest, desk, two oracles, miner, alice :7950 and bob :7951 with 5 ZEC each
+just demo escrow    # escrow | stable | bet, end to end
+source .dev/env; za contracts; zb info; zpay <ZIP 321 link>; zresolve <id> delivered
+just down --chain
+```
+
+`zdlc-agent maker|taker` are desk agents on the kit. `zdlc-dev` funds and mines regtest, and pays links as a phone wallet would.
 
 ## zdlc-node and zdlc-cli
 

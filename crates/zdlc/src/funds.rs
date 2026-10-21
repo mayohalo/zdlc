@@ -110,6 +110,22 @@ pub async fn pay_from_notes(
     let fvk = FullViewingKey::from(sk);
     let tip = node.height().await?;
     let (spends, anchor) = notes::spends(node, &fvk, notes, tip).await?;
+    pay_spends(node, p, sk, notes, spends, anchor, tip, to, amount, change).await
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn pay_spends(
+    _node: &Node,
+    p: &LocalNetwork,
+    sk: &SpendingKey,
+    notes: &[OwnedNote],
+    spends: Vec<tx::IronwoodSpend>,
+    anchor: orchard::Anchor,
+    tip: u32,
+    to: To,
+    amount: Option<u64>,
+    change: orchard::Address,
+) -> Result<tx::Final> {
     let have: u64 = notes.iter().map(OwnedNote::value).sum();
     let pay = |v| match &to {
         To::Ironwood(a, Some(m)) => Pay::IronwoodMemo(*a, v, m.clone()),

@@ -19,6 +19,7 @@ use serde_json::{json, Value};
 use zdlc::{
     funds, keys, notes, oracle_client::OracleClient, paylink, params::NU7_AT, regtest::Regtest, tx, wallet::Wallet,
 };
+use zcash_protocol as _;
 
 struct Proc(Child);
 impl Drop for Proc {
@@ -120,7 +121,7 @@ async fn stack(base: u16) -> Stack {
     let mut procs = vec![Proc(Command::new(bin("zdlc-desk")).args(["--listen", &format!("127.0.0.1:{}", port(0)), "--state", &path("desk.json"), "--node", &chain]).spawn().unwrap())];
     for (n, name) in [(1, "a"), (2, "b")] {
         procs.push(Proc(Command::new(bin("zdlc-oracled"))
-            .args(["--listen", &format!("127.0.0.1:{}", port(n)), "--state", &path(&format!("{name}.sealed")), "--sealing-key", &path(&format!("{name}.key")), "--admin-token", &path("admin")])
+            .args(["--listen", &format!("127.0.0.1:{}", port(n)), "--state", &path(&format!("{name}.sealed")), "--sealing-key", &path(&format!("{name}.key")), "--admin-token", &path("admin"), "--node", &chain])
             .spawn()
             .unwrap()));
     }
@@ -136,7 +137,7 @@ async fn stack(base: u16) -> Stack {
             token: path(&format!("{name}.token")),
             seed: path(&format!("{name}.seed")),
             args: ["--seed", &path(&format!("{name}.seed")), "--token-file", &path(&format!("{name}.token")), "--db", &path(&format!("{name}.db")),
-                "--node", &chain, "--desk", &desk, "--oracles", &oracles, "--listen", &format!("127.0.0.1:{port}")]
+                "--node", &chain, "--desk", &desk, "--oracles", &oracles, "--listen", &format!("127.0.0.1:{port}"), "--block-secs", "1"]
                 .iter()
                 .map(|s| s.to_string())
                 .collect(),
@@ -308,5 +309,150 @@ async fn stable_payment_through_the_cli() {
     assert_eq!(a["settlement"]["how"], "close");
     if let Ok(p) = std::env::var("ZDLC_RESULTS_SV") {
         std::fs::write(p, serde_json::to_string_pretty(&json!({"id": id, "price_usd": a["attested"], "alice": a, "bob": b["settlement"]})).unwrap()).unwrap();
+    }
+}
+
+fn id_of(v: Value) -> String {
+    v["id"].as_str().unwrap().to_string()
+}
+
+/// Payroll over two periods (the second offered by the employee's node and accepted by
+/// the employer's on their own), and a loan's collateral released on proof of
+/// repayment. Needs internet access for ZEC/USD.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+#[ignore = "needs infra/zakura and internet access"]
+async fn payroll_and_pay_on_payment() {
+    let st = stack(18010).await;
+    let idb = st.b.cli(&["info"])["identity"].as_str().unwrap().to_string();
+    let mut log = vec![];
+
+    // Payroll: Alice (employee) is owed $20 a period for two periods; Bob (employer).
+    let first = id_of(st.a.cli(&["offer", "payroll", "--to", &idb, "--usd", "20.00", "--collateral", "0.05", "--periods", "2", "--period-blocks", "6", "--refund-margin", "240"]));
+    st.b.until(&first, "incoming", 30).await;
+    st.b.cli(&["accept", &first, "--funding", "treasury"]);
+    let p1 = st.a.until(&first, "settled", 240).await;
+    println!("[kit] payroll period 1 settled: ${} {}", p1["attested"], p1["settlement"]);
+    // Period 2 arrives and is accepted with no one asking.
+    let deadline = Instant::now() + Duration::from_secs(60);
+    let second = loop {
+        let list = st.a.cli(&["contracts"]);
+        if let Some(c) = list.as_array().unwrap().iter().find(|c| c["template"]["template"] == "payroll" && c["template"]["period"] == 2) {
+            break c["id"].as_str().unwrap().to_string();
+        }
+        assert!(Instant::now() < deadline, "no second period");
+        tokio::time::sleep(Duration::from_millis(500)).await;
+    };
+    let p2 = st.a.until(&second, "settled", 240).await;
+    let b2 = st.b.until(&second, "settled", 60).await;
+    println!("[kit] payroll period 2 ({second}) settled: ${} {}; employer side {}", p2["attested"], p2["settlement"], b2["settlement"]);
+    assert_eq!(p2["template"]["series_id"], json!(first));
+    log.push(json!({"run": "payroll, 2 periods", "period1": {"id": first, "price": p1["attested"], "settlement": p1["settlement"]},
+        "period2": {"id": second, "price": p2["attested"], "settlement": p2["settlement"], "auto_accepted": true}}));
+
+    // A loan: Bob (borrower) locks 0.5 ZEC; he repays 0.3 ZEC to Alice's repay_to from
+    // any wallet; the oracles see it by viewing key; the collateral comes back.
+    let loan = id_of(st.a.cli(&["offer", "pay-on-payment", "--to", &idb, "--amount", "0.3", "--collateral", "0.5", "--within", "40", "--refund", "400"]));
+    let inc = st.b.until(&loan, "incoming", 30).await;
+    println!("[kit] Bob reviews the loan: {}", inc["summary"]);
+    st.b.cli(&["accept", &loan, "--funding", "treasury"]);
+    st.b.until(&loan, "funded", 120).await;
+    let repay_to = inc["summary"]["repay_to"].as_str().unwrap();
+    let uri = paylink::uri(paylink::To::Ironwood(&paylink::decode_unified(repay_to).unwrap().1), zcash_protocol::consensus::NetworkType::Regtest, 3000_0000, "repay", Some("repay"));
+    let out = Command::new(bin("zdlc-dev")).args(["pay", "--node", &st.chain, &uri]).output().unwrap();
+    assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
+    println!("[kit] {}", String::from_utf8_lossy(&out.stdout).trim());
+    let l = st.b.until(&loan, "settled", 240).await;
+    println!("[kit] loan: attested {} {}", l["attested"], l["settlement"]);
+    assert_eq!(l["attested"], "paid");
+    log.push(json!({"run": "pay on payment: repaid", "id": loan, "repay_to": repay_to, "attested": l["attested"], "settlement": l["settlement"]}));
+    st.miner.abort();
+    if let Ok(p) = std::env::var("ZDLC_RESULTS") {
+        std::fs::write(p, serde_json::to_string_pretty(&log).unwrap()).unwrap();
+    }
+}
+
+/// Seed-only recovery: a bet the arbiters never resolve; both nodes go down after
+/// funding; a node restored from Alice's seed with an empty database finds her record
+/// and broadcasts the refund once due.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+#[ignore = "needs infra/zakura"]
+async fn seed_only_recovery() {
+    let Stack { rt, chain: _, mut a, mut b, arbiters: _, oracles: _, outside: _, h0: _, _procs, miner } = stack(18040).await;
+    let from = rt.tip().await.unwrap();
+    let idb = b.cli(&["info"])["identity"].as_str().unwrap().to_string();
+    let id = id_of(a.cli(&["offer", "bet", "--to", &idb, "--question", "Never resolved?", "--outcomes", "yes,no", "--offerer-wins", "yes", "--stake", "0.2", "--maturity", "10", "--refund", "40"]));
+    b.until(&id, "incoming", 30).await;
+    b.cli(&["accept", &id, "--funding", "treasury"]);
+    a.until(&id, "funded", 120).await;
+    // Wait for Alice's record (it may need the funding change to confirm first).
+    let deadline = Instant::now() + Duration::from_secs(60);
+    let rec = loop {
+        let c = a.cli(&["show", &id]);
+        if c["recordTxid"].is_string() {
+            break c;
+        }
+        assert!(Instant::now() < deadline, "no record: {}", c["note"]);
+        tokio::time::sleep(Duration::from_millis(500)).await;
+    };
+    a.stop();
+    b.stop();
+    // Alice's device is lost: a fresh database, the same seed.
+    let db = a.args.iter().position(|x| x == "--db").unwrap() + 1;
+    a.args[db] = format!("{}.restored", a.args[db]);
+    a.start();
+    wait_http(&format!("{}/v1/openapi.json", a.url)).await;
+    let early = a.cli(&["recover", "--from", &from.to_string()]);
+    println!("[kit] restored before the refund height: {early}");
+    let refund = rec["refundHeight"].as_u64().unwrap() as u32;
+    while rt.tip().await.unwrap() < refund + 1 {
+        tokio::time::sleep(Duration::from_millis(500)).await;
+    }
+    let due = a.cli(&["recover", "--from", &from.to_string()]);
+    println!("[kit] restored after the refund height: {due}");
+    let status = due["records"][0]["status"].as_str().unwrap().to_string();
+    assert!(status.starts_with("refund sent"), "{status}");
+    tokio::time::sleep(Duration::from_secs(4)).await;
+    let after = a.cli(&["recover", "--from", &from.to_string()]);
+    assert_eq!(after["records"][0]["status"], "settled", "{after}");
+    miner.abort();
+    if let Ok(p) = std::env::var("ZDLC_RESULTS_REC") {
+        std::fs::write(p, serde_json::to_string_pretty(&json!({"id": id, "record_txid": rec["recordTxid"], "before": early, "due": due, "after": after})).unwrap()).unwrap();
+    }
+}
+
+/// The kit-based desk agents: a maker and a taker process trade a 0.1 ZEC hedge
+/// through the desk's quote board. Needs internet access for ZEC/USD.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+#[ignore = "needs infra/zakura and internet access"]
+async fn agents_trade_through_the_desk() {
+    let st = stack(18070).await;
+    let dir = std::env::temp_dir().join(format!("zdlc-agents-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = |f: &str| dir.join(f).to_str().unwrap().to_string();
+    let desk = st.a.args[st.a.args.iter().position(|x| x == "--desk").unwrap() + 1].clone();
+    let (mw, tw) = (Wallet::from_seed([0x5A; 32]), Wallet::from_seed([0x7B; 32]));
+    std::fs::write(path("maker.seed"), hex::encode([0x5Au8; 32])).unwrap();
+    std::fs::write(path("taker.seed"), hex::encode([0x7Bu8; 32])).unwrap();
+    st.rt.pay(&[(mw.coin_address(0), 1_0000_0000), (tw.coin_address(0), 1_0000_0000)]).await.unwrap();
+    let common = |seed: &str| vec!["--seed".to_string(), path(seed), "--node".into(), st.chain.clone(), "--desk".into(), desk.clone(), "--oracles".into(), st.oracles.clone()];
+    let mut maker = Command::new(bin("zdlc-agent")).arg("maker").args(common("maker.seed")).args(["--contracts", "1", "--log", &path("maker.json")]).spawn().unwrap();
+    tokio::time::sleep(Duration::from_secs(3)).await;
+    let taker = Command::new(bin("zdlc-agent"))
+        .arg("taker")
+        .args(common("taker.seed"))
+        .args(["--collateral", "0.1", "--minute-offset", "-3", "--log", &path("taker.json")])
+        .output()
+        .unwrap();
+    println!("{}", String::from_utf8_lossy(&taker.stdout));
+    assert!(taker.status.success(), "{}", String::from_utf8_lossy(&taker.stderr));
+    assert!(maker.wait().unwrap().success());
+    st.miner.abort();
+    let log: Vec<Value> = serde_json::from_slice(&std::fs::read(path("taker.json")).unwrap()).unwrap();
+    let settled = log.iter().rev().find(|s| s["event"]["kind"] == "settled").unwrap();
+    println!("[kit] agents: {}", settled["event"]);
+    assert_eq!(settled["event"]["how"], "close");
+    if let Ok(p) = std::env::var("ZDLC_RESULTS_AGENTS") {
+        let m: Vec<Value> = serde_json::from_slice(&std::fs::read(path("maker.json")).unwrap()).unwrap();
+        std::fs::write(p, serde_json::to_string_pretty(&json!({"taker": log, "maker": m})).unwrap()).unwrap();
     }
 }

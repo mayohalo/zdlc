@@ -7,7 +7,10 @@
 //!   offer stable-payment --to ID --usd 100.00 --collateral ZEC [--premium ZEC] [--maturity 6] [--refund 60] [--minute UNIX]
 //!   offer bet --to ID --question Q --outcomes a,b --offerer-wins a --stake ZEC [--maturity 20] [--refund 2000]
 //!   offer json --to ID --template FILE
-//!   accept ID [--funding treasury|deposit] | decline ID | qr ID | withdraw --to UA
+//!   offer hedge --to ID --amount ZEC --price USD [--premium ZEC] [--maturity 6] [--refund 60] [--minute UNIX]
+//!   offer payroll --to ID --usd 1000.00 --collateral ZEC --periods N --period-blocks B [--refund-margin 40]
+//!   offer pay-on-payment --to ID --amount ZEC --collateral ZEC --within BLOCKS [--refund 2000]
+//!   accept ID [--funding treasury|deposit] | decline ID | qr ID | withdraw --to UA | recover [--from H] [--gap 20]
 //! ```
 
 use serde_json::{json, Value};
@@ -95,8 +98,19 @@ fn template(kind: &str, args: &[String]) -> Value {
             json!({"template": "bet", "question": arg(args, "--question", ""), "outcomes": list("--outcomes"), "offerer_wins": list("--offerer-wins"),
                    "stake_zat": zat(&arg(args, "--stake", "")), "maturity_blocks": num(args, "--maturity", "20"), "refund_blocks": num(args, "--refund", "2000")})
         }
+        "hedge" => {
+            let minute = arg(args, "--minute", "");
+            json!({"template": "hedge", "amount_zat": zat(&arg(args, "--amount", "")), "price_cents": zat(&arg(args, "--price", "")) / 1_000_000,
+                   "premium_zat": zat(&arg(args, "--premium", "0")), "maturity_blocks": num(args, "--maturity", "6"), "refund_blocks": num(args, "--refund", "60"),
+                   "price_minute": if minute.is_empty() { Value::Null } else { json!(minute.parse::<i64>().unwrap_or_else(|_| die("--minute"))) }})
+        }
+        "payroll" => json!({"template": "payroll", "usd_cents": zat(&arg(args, "--usd", "")) / 1_000_000, "collateral_zat": zat(&arg(args, "--collateral", "")),
+                            "premium_zat": zat(&arg(args, "--premium", "0")), "periods": num(args, "--periods", "1"), "period_blocks": num(args, "--period-blocks", "20"),
+                            "refund_margin_blocks": num(args, "--refund-margin", "40")}),
+        "pay-on-payment" => json!({"template": "pay_on_payment", "amount_zat": zat(&arg(args, "--amount", "")), "collateral_zat": zat(&arg(args, "--collateral", "")),
+                                   "by_blocks": num(args, "--within", "20"), "refund_blocks": num(args, "--refund", "2000")}),
         "json" => serde_json::from_slice(&std::fs::read(arg(args, "--template", "")).unwrap_or_else(|e| die(e))).unwrap_or_else(|e| die(e)),
-        _ => die("offer escrow | stable-payment | bet | json"),
+        _ => die("offer escrow | stable-payment | hedge | payroll | pay-on-payment | bet | json"),
     }
 }
 
@@ -125,6 +139,7 @@ async fn main() {
             println!("{uri}\n{}", zdlc::paylink::qr_text(uri).unwrap_or_else(|e| die(e)));
         }
         "withdraw" => print(&api.post("/v1/withdraw", json!({"to": arg(&args, "--to", "")})).await),
+        "recover" => print(&api.post("/v1/recover", json!({"from": num(&args, "--from", "1"), "gap": num(&args, "--gap", "20")})).await),
         "events" => {
             let mut after: u64 = num(&args, "--after", "0");
             let follow = args.iter().any(|a| a == "--follow");
@@ -139,6 +154,6 @@ async fn main() {
                 }
             }
         }
-        _ => die("command: info | balance | contracts | show | offer | accept | decline | qr | withdraw | events"),
+        _ => die("command: info | balance | contracts | show | offer | accept | decline | qr | withdraw | recover | events"),
     }
 }

@@ -58,6 +58,7 @@ pub fn router(z: Arc<Zdlc>, token: String) -> Router {
         .route("/v1/contracts/{id}/qr.svg", get(qr))
         .route("/v1/events", get(events))
         .route("/v1/withdraw", post(withdraw))
+        .route("/v1/recover", post(recover))
         .with_state(App { z, token: Arc::new(token) })
 }
 
@@ -206,6 +207,28 @@ async fn withdraw(State(a): State<App>, h: HeaderMap, Json(req): Json<WithdrawRe
     }
     match a.z.withdraw(&req.to).await {
         Ok(txids) => ok(json!({"txids": txids})),
+        Err(e) => bad(e),
+    }
+}
+
+#[derive(Deserialize)]
+struct RecoverReq {
+    #[serde(default)]
+    from: u32,
+    #[serde(default = "gap")]
+    gap: u32,
+}
+
+fn gap() -> u32 {
+    20
+}
+
+async fn recover(State(a): State<App>, h: HeaderMap, Json(req): Json<RecoverReq>) -> Response {
+    if let Err(r) = authed(&a, &h) {
+        return r;
+    }
+    match a.z.recover(req.from, req.gap).await {
+        Ok(v) => ok(json!({"records": v})),
         Err(e) => bad(e),
     }
 }

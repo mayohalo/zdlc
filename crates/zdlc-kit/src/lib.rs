@@ -27,6 +27,7 @@
 //! # Ok(()) }
 //! ```
 
+pub mod agent;
 pub mod api;
 pub mod impls;
 pub mod templates;
@@ -183,6 +184,9 @@ pub struct Record {
     pub settlement: Option<Settlement>,
     #[serde(default)]
     pub shielded_payout: Option<String>,
+    /// The recovery record this node posted (a memo to its own close address).
+    #[serde(default)]
+    pub record_txid: Option<String>,
     #[serde(default)]
     pub note: Option<String>,
 }
@@ -195,7 +199,7 @@ impl Record {
             "template": self.template, "summary": self.template.summary(self.role), "eventId": self.event_id,
             "funding": self.funding, "deposit": self.deposit, "fundingTxid": self.funding_txid,
             "maturity": self.maturity, "refundHeight": self.refund_height, "attested": self.attested,
-            "settlement": self.settlement, "shieldedPayout": self.shielded_payout, "note": self.note,
+            "settlement": self.settlement, "shieldedPayout": self.shielded_payout, "recordTxid": self.record_txid, "note": self.note,
         })
     }
 }
@@ -226,6 +230,8 @@ pub struct Builder {
     oracles: Vec<Arc<dyn Oracle>>,
     chain: Option<Arc<dyn Chain>>,
     auto_shield: bool,
+    records: bool,
+    block_secs: i64,
 }
 
 impl Builder {
@@ -255,6 +261,17 @@ impl Builder {
         self.auto_shield = on;
         self
     }
+    /// Seconds a block takes (75 on Zcash): where templates put the price minute.
+    pub fn block_secs(mut self, s: i64) -> Self {
+        self.block_secs = s;
+        self
+    }
+    /// Post a recovery record for every signed contract, paid from the treasury
+    /// (default on): with it, the seed alone recovers the refund ([`Zdlc::recover`]).
+    pub fn recovery_records(mut self, on: bool) -> Self {
+        self.records = on;
+        self
+    }
 
     pub async fn build(self) -> Result<Zdlc> {
         let need = |what: &str| Error::Usage(format!("builder: {what} not set"));
@@ -273,8 +290,11 @@ impl Builder {
             p,
             net,
             auto_shield: self.auto_shield,
+            records: self.records,
+            block_secs: self.block_secs,
             live: tokio::sync::Mutex::new(HashMap::new()),
             step: tokio::sync::Mutex::new(()),
+            policy: std::sync::Mutex::new(None),
         })
     }
 }
@@ -298,9 +318,16 @@ pub struct Zdlc {
     p: LocalNetwork,
     net: NetworkType,
     auto_shield: bool,
+    records: bool,
+    block_secs: i64,
     live: tokio::sync::Mutex<HashMap<String, Contract>>,
     step: tokio::sync::Mutex<()>,
+    policy: std::sync::Mutex<Option<Policy>>,
 }
+
+/// Decides incoming offers without a person: `Some(funding)` accepts, `None` leaves the
+/// offer for [`Zdlc::accept`] or [`Zdlc::decline`].
+pub type Policy = Arc<dyn Fn(&Record) -> Option<Funding> + Send + Sync>;
 
 fn now_unix() -> i64 {
     std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs() as i64
@@ -337,11 +364,32 @@ enum Attested {
 
 impl Zdlc {
     pub fn builder() -> Builder {
-        Builder { seed: None, transport: None, storage: None, oracles: vec![], chain: None, auto_shield: true }
+        Builder { seed: None, transport: None, storage: None, oracles: vec![], chain: None, auto_shield: true, records: true, block_secs: 75 }
     }
 
     pub fn identity(&self) -> String {
         self.transport.identity()
+    }
+
+    /// Sets the auto-accept policy (an agent's pricing, an app's whitelist).
+    pub fn set_policy(&self, p: Policy) {
+        *self.policy.lock().unwrap() = Some(p);
+    }
+
+    /// What the policy says about a new incoming offer. Later periods of a payroll this
+    /// node already accepted are accepted the same way.
+    async fn decide(&self, rec: &Record) -> Result<Option<Funding>> {
+        if let Template::Payroll { period, series_id: Some(sid), .. } = &rec.template {
+            if *period > 1 {
+                if let Some(first) = self.storage.get(sid).await? {
+                    if first.role == Role::Accepter && first.counterparty == rec.counterparty && first.funding.is_some() && first.state != State::Declined {
+                        return Ok(first.funding);
+                    }
+                }
+            }
+        }
+        let p = self.policy.lock().unwrap().clone();
+        Ok(p.and_then(|p| p(rec)))
     }
 
     pub fn network(&self) -> NetworkType {
@@ -465,17 +513,29 @@ impl Zdlc {
 
     /// Offers `template` to `counterparty` (its identity). Returns the contract id.
     pub async fn offer(&self, mut template: Template, counterparty: &str) -> Result<String> {
-        template.validate()?;
-        template.fill(now_unix());
+        let tip0 = self.chain.height().await?;
+        template.fill(now_unix(), tip0, self.block_secs);
         let mut nonce = [0u8; 8];
         rand10::fill(&mut nonce);
         let id = hex::encode(nonce);
         let event_id = format!("zdlc-{id}");
+        let index = self.next_index().await?;
+        match &mut template {
+            // The lender is repaid at this contract's own shielded address; the oracles
+            // watch it through its viewing key.
+            Template::PayOnPayment { repay_to, ivk, .. } if repay_to.is_none() => {
+                let fvk = self.wallet.close_fvk(index);
+                *repay_to = Some(paylink::unified_address(&self.wallet.close_address(index), self.net));
+                *ivk = Some(hex::encode(fvk.to_ivk(orchard::keys::Scope::External).to_bytes()));
+            }
+            Template::Payroll { series_id, .. } if series_id.is_none() => *series_id = Some(id.clone()),
+            _ => {}
+        }
+        template.validate()?;
         let spec = template.event()?;
         for o in &self.oracles {
             o.announce(&event_id, &spec).await?;
         }
-        let index = self.next_index().await?;
         let mine = template.collateral(Role::Offerer);
         let inputs = if mine > 0 { self.select(mine + CUSHION).await? } else { vec![] };
         let tip = self.chain.height().await?;
@@ -504,6 +564,7 @@ impl Zdlc {
             pending: None,
             settlement: None,
             shielded_payout: None,
+            record_txid: None,
             note: None,
         };
         self.send_offer(&mut rec).await?;
@@ -578,11 +639,16 @@ impl Zdlc {
                     pending: None,
                     settlement: None,
                     shielded_payout: None,
+                    record_txid: None,
                     note: None,
                 };
                 self.storage.put(&rec).await?;
                 self.emit(Event::Offered { id: thread.into(), incoming: true, counterparty: from.into(), summary: template.summary(Role::Accepter) })
-                    .await
+                    .await?;
+                match self.decide(&rec).await? {
+                    Some(f) => self.accept_inner(rec, f).await,
+                    None => Ok(()),
+                }
             }
             // A refreshed offer (fresh heights) for a contract we are setting up.
             Some(mut rec) if rec.role == Role::Accepter && rec.counterparty == from && rec.template == template => {
@@ -608,7 +674,13 @@ impl Zdlc {
     /// from a deposit link (any wallet pays it; see [`Event::AwaitingDeposit`]).
     pub async fn accept(&self, id: &str, funding: Funding) -> Result<()> {
         let _g = self.step.lock().await;
-        let mut rec = self.storage.get(id).await?.ok_or(Error::Usage(format!("no contract {id}")))?;
+        let rec = self.storage.get(id).await?.ok_or(Error::Usage(format!("no contract {id}")))?;
+        self.accept_inner(rec, funding).await
+    }
+
+    async fn accept_inner(&self, mut rec: Record, funding: Funding) -> Result<()> {
+        let id = rec.id.clone();
+        let id = id.as_str();
         if rec.state != State::Incoming {
             return Err(Error::Usage(format!("contract {id} is {:?}, not incoming", rec.state)));
         }
@@ -732,9 +804,98 @@ impl Zdlc {
         rec.funding_txid = Some(txid_hex(&c.txs.funding_txid));
         rec.state = State::Signed;
         self.storage.put(&rec).await?;
-        self.live.lock().await.insert(rec.id.clone(), c);
         self.transport.send(&rec.counterparty, &rec.id, "sign", json!({"sign": w})).await?;
+        self.post_record(&mut rec, &c).await;
+        self.live.lock().await.insert(rec.id.clone(), c);
         self.emit(Event::Signed { id: rec.id.clone() }).await
+    }
+
+    /// The recovery record: everything the seed cannot give, as a memo to this
+    /// contract's own close address. Paid from the treasury; without a coin there, a
+    /// warning (the database is then the only backup).
+    async fn post_record(&self, rec: &mut Record, c: &Contract) {
+        if !self.records {
+            return;
+        }
+        let r = async {
+            let record = zdlc::recovery::Record::from_contract(c, rec.index)?;
+            let coins = self.select(zdlc::recovery::RECORD_VALUE + 20_000).await?;
+            let tip = self.chain.height().await?;
+            let f = zdlc::recovery::memo_tx_from(
+                &self.p,
+                tip,
+                self.wallet.close_address(rec.index),
+                record.encode(),
+                coins[0].clone(),
+                &self.wallet.coin_key(0),
+                self.wallet.coin_address(0),
+                self.chain.ironwood_anchor(tip).await?,
+            )?;
+            let sent = self.chain.send(&f.raw).await;
+            self.release(&coins.iter().map(zdlc::trader::coin_to_wire).collect::<Vec<_>>()).await?;
+            sent?;
+            Ok::<_, Error>(txid_hex(&f.txid))
+        }
+        .await;
+        match r {
+            Ok(t) => {
+                rec.record_txid = Some(t);
+                rec.note = None;
+                let _ = self.storage.put(rec).await;
+            }
+            Err(e) => {
+                let _ = self.storage.put(rec).await;
+                let _ = self.note(&rec.id, &format!("recovery record not posted: {e}")).await;
+            }
+        }
+    }
+
+    async fn retry_record(&self, rec: &Record) {
+        if self.contract_of(rec).await.is_err() {
+            return;
+        }
+        let Some(mut rec) = self.storage.get(&rec.id).await.ok().flatten() else { return };
+        let live = self.live.lock().await;
+        if let Some(c) = live.get(&rec.id) {
+            self.post_record(&mut rec, c).await;
+        }
+    }
+
+    /// Seed-only recovery: finds this wallet's recovery records (contract indices
+    /// `0..gap`, from height `from`) and broadcasts every refund that is due on a
+    /// contract still unspent. Returns what it found.
+    pub async fn recover(&self, from: u32, gap: u32) -> Result<Vec<Value>> {
+        let tip = self.chain.height().await?;
+        let mut out = vec![];
+        let mut top = 0;
+        for i in 0..gap {
+            for n in self.chain.notes(&self.wallet.close_fvk(i), from, tip).await? {
+                let Some(r) = zdlc::recovery::Record::decode(&n.memo).filter(|r| r.index == i) else { continue };
+                top = top.max(i + 1);
+                let own = zdlc::keys::pubkey(&self.wallet.funding_key(i));
+                let redeem = if r.is_offerer { script::multisig_2of2(&own, &r.counterparty_pubkey)? } else { script::multisig_2of2(&r.counterparty_pubkey, &own)? };
+                let unspent = self.chain.utxos(&script::p2sh(&redeem), self.net).await?.iter().any(|u| u.0 == r.funding_txid && u.1 == r.funding_index);
+                let status = if !unspent {
+                    "settled".to_string()
+                } else if tip < r.refund_height {
+                    format!("refund due at {}", r.refund_height)
+                } else {
+                    let f = zdlc::recovery::rebuild_refund(&self.p, &self.wallet, &r)?;
+                    match self.chain.send(&f.raw).await {
+                        Ok(()) => format!("refund sent {}", txid_hex(&f.txid)),
+                        Err(e) => format!("refund refused: {e}"),
+                    }
+                };
+                out.push(json!({"index": i, "fundingTxid": txid_hex(&r.funding_txid), "refundHeight": r.refund_height,
+                    "collateral": if r.is_offerer { r.offer_collateral } else { r.accept_collateral }, "status": status}));
+            }
+        }
+        // A restored wallet must not reuse a contract index.
+        let next = self.storage.get_kv("next_index").await?.and_then(|v| v.as_u64()).unwrap_or(1) as u32;
+        if top + 1 > next {
+            self.storage.put_kv("next_index", &json!(top + 1)).await?;
+        }
+        Ok(out)
     }
 
     async fn on_sign(&self, mut rec: Record, body: &Value) -> Result<()> {
@@ -754,6 +915,7 @@ impl Zdlc {
         rec.own_funding = None;
         rec.state = State::Signed;
         self.storage.put(&rec).await?;
+        self.post_record(&mut rec, &c).await;
         self.live.lock().await.insert(rec.id.clone(), c);
         self.emit(Event::Signed { id: rec.id.clone() }).await
     }
@@ -881,7 +1043,14 @@ impl Zdlc {
             self.storage.put(&rec).await?;
             self.release(&rec.inputs).await?;
             self.live.lock().await.remove(&rec.id);
-            return self.emit(Event::Settled { id: rec.id.clone(), how: s.how, txid: s.txid, height: s.height }).await;
+            self.emit(Event::Settled { id: rec.id.clone(), how: s.how, txid: s.txid, height: s.height }).await?;
+            if rec.role == Role::Offerer {
+                if let Some(next) = rec.template.next_period() {
+                    // A payroll's next period, to the same employer.
+                    self.offer(next, &rec.counterparty).await?;
+                }
+            }
+            return Ok(());
         }
         if rec.pending.is_some() {
             return Ok(());
@@ -1030,7 +1199,17 @@ impl Zdlc {
             let id = rec.id.clone();
             let r = match rec.state {
                 State::AwaitingDeposit => self.poll_deposit(rec).await,
-                State::Signed | State::Funded | State::Closing => self.settle_step(rec).await,
+                State::Signed | State::Funded | State::Closing => {
+                    if self.records && rec.record_txid.is_none() {
+                        // No free treasury coin at signing (the collateral took it): try
+                        // again; the funding change will do.
+                        self.retry_record(&rec).await;
+                    }
+                    match self.storage.get(&id).await? {
+                        Some(rec) => self.settle_step(rec).await,
+                        None => Ok(()),
+                    }
+                }
                 State::Settled if self.auto_shield && rec.shielded_payout.is_none() && rec.settlement.as_ref().is_some_and(|s| s.how != "close") => {
                     self.shield_payout(rec).await
                 }

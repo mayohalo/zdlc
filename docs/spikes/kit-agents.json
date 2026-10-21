@@ -1,0 +1,103 @@
+{
+  "taker": [
+    {
+      "rfq": "7a400835da30d91cee6b1015",
+      "step": "rfq posted"
+    },
+    {
+      "contract": "d6b5a933d77a826d",
+      "premium": 50000,
+      "quote": "338654ac76a6f1fd4c2d7710",
+      "spot_cents": 125983,
+      "step": "offered"
+    },
+    {
+      "event": {
+        "counterparty": "02147ea003cba7c170839ee0d7eed80782a8ea2d2bc8056c7c626117bae3f8fb67",
+        "id": "d6b5a933d77a826d",
+        "incoming": false,
+        "kind": "offered",
+        "summary": {
+          "collateral_zec": "0.1",
+          "premium_zec": "0.0005",
+          "template": "stable_payment",
+          "usd": "125.98",
+          "you": "recipient: owed the dollar amount in ZEC",
+          "you_put_in_zec": "0.1005"
+        }
+      },
+      "step": "event"
+    },
+    {
+      "event": {
+        "height": 229,
+        "id": "d6b5a933d77a826d",
+        "kind": "funded",
+        "txid": "2ee9194854bdb3788df1a3e1202758195c028cd41e80f9067bb59f0be8d0db78"
+      },
+      "step": "event"
+    },
+    {
+      "event": {
+        "id": "d6b5a933d77a826d",
+        "kind": "attested",
+        "outcome": "1260"
+      },
+      "step": "event"
+    },
+    {
+      "event": {
+        "height": 237,
+        "how": "close",
+        "id": "d6b5a933d77a826d",
+        "kind": "settled",
+        "txid": "06df8b13660e9b947ef083d751c8fcc9328738e98cb511ef2e3dd264e7dadd00"
+      },
+      "step": "event"
+    }
+  ],
+  "maker": [
+    {
+      "premium": 50000,
+      "quote": "338654ac76a6f1fd4c2d7710",
+      "rfq": "7a400835da30d91cee6b1015",
+      "step": "quoted"
+    },
+    {
+      "event": {
+        "counterparty": "027b0005211da92e775d79980940983c0ca8efa86961b5f700b5d09341d4eb8394",
+        "id": "d6b5a933d77a826d",
+        "incoming": true,
+        "kind": "offered",
+        "summary": {
+          "collateral_zec": "0.1",
+          "premium_zec": "0.0005",
+          "template": "stable_payment",
+          "usd": "125.98",
+          "you": "hedger: pays the dollar amount, keeps the rest, earns the premium",
+          "you_put_in_zec": "0.1"
+        }
+      },
+      "step": "event"
+    },
+    {
+      "event": {
+        "height": 229,
+        "id": "d6b5a933d77a826d",
+        "kind": "funded",
+        "txid": "2ee9194854bdb3788df1a3e1202758195c028cd41e80f9067bb59f0be8d0db78"
+      },
+      "step": "event"
+    },
+    {
+      "event": {
+        "height": 237,
+        "how": "close",
+        "id": "d6b5a933d77a826d",
+        "kind": "settled",
+        "txid": "06df8b13660e9b947ef083d751c8fcc9328738e98cb511ef2e3dd264e7dadd00"
+      },
+      "step": "event"
+    }
+  ]
+}

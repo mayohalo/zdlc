@@ -2,7 +2,7 @@
 //!
 //! ```sh
 //! zdlc-node --seed node.seed --node $ZDLC_RPC --desk http://127.0.0.1:7900 --oracles http://127.0.0.1:7801,http://127.0.0.1:7802 \
-//!           [--db zdlc.db] [--listen 127.0.0.1:7950] [--token-file node.token] [--no-auto-shield]
+//!           [--db zdlc.db] [--listen 127.0.0.1:7950] [--token-file node.token] [--no-auto-shield] [--block-secs 75]
 //! ```
 //!
 //! `--seed` and `--token-file` are created if missing (mode 600). The API needs the
@@ -55,7 +55,8 @@ async fn main() {
         .chain(Arc::new(ZakuraRpc::new(&rpc)))
         .storage(storage)
         .transport(Arc::new(DeskTransport::new(&arg(&args, "--desk", ""), wallet.identity_key())))
-        .auto_shield(!args.iter().any(|a| a == "--no-auto-shield"));
+        .auto_shield(!args.iter().any(|a| a == "--no-auto-shield"))
+        .block_secs(arg(&args, "--block-secs", "75").parse().unwrap_or_else(|_| die("--block-secs")));
     for o in arg(&args, "--oracles", "").split(',').filter(|s| !s.is_empty()) {
         b = b.oracle(Arc::new(HttpOracle::new(o)));
     }

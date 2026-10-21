@@ -1,0 +1,35 @@
+[
+  {
+    "period1": {
+      "id": "f6c46144cd9b55e7",
+      "price": "1259",
+      "settlement": {
+        "height": 259,
+        "how": "close",
+        "txid": "8dbce911713d54045bc11cb93c4e151ac4845c126acb107fe7f4bc6dd05a27c4"
+      }
+    },
+    "period2": {
+      "auto_accepted": true,
+      "id": "a975fb86fde552f7",
+      "price": "1258",
+      "settlement": {
+        "height": 318,
+        "how": "close",
+        "txid": "4516a70cfa4d5d6b2b3ccfbfc6147013e608f9ce92453dfcb7aca95f143e03b0"
+      }
+    },
+    "run": "payroll, 2 periods"
+  },
+  {
+    "attested": "paid",
+    "id": "43b0d68d9e2285c4",
+    "repay_to": "utest109pkcuzjtwfpn4jxzz6vvantyddufmhrlv77cw5cw3ujyc4kssuwhugt8a4j83ea2wj92xx5fd5ufw5egv27jst8lezuddz3dsrwwg3w",
+    "run": "pay on payment: repaid",
+    "settlement": {
+      "height": 363,
+      "how": "close",
+      "txid": "83a525851b32f7e2b81f0e9a59caa5c9ba752123ab9632f3fbd04254abc0def9"
+    }
+  }
+]

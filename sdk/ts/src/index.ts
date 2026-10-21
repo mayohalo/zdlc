@@ -77,7 +77,44 @@ export interface BetTemplate {
   refund_blocks: number;
 }
 
-export type Template = StablePaymentTemplate | EscrowTemplate | BetTemplate;
+export interface HedgeTemplate {
+  template: "hedge";
+  amount_zat: number;
+  /** USD per ZEC, in cents. */
+  price_cents: number;
+  premium_zat?: number;
+  maturity_blocks: number;
+  refund_blocks: number;
+  price_minute?: number | null;
+}
+
+export interface PayrollTemplate {
+  template: "payroll";
+  usd_cents: number;
+  collateral_zat: number;
+  premium_zat?: number;
+  periods: number;
+  period_blocks: number;
+  refund_margin_blocks: number;
+  /** 1-based; the node fills the series fields. */
+  period?: number;
+  series_id?: string | null;
+  price_minute?: number | null;
+}
+
+export interface PayOnPaymentTemplate {
+  template: "pay_on_payment";
+  amount_zat: number;
+  collateral_zat: number;
+  by_blocks: number;
+  refund_blocks: number;
+  /** The node fills the lender's address and viewing key. */
+  repay_to?: string | null;
+  ivk?: string | null;
+  from_height?: number | null;
+}
+
+export type Template = StablePaymentTemplate | HedgeTemplate | PayrollTemplate | PayOnPaymentTemplate | EscrowTemplate | BetTemplate;
 
 export interface Settlement {
   how: "close" | "cet" | "refund" | "counterparty";
@@ -101,7 +138,17 @@ export interface Contract {
   attested: string | null;
   settlement: Settlement | null;
   shieldedPayout: string | null;
+  recordTxid: string | null;
   note: string | null;
+}
+
+export interface RecoveredRecord {
+  index: number;
+  fundingTxid: string;
+  refundHeight: number;
+  collateral: number;
+  /** "settled", "refund due at H", "refund sent TXID" or "refund refused: …". */
+  status: string;
 }
 
 export interface Info {
@@ -185,6 +232,37 @@ export const templates = {
       maturity_blocks: o.maturityBlocks ?? 6,
       refund_blocks: o.refundBlocks ?? 60,
       price_minute: o.priceMinute ?? null,
+    };
+  },
+  hedge(o: { amount: string; priceUsd: number; premium?: string; maturityBlocks?: number; refundBlocks?: number; priceMinute?: number }): HedgeTemplate {
+    return {
+      template: "hedge",
+      amount_zat: zat(o.amount),
+      price_cents: Math.round(o.priceUsd * 100),
+      premium_zat: zat(o.premium ?? "0"),
+      maturity_blocks: o.maturityBlocks ?? 6,
+      refund_blocks: o.refundBlocks ?? 60,
+      price_minute: o.priceMinute ?? null,
+    };
+  },
+  payroll(o: { usd: number; collateral: string; periods: number; periodBlocks: number; refundMarginBlocks?: number; premium?: string }): PayrollTemplate {
+    return {
+      template: "payroll",
+      usd_cents: Math.round(o.usd * 100),
+      collateral_zat: zat(o.collateral),
+      premium_zat: zat(o.premium ?? "0"),
+      periods: o.periods,
+      period_blocks: o.periodBlocks,
+      refund_margin_blocks: o.refundMarginBlocks ?? 40,
+    };
+  },
+  payOnPayment(o: { amount: string; collateral: string; withinBlocks: number; refundBlocks?: number }): PayOnPaymentTemplate {
+    return {
+      template: "pay_on_payment",
+      amount_zat: zat(o.amount),
+      collateral_zat: zat(o.collateral),
+      by_blocks: o.withinBlocks,
+      refund_blocks: o.refundBlocks ?? 2000,
     };
   },
   bet(o: { question: string; outcomes: string[]; offererWins: string[]; stake: string; maturityBlocks?: number; refundBlocks?: number }): BetTemplate {
@@ -277,6 +355,11 @@ export class ZdlcClient {
   /** Sends the whole shielded balance to a unified address. */
   withdraw(to: string): Promise<{ txids: string[] }> {
     return this.req("POST", "/v1/withdraw", { to });
+  }
+
+  /** Seed-only recovery: finds this wallet's recovery records and broadcasts every refund that is due. */
+  recover(from = 1, gap = 20): Promise<{ records: RecoveredRecord[] }> {
+    return this.req("POST", "/v1/recover", { from, gap });
   }
 
   /** One page of events after `after`; `wait` long-polls up to that many seconds. */

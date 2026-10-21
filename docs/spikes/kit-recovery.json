@@ -1,0 +1,29 @@
+{
+  "after": {
+    "records": [
+      {
+        "collateral": 20000000,
+        "fundingTxid": "4172da033c875ac270891fc6c7ed99f2766fa9dcc6fa803c28af9dc76ca4346f",
+        "index": 1,
+        "refundHeight": 253,
+        "status": "settled"
+      }
+    ]
+  },
+  "before": {
+    "records": []
+  },
+  "due": {
+    "records": [
+      {
+        "collateral": 20000000,
+        "fundingTxid": "4172da033c875ac270891fc6c7ed99f2766fa9dcc6fa803c28af9dc76ca4346f",
+        "index": 1,
+        "refundHeight": 253,
+        "status": "refund sent 9aa23fa0d24f5eaa1cf393db1710364fddd4159ca1c043886f691d3b0ca0b4bf"
+      }
+    ]
+  },
+  "id": "e86bb0c51195af6a",
+  "record_txid": "733f264060ccdea30e0fd5b6ba501ba271afd0f2b17b09e2f0787938aee61002"
+}

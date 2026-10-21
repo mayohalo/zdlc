@@ -226,16 +226,28 @@ pub fn record_tx(
 }
 
 fn memo_tx(p: &LocalNetwork, tip: u32, wallet: &Wallet, i: u32, memo: Vec<u8>, coin: Coin, anchor: orchard::Anchor) -> Result<tx::Final> {
-    let change = wallet.coin_address(i);
+    memo_tx_from(p, tip, wallet.close_address(i), memo, coin, &wallet.coin_key(i), wallet.coin_address(i), anchor)
+}
+
+/// A record (or leg record) paid from any P2PKH `coin` with its `key`, change to
+/// `change`: for wallets that fund from one treasury address.
+#[allow(clippy::too_many_arguments)]
+pub fn memo_tx_from(
+    p: &LocalNetwork,
+    tip: u32,
+    to: orchard::Address,
+    memo: Vec<u8>,
+    coin: Coin,
+    key: &secp256k1::SecretKey,
+    change: TransparentAddress,
+    anchor: orchard::Anchor,
+) -> Result<tx::Final> {
     let mut spec = Spec {
         target_height: tip + 1,
         expiry_height: tip + 1 + contract::EXPIRY_DELTA,
         lock_height: None,
         inputs: vec![coin.clone()],
-        outputs: vec![
-            Pay::IronwoodMemo(wallet.close_address(i), RECORD_VALUE, memo),
-            Pay::Transparent(change, 1),
-        ],
+        outputs: vec![Pay::IronwoodMemo(to, RECORD_VALUE, memo), Pay::Transparent(change, 1)],
         ironwood_anchor: Some(anchor),
         ironwood_spends: vec![],
     };
@@ -246,7 +258,7 @@ fn memo_tx(p: &LocalNetwork, tip: u32, wallet: &Wallet, i: u32, memo: Vec<u8>, c
             .checked_sub(RECORD_VALUE + fee)
             .ok_or(Error::Build("record coin too small".into()))?,
     );
-    tx::extract(tx::sign(tx::build(p, &spec)?, 0, &wallet.coin_key(i))?)
+    tx::extract(tx::sign(tx::build(p, &spec)?, 0, key)?)
 }
 
 pub(crate) fn parse_tx(raw: &[u8]) -> Option<Transaction> {
