@@ -205,6 +205,15 @@ td.muted { color: var(--muted); }
 .era .yr.now { color: var(--key); }
 .era p { color: var(--muted); font-size: 0.96rem; margin-top: 4px; }
 
+.line3.cols { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 28px; }
+.line3.cols .era { grid-template-columns: minmax(0, 1fr); gap: 8px; border-top: 2px solid var(--line); padding-top: 16px; }
+.line3.cols .era:last-child { border-top-color: var(--key); }
+.found:has(.cols2) { grid-template-columns: minmax(0, 1fr); }
+.facts.cols2 { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 40px; }
+section.tight { padding-block: clamp(44px, 6vw, 72px); }
+section.tight .head { margin-bottom: 24px; }
+.proof th, .proof td { padding: 9px 16px; font-size: 0.92rem; }
+
 /* ---- Status ---- */
 .status { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
 .st { padding: 22px; display: grid; gap: 10px; align-content: start; }
@@ -223,7 +232,7 @@ footer .row { display: flex; justify-content: space-between; gap: 16px; flex-wra
   .math > div + div { border-left: 0; border-top: 1px solid var(--line); }
   .steps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .three, .status { grid-template-columns: minmax(0, 1fr); }
-  .adv, .caveats, .gallery { grid-template-columns: minmax(0, 1fr); }
+  .adv, .caveats, .gallery, .line3.cols, .facts.cols2 { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 640px) {
   body { font-size: 17px; }
@@ -240,11 +249,12 @@ footer .row { display: flex; justify-content: space-between; gap: 16px; flex-wra
   <header class="top">
     <a class="mark" href="#top" id="top">z<b>DLC</b></a>
     <nav class="nav" aria-label="Sections">
-      <a href="#proof">Proof</a>
+      <a href="#lineage">Origins</a>
       <a href="#how">How it works</a>
       <a href="#zcash">Why Zcash</a>
       <a href="#build">Build</a>
       <a href="#quickstart">Quickstart</a>
+      <a href="#proof">On chain</a>
       <a href="#status">Status</a>
     </nav>
   </header>
@@ -272,30 +282,18 @@ footer .row { display: flex; justify-content: space-between; gap: 16px; flex-wra
   </div>
 </div>
 
-<section id="proof">
+
+<section id="lineage">
   <div class="wrap">
     <div class="head">
-      <p class="label">Working on Zcash</p>
-      <h2>Not a whitepaper. Transactions on Zcash.</h2>
-      <p class="read">Contracts settled on Zcash testnet, with their transaction IDs, and the regtest runs anyone can reproduce from the repository.</p>
+      <p class="label">Where it comes from</p>
+      <h2>An MIT design, proven on Bitcoin, brought to Zcash</h2>
     </div>
-    <div class="panel scroll proof">
-      <table>
-        <thead><tr><th>Contract</th><th>Network</th><th>Settled by</th><th>Block</th><th>Transaction / reproduce</th></tr></thead>
-        <tbody>
-          <tr><th>ZEC/USD payment, two oracles agreeing</th><td><span class="pill pub">testnet</span></td><td class="muted">Pre-signed payout, unlocked by both attestations</td><td class="h">4,522,041</td><td><span class="txid"><span>612ba745…5822fe</span><button type="button" data-copy="612ba745f15539691117b2264335d0da24872bfa9fab8b0c10bfab49f45822fe">Copy</button></span></td></tr>
-          <tr><th>Hedge traded through the desk by two agents</th><td><span class="pill pub">testnet</span></td><td class="muted">Cooperative close to shielded recipients</td><td class="h">4,522,155</td><td><span class="txid"><span>cd366082…17756f</span><button type="button" data-copy="cd366082561c922720b58cad77a4770fe5b30fa64869b37aa08e0c465917756f">Copy</button></span></td></tr>
-          <tr><th>Pre-signed payout after a price attestation</th><td><span class="pill pub">testnet</span></td><td class="muted">Payout transaction</td><td class="h">4,521,988</td><td><span class="txid"><span>e21742c7…a339d</span><button type="button" data-copy="e21742c7930a1aa0d41864dba4cede0420abe9a5ac612e175a7cf012a77a339d">Copy</button></span></td></tr>
-          <tr><th>Cooperative close</th><td><span class="pill pub">testnet</span></td><td class="muted">Close to shielded recipients</td><td class="h">4,521,980</td><td><span class="txid"><span>0f662f85…1a64eb</span><button type="button" data-copy="0f662f85a79320141bd58f7515b5d96955554c181fb6ed7c2fba6c00991a64eb">Copy</button></span></td></tr>
-          <tr><th>Refund rebuilt from the seed alone</th><td><span class="pill pub">testnet</span></td><td class="muted">Time-locked refund, refused one block early</td><td class="h">4,521,979</td><td><span class="txid"><span>13caad64…25bb5a</span><button type="button" data-copy="13caad64027d2a5dc5de4b1c2d05f211839732b22697c2a9ec3df65beb25bb5a">Copy</button></span></td></tr>
-          <tr><th>Escrow funded by scanning a deposit link</th><td><span class="pill dim">regtest</span></td><td class="muted">Cooperative close; both nodes agree on the txid</td><td class="h">233</td><td><code class="cmd">cargo test -p zdlc-kit --test kit two_nodes</code></td></tr>
-          <tr><th>Team escrow: 0.75 / 0.45 / 0.30 ZEC</th><td><span class="pill dim">regtest</span></td><td class="muted">Payout to three addresses</td><td class="h">256</td><td><code class="cmd">cargo test -p zdlc --test beneficiaries</code></td></tr>
-          <tr><th>Collateral released on proof of repayment</th><td><span class="pill dim">regtest</span></td><td class="muted">Oracles saw it by viewing key; close</td><td class="h">363</td><td><code class="cmd">cargo test -p zdlc-kit --test kit payroll_and</code></td></tr>
-          <tr><th>A bet with the losing side offline</th><td><span class="pill dim">regtest</span></td><td class="muted">The winner settled alone</td><td class="h">307</td><td><code class="cmd">cargo test -p zdlc-kit --test kit two_nodes</code></td></tr>
-        </tbody>
-      </table>
-    </div>
-    <p class="verify">Check a testnet transaction with any Zcash testnet node: <code>getrawtransaction &lt;txid&gt; 1</code>. Regtest runs start a local chain (<code>infra/zakura/scripts/up.sh</code>) and add <code>--release -- --ignored</code> to the commands above. Full logs, with every txid, are in <code>docs/spikes</code>.</p>
+    <div class="line3 cols">
+        <div class="era"><span class="yr">2017</span><div><h3>Discreet Log Contracts</h3><p>Tadge Dryja, at MIT's Digital Currency Initiative, publishes the design: oracle contracts that look like ordinary multisig on chain, with an oracle that never learns about them.</p></div></div>
+        <div class="era"><span class="yr">2019–</span><div><h3>Built out on Bitcoin</h3><p>Adaptor signatures replace the original key tweaks; the dlcspecs standardize the messages; libraries such as rust-dlc and DLC Dev Kit make them buildable.</p></div></div>
+        <div class="era"><span class="yr now">Now</span><div><h3>zDLC on Zcash</h3><p>The same oracle messages (compatible with dlcspecs oracles), on Zcash v6 transactions, with funding and payouts that go through the shielded pool.</p></div></div>
+      </div>
   </div>
 </section>
 
@@ -374,7 +372,7 @@ footer .row { display: flex; justify-content: space-between; gap: 16px; flex-wra
     <div class="adv">
       <div><span class="k">Pay from any wallet</span><p>Unified addresses and ZIP 321 links let anyone fund a contract by scanning a QR code, shielded, with a memo naming the contract.</p></div>
       <div><span class="k">Encrypted memos</span><p>Each contract leaves a recovery record in a memo only your seed can read, and a maker can send one taker a private quote with nothing posted publicly.</p></div>
-      <div><span class="k">Viewing keys</span><p>For proof-of-payment contracts, the oracle receives the incoming viewing key of one per-contract address. It can read payments arriving there, and could disclose them, but cannot spend them or see anything else you own.</p></div>
+      <div><span class="k">Viewing keys</span><p>For proof-of-payment contracts, the oracle receives the incoming viewing key of an address used only for that repayment. It can read payments arriving there, and could disclose them, but cannot spend them or see anything else you own.</p></div>
       <div><span class="k">Private payouts</span><p>A cooperative close can pay every party and up to 16 payees in one shielded transaction.</p></div>
     </div>
   </div>
@@ -467,24 +465,43 @@ funded
 <section id="foundations">
   <div class="wrap">
     <div class="head">
-      <p class="label">Architecture and origins</p>
+      <p class="label">Architecture</p>
       <h2>Not a smart-contract VM for Zcash</h2>
       <p class="read">zDLC compiles a conditional agreement into native Zcash transactions: a 2-of-2, one pre-signed payout per outcome, and a time-locked refund. The logic is settled before any money moves.</p>
     </div>
     <div class="found">
-      <dl class="facts">
+      <dl class="facts cols2">
         <div><dt>Transactions</dt><dd>Zcash v6, built through PCZTs; the cooperative close pays the Ironwood shielded pool</dd></div>
         <div><dt>Custody</dt><dd>A 2-of-2 between the parties; no contract address and no intermediary</dd></div>
         <div><dt>Oracle messages</dt><dd>dlcspecs attestations, checked against an independent dlcspecs oracle implementation</dd></div>
         <div><dt>Network upgrades</dt><dd>A contract spanning one upgrade has every payout signed for both eras (two adaptor signatures each) and its refund signed for the era it confirms in; tested across NU7 on regtest. One that spans two upgrades is refused</dd></div>
         <div><dt>Recovery</dt><dd>With the seed, a wallet finds its recovery records and rebuilds each refund. It needs the record to have been posted (the kit pays for it from the treasury once a contract is signed), a node that can scan from the contract's height, and recovering before the close address is swept by a withdrawal</dd></div>
       </dl>
-      <div class="line3">
-        <div class="era"><span class="yr">2017</span><div><h3>Discreet Log Contracts</h3><p>Tadge Dryja, at MIT's Digital Currency Initiative, publishes the design: oracle contracts that look like ordinary multisig on chain, with an oracle that never learns about them.</p></div></div>
-        <div class="era"><span class="yr">2019–</span><div><h3>Built out on Bitcoin</h3><p>Adaptor signatures, the dlcspecs messages, and libraries such as rust-dlc and DLC Dev Kit.</p></div></div>
-        <div class="era"><span class="yr now">Now</span><div><h3>zDLC on Zcash</h3><p>The same oracle messages, on Zcash v6 transactions, with funding and payouts through the shielded pool.</p></div></div>
-      </div>
+
     </div>
+  </div>
+</section>
+
+<section id="proof" class="tight">
+  <div class="wrap">
+    <div class="head">
+      <p class="label">Working on Zcash</p>
+      <h2>Settled on chain</h2>
+    </div>
+    <div class="panel scroll proof">
+      <table>
+        <thead><tr><th>Contract</th><th>Network</th><th>How it settled</th><th>Block</th><th>Transaction</th></tr></thead>
+        <tbody>
+          <tr><th>ZEC/USD payment, two oracles agreeing</th><td><span class="pill pub">testnet</span></td><td class="muted">Pre-signed payout, unlocked by both attestations</td><td class="h">4,522,041</td><td><span class="txid"><span>612ba745…5822fe</span><button type="button" data-copy="612ba745f15539691117b2264335d0da24872bfa9fab8b0c10bfab49f45822fe">Copy</button></span></td></tr>
+          <tr><th>Hedge traded through the desk by two agents</th><td><span class="pill pub">testnet</span></td><td class="muted">Cooperative close to shielded addresses</td><td class="h">4,522,155</td><td><span class="txid"><span>cd366082…17756f</span><button type="button" data-copy="cd366082561c922720b58cad77a4770fe5b30fa64869b37aa08e0c465917756f">Copy</button></span></td></tr>
+          <tr><th>Refund rebuilt from the seed alone</th><td><span class="pill pub">testnet</span></td><td class="muted">Time-locked refund</td><td class="h">4,521,979</td><td><span class="txid"><span>13caad64…25bb5a</span><button type="button" data-copy="13caad64027d2a5dc5de4b1c2d05f211839732b22697c2a9ec3df65beb25bb5a">Copy</button></span></td></tr>
+          <tr><th>Escrow funded by scanning a deposit link</th><td><span class="pill dim">regtest</span></td><td class="muted">Cooperative close; both nodes agree on the transaction</td><td class="h">233</td><td class="muted">reproducible</td></tr>
+          <tr><th>Team escrow: 0.75, 0.45 and 0.30 ZEC to three people</th><td><span class="pill dim">regtest</span></td><td class="muted">Pre-signed payout to three addresses</td><td class="h">256</td><td class="muted">reproducible</td></tr>
+          <tr><th>A bet with the losing side offline</th><td><span class="pill dim">regtest</span></td><td class="muted">The winner settled alone</td><td class="h">307</td><td class="muted">reproducible</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="verify">Testnet: <code>getrawtransaction &lt;txid&gt; 1</code> on any testnet node. Regtest: <code>cargo test -p zdlc-kit --release --test kit -- --ignored</code> on a local chain. Every txid is logged in <code>docs/spikes</code>.</p>
   </div>
 </section>
 
@@ -500,7 +517,7 @@ funded
       <div><h3>Self-custody, pending review</h3><p>The settlement and refund paths are tested on regtest and testnet but not yet independently audited. Do not use it for real money.</p></div>
       <div><h3>Oracles are trusted for the outcome</h3><p>They cannot take funds, and two must agree, but colluding oracles can choose which pre-agreed payout unlocks.</p></div>
       <div><h3>Oracle keys</h3><p>Today's oracles keep their keys in a sealed file, not yet in a hardware enclave.</p></div>
-      <div><h3>Viewing-key scope</h3><p>A proof-of-payment oracle can read every payment to the one address it watches. Use that contract's address only for the repayment.</p></div>
+      <div><h3>Viewing-key scope</h3><p>A proof-of-payment oracle can read every payment to the repayment address it watches, including amounts and memos. That address exists for one contract and nothing else.</p></div>
     </div>
   </div>
 </section>
