@@ -100,6 +100,23 @@ impl Wallet {
         self.deposit_fvk(i).address_at(0u32, Scope::External)
     }
 
+    /// Contract `i`'s repayment key (pay on payment): the borrower repays its address and
+    /// the oracles get its viewing key. It is kept apart from the close address so they
+    /// see the repayment and nothing else: not the close payout, not the recovery record.
+    pub fn repay_sk(&self, i: u32) -> SpendingKey {
+        (0u8..=255)
+            .find_map(|n| Option::<SpendingKey>::from(SpendingKey::from_bytes(self.derive("repay", i, n))))
+            .expect("a valid spending key")
+    }
+
+    pub fn repay_fvk(&self, i: u32) -> FullViewingKey {
+        FullViewingKey::from(&self.repay_sk(i))
+    }
+
+    pub fn repay_address(&self, i: u32) -> orchard::Address {
+        self.repay_fvk(i).address_at(0u32, Scope::External)
+    }
+
     /// The owner key of this wallet's leg in contract `i` (path B): it reclaims the leg
     /// alone from the refund height.
     pub fn leg_key(&self, i: u32) -> SecretKey {
@@ -129,5 +146,19 @@ impl Wallet {
                 ironwood: false,
             },
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_repayment_key_is_its_own() {
+        let w = Wallet::from_seed([7; 32]);
+        let repay = w.repay_address(3);
+        assert_ne!(repay, w.close_address(3), "the oracles watch repay_to: it must not be the close address");
+        assert_ne!(repay, w.deposit_address(3));
+        assert_ne!(repay, w.repay_address(4));
     }
 }

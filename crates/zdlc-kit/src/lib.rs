@@ -516,11 +516,12 @@ impl Zdlc {
         let event_id = format!("zdlc-{id}");
         let index = self.next_index().await?;
         match &mut template {
-            // The lender is repaid at this contract's own shielded address; the oracles
-            // watch it through its viewing key.
+            // The lender is repaid at this contract's repayment address; the oracles watch
+            // it through its viewing key. It is not the close address, which also receives
+            // the close payout and the recovery record.
             Template::PayOnPayment { repay_to, ivk, .. } if repay_to.is_none() => {
-                let fvk = self.wallet.close_fvk(index);
-                *repay_to = Some(paylink::unified_address(&self.wallet.close_address(index), self.net));
+                let fvk = self.wallet.repay_fvk(index);
+                *repay_to = Some(paylink::unified_address(&self.wallet.repay_address(index), self.net));
                 *ivk = Some(hex::encode(fvk.to_ivk(orchard::keys::Scope::External).to_bytes()));
             }
             Template::Payroll { series_id, .. } if series_id.is_none() => *series_id = Some(id.clone()),
@@ -1258,7 +1259,7 @@ impl Zdlc {
         let tip = self.chain.height().await?;
         let mut out = vec![];
         for rec in self.storage.list().await? {
-            for sk in [self.wallet.deposit_sk(rec.index), self.wallet.close_sk(rec.index)] {
+            for sk in [self.wallet.deposit_sk(rec.index), self.wallet.close_sk(rec.index), self.wallet.repay_sk(rec.index)] {
                 let fvk = orchard::keys::FullViewingKey::from(&sk);
                 let n: Vec<_> = self.chain.notes(&fvk, rec.created_height, tip).await?.into_iter().filter(|n| n.value() > 0).collect();
                 if !n.is_empty() {
