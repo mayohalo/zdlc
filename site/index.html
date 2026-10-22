@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="description" content="zDLC: Discreet Log Contracts on Zcash. Escrows, hedges, payroll, loans and bets settled by oracles, funded and paid out through the shielded pool.">
+<meta name="description" content="zDLC: native Zcash contracts, shielded in and shielded out. Escrows, hedges and payments settled by oracles on Zcash v6 transactions.">
 <title>zDLC</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -11,10 +11,7 @@
 <style>
 html { -webkit-text-size-adjust: 100%; }
 body { margin: 0; }
-img { max-width: 100%; }
-[hidden] { display: none !important; }
-:root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
-/* Layout: a whitepaper set as a product page. Grotesk headlines, serif reading text, mono for the math; the equation is the hero's image, and one interactive figure carries the mechanism. */
+/* Layout: a whitepaper set as a product page. Grotesk headlines, serif reading text, mono for txids and math. Proof comes right after the promise; the escrow figure carries the mechanism. */
 :root {
   --paper: #f3f5f8;
   --sheet: #ffffff;
@@ -62,17 +59,28 @@ body {
 a { color: var(--shield); text-underline-offset: 3px; }
 a:focus-visible, button:focus-visible { outline: 2px solid var(--key); outline-offset: 3px; border-radius: 4px; }
 .wrap { max-width: var(--measure); margin: 0 auto; }
-h1, h2, h3, .ui { font-family: var(--f-display); }
-h1, h2, h3 { margin: 0; text-wrap: balance; letter-spacing: -0.015em; }
+h1, h2, h3 { font-family: var(--f-display); margin: 0; text-wrap: balance; letter-spacing: -0.015em; }
 h2 { font-size: clamp(1.8rem, 3.6vw, 2.7rem); line-height: 1.08; font-weight: 800; }
 h3 { font-size: 1.15rem; line-height: 1.25; font-weight: 700; }
 p { margin: 0; }
-.mono { font-family: var(--f-mono); }
+code, .mono { font-family: var(--f-mono); }
 .label { font-family: var(--f-mono); font-size: 0.72rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
 .read { max-width: 64ch; color: var(--muted); }
 .read strong { color: var(--ink); font-weight: 600; }
-section { padding-block: clamp(60px, 9vw, 108px); border-top: 1px solid var(--line); }
-.head { display: grid; gap: 16px; margin-bottom: 44px; max-width: 780px; }
+.read code { font-size: 0.85em; }
+section { padding-block: clamp(60px, 9vw, 104px); border-top: 1px solid var(--line); }
+.head { display: grid; gap: 16px; margin-bottom: 40px; max-width: 800px; }
+.pill { font: 500 0.68rem var(--f-mono); letter-spacing: 0.06em; text-transform: uppercase; padding: 2px 7px; border-radius: 4px; white-space: nowrap; }
+.pill.pub { background: var(--key-soft); color: var(--key); }
+.pill.priv { background: var(--shield-soft); color: var(--shield); }
+.pill.dim { background: var(--locked-soft); color: var(--muted); }
+.panel { background: var(--sheet); border: 1px solid var(--line); border-radius: 16px; }
+.scroll { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; min-width: 700px; }
+th, td { text-align: left; vertical-align: top; padding: 13px 18px; border-top: 1px solid var(--line); font-size: 0.97rem; }
+thead th { border-top: 0; font: 500 0.72rem var(--f-mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+tbody th { font: 600 0.95rem var(--f-display); }
+td.muted { color: var(--muted); }
 
 /* ---- Top ---- */
 .top { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; padding-block: 22px; }
@@ -83,54 +91,36 @@ section { padding-block: clamp(60px, 9vw, 108px); border-top: 1px solid var(--li
 .nav a:hover { color: var(--ink); }
 
 /* ---- Hero ---- */
-.hero { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr); gap: clamp(28px, 5vw, 72px); align-items: center; padding-block: clamp(32px, 6vw, 72px) clamp(64px, 9vw, 104px); }
-.hero h1 { font-size: clamp(2.7rem, 6.4vw, 5.1rem); line-height: 0.96; font-weight: 800; letter-spacing: -0.035em; }
-.hero h1 span { color: var(--key); }
-.hero .read { margin-top: 26px; font-size: 1.14rem; }
-.nos { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 28px; }
-.nos span { font: 500 0.86rem var(--f-display); padding: 7px 13px; border: 1px solid var(--line); border-radius: 999px; background: var(--sheet); }
-.nos span::before { content: "\2713  "; color: var(--shield); font-weight: 700; }
-.cta { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 30px; }
+.hero { display: grid; grid-template-columns: minmax(0, 1.12fr) minmax(0, 0.88fr); gap: clamp(28px, 5vw, 68px); align-items: center; padding-block: clamp(28px, 6vw, 64px) clamp(60px, 8vw, 96px); }
+.hero h1 { font-size: clamp(2.6rem, 6vw, 4.7rem); line-height: 0.98; font-weight: 800; letter-spacing: -0.035em; }
+.hero h1 span { color: var(--shield); display: block; }
+.hero .read { margin-top: 24px; font-size: 1.12rem; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 26px; }
+.chips span { font: 500 0.86rem var(--f-display); padding: 7px 13px; border: 1px solid var(--line); border-radius: 999px; background: var(--sheet); }
+.cta { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 28px; }
 .btn { display: inline-flex; align-items: center; padding: 12px 20px; border-radius: 10px; font: 600 0.95rem var(--f-display); text-decoration: none; border: 1px solid var(--ink); color: var(--ink); background: transparent; cursor: pointer; }
 .btn.primary { background: var(--ink); color: var(--paper); }
-.eq { background: var(--sheet); border: 1px solid var(--line); border-radius: 18px; padding: clamp(22px, 3vw, 34px); display: grid; gap: 18px; min-width: 0; }
-.eq .big { font: 500 clamp(1.5rem, 3.4vw, 2.35rem)/1.2 var(--f-mono); letter-spacing: -0.02em; overflow-wrap: anywhere; }
-.eq .big .s { color: var(--key); }
-.eq .big .op { color: var(--muted); }
-.eq dl { margin: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px 14px; font-size: 0.95rem; }
-.eq dt { font-family: var(--f-mono); color: var(--key); }
-.eq dd { margin: 0; color: var(--muted); }
-.eq .cap { font-size: 0.92rem; color: var(--muted); border-top: 1px solid var(--line); padding-top: 14px; }
-.eq .cap b { color: var(--ink); font-weight: 600; }
+.trail { padding: clamp(20px, 3vw, 28px); display: grid; gap: 0; min-width: 0; }
+.trail .t-head { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; margin-bottom: 14px; flex-wrap: wrap; }
+.trail ol { list-style: none; margin: 0; padding: 0; display: grid; }
+.trail li { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 14px; padding-block: 14px; border-top: 1px dashed var(--line); }
+.trail li:first-child { border-top: 0; }
+.trail .dot { width: 14px; height: 14px; border-radius: 50%; margin-top: 5px; border: 2px solid var(--shield); background: var(--shield-soft); }
+.trail li.pub .dot { border-color: var(--key); background: var(--key-soft); }
+.trail .ttl { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font: 700 1rem var(--f-display); }
+.trail p { font-size: 0.93rem; color: var(--muted); margin-top: 2px; }
+.trail .foot { border-top: 1px solid var(--line); margin-top: 6px; padding-top: 12px; font-size: 0.86rem; color: var(--muted); }
 
-/* ---- The idea: comparison ---- */
-.compare { overflow-x: auto; border: 1px solid var(--line); border-radius: 16px; background: var(--sheet); }
-table { width: 100%; border-collapse: collapse; min-width: 680px; }
-th, td { text-align: left; vertical-align: top; padding: 14px 18px; border-top: 1px solid var(--line); font-size: 0.98rem; }
-thead th { border-top: 0; font: 500 0.72rem var(--f-mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
-tbody th { font: 600 0.95rem var(--f-display); width: 22%; }
-td.us { color: var(--ink); }
-td.them { color: var(--muted); }
-thead th.us { color: var(--key); }
+/* ---- Proof ---- */
+.proof td.h { font-family: var(--f-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.txid { display: inline-flex; align-items: center; gap: 8px; font: 400 0.8rem var(--f-mono); }
+.txid button, .copy { font: 500 0.72rem var(--f-display); padding: 3px 8px; border-radius: 6px; border: 1px solid var(--line); background: var(--paper); color: var(--muted); cursor: pointer; }
+.proof code.cmd { font-size: 0.78rem; color: var(--muted); overflow-wrap: anywhere; }
+.verify { margin-top: 16px; font-size: 0.93rem; color: var(--muted); max-width: 80ch; }
+.verify code { font-size: 0.85em; color: var(--ink); }
 
-section.tight { padding-block: clamp(48px, 6vw, 72px); }
-.idea { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); gap: clamp(24px, 4vw, 56px); align-items: start; }
-.vs { margin: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 28px; }
-.vs div { border-top: 1px solid var(--line); padding-block: 14px; min-width: 0; }
-.vs dt { font: 700 0.78rem var(--f-mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--key); }
-.vs dd { margin: 4px 0 0; color: var(--ink); font-size: 0.98rem; }
-
-/* ---- Lineage ---- */
-.line3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; position: relative; }
-.era { padding: 0 24px 0 0; display: grid; gap: 10px; align-content: start; min-width: 0; }
-.era .yr { font: 800 2.3rem/1 var(--f-display); letter-spacing: -0.03em; }
-.era .yr.now { color: var(--key); }
-.era .bar { height: 3px; background: var(--line); margin-block: 6px 8px; }
-.era.cur .bar { background: var(--key); }
-.era p { color: var(--muted); font-size: 0.98rem; }
-
-/* ---- Mechanism figure ---- */
-.fig { background: var(--sheet); border: 1px solid var(--line); border-radius: 18px; padding: clamp(18px, 3vw, 30px); display: grid; gap: 22px; }
+/* ---- Mechanism ---- */
+.fig { padding: clamp(18px, 3vw, 30px); display: grid; gap: 22px; }
 .fig-top { display: flex; justify-content: space-between; align-items: end; gap: 16px; flex-wrap: wrap; }
 .fig-top .q { font: 700 1.25rem var(--f-display); }
 .fig-top .q small { display: block; font: 400 0.9rem var(--f-body); color: var(--muted); margin-top: 4px; }
@@ -138,96 +128,109 @@ section.tight { padding-block: clamp(48px, 6vw, 72px); }
 .choose button { font: 600 0.88rem var(--f-display); padding: 9px 14px; border-radius: 10px; border: 1px solid var(--line); background: var(--paper); color: var(--ink); cursor: pointer; }
 .choose button[aria-pressed="true"] { border-color: var(--key); background: var(--key-soft); }
 .txs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
-.tx { border: 1px dashed var(--locked); border-radius: 14px; padding: 16px; display: grid; gap: 8px; align-content: start; background: var(--paper); transition: border-color 0.3s ease, background-color 0.3s ease; min-width: 0; }
+.tx { border: 1px dashed var(--locked); border-radius: 14px; padding: 16px; display: grid; gap: 8px; align-content: start; background: var(--paper); transition: border-color 0.3s ease, background-color 0.3s ease, opacity 0.3s ease; min-width: 0; }
 .tx .state { font: 500 0.72rem var(--f-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--locked); display: flex; align-items: center; gap: 8px; }
 .tx .state i { width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--locked); display: inline-block; }
 .tx h3 { font-size: 1.02rem; }
 .tx p { font-size: 0.92rem; color: var(--muted); }
-.tx .lock { font: 400 0.8rem var(--f-mono); color: var(--muted); overflow-wrap: anywhere; }
+.tx .lock { font: 400 0.78rem var(--f-mono); color: var(--muted); overflow-wrap: anywhere; }
 .tx.open { border-style: solid; border-color: var(--key); background: var(--key-soft); }
 .tx.open .state { color: var(--key); }
 .tx.open .state i { border-color: var(--key); background: var(--key); }
 .tx.dim { opacity: 0.55; }
 .verdict { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
 .verdict div { border-top: 1px solid var(--line); padding-top: 12px; font-size: 0.95rem; color: var(--muted); min-width: 0; }
-.verdict b { display: block; font: 600 0.78rem var(--f-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink); margin-bottom: 4px; }
-.steps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 24px; margin-top: 44px; }
+.verdict b { display: block; font: 600 0.76rem var(--f-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink); margin-bottom: 4px; }
+.steps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 24px; margin-top: 40px; }
 .step { display: grid; gap: 8px; align-content: start; min-width: 0; }
 .step .n { font: 500 0.78rem var(--f-mono); color: var(--key); }
 .step p { color: var(--muted); font-size: 0.97rem; }
+.math { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); gap: 0; margin-top: 40px; overflow: hidden; }
+.math > div { padding: clamp(20px, 3vw, 30px); min-width: 0; }
+.math > div + div { border-left: 1px solid var(--line); }
+.eqn { font: 500 clamp(1.3rem, 2.8vw, 1.9rem)/1.3 var(--f-mono); letter-spacing: -0.02em; margin-block: 12px 14px; overflow-wrap: anywhere; }
+.eqn .s { color: var(--key); }
+.eqn .op { color: var(--muted); }
+.math dl { margin: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px 14px; font-size: 0.93rem; }
+.math dt { font-family: var(--f-mono); color: var(--key); }
+.math dd { margin: 0; color: var(--muted); }
+.math p { color: var(--muted); font-size: 0.97rem; }
+.math p + p { margin-top: 12px; }
+.math h3 + p { margin-top: 10px; }
 
-/* ---- Privacy ---- */
-.who { overflow-x: auto; border: 1px solid var(--line); border-radius: 16px; background: var(--sheet); }
-.who td.y { color: var(--ink); }
-.who td.n { color: var(--muted); }
-.who td .z { font: 500 0.68rem var(--f-mono); letter-spacing: 0.06em; text-transform: uppercase; padding: 2px 7px; border-radius: 4px; background: var(--shield-soft); color: var(--shield); margin-left: 6px; white-space: nowrap; }
-.pv { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; margin-top: 36px; }
-.pv div { display: grid; gap: 8px; align-content: start; border-top: 3px solid var(--shield); padding-top: 14px; min-width: 0; }
-.pv div.limit { border-top-color: var(--locked); }
-.pv p { color: var(--muted); font-size: 0.97rem; }
+/* ---- Why Zcash ---- */
+.vis td.state { white-space: nowrap; }
+.adv { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 48px; margin-top: 36px; }
+.adv div { display: grid; grid-template-columns: 10rem minmax(0, 1fr); gap: 18px; padding-block: 18px; border-top: 1px solid var(--line); min-width: 0; }
+.adv .k { font: 700 0.97rem var(--f-display); }
+.adv p { color: var(--muted); font-size: 0.97rem; }
 
 /* ---- Build ---- */
-.build { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; border: 1px solid var(--line); border-radius: 16px; background: var(--sheet); overflow: hidden; }
-.cat { padding: 24px 22px; border-left: 1px solid var(--line); display: grid; gap: 14px; align-content: start; min-width: 0; }
-.cat:first-child { border-left: 0; }
-.cat ul { list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; }
-.cat li { font-size: 0.97rem; color: var(--muted); }
-.cat li b { display: block; color: var(--ink); font: 600 0.98rem var(--f-display); }
-.cat li code { font: 400 0.74rem var(--f-mono); color: var(--key); }
+.three { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+.use { padding: 24px; display: grid; gap: 10px; align-content: start; min-width: 0; }
+.use p { color: var(--muted); font-size: 0.97rem; }
+.use .ex { font-size: 0.9rem; color: var(--ink); border-top: 1px dashed var(--line); padding-top: 10px; }
+.gallery { margin-top: 28px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 28px; }
+.gallery div { border-top: 1px solid var(--line); padding-block: 14px; min-width: 0; }
+.gallery .label { display: block; margin-bottom: 8px; }
+.gallery ul { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; font-size: 0.95rem; }
+.gallery code { font-size: 0.82rem; }
 
-/* ---- Adds ---- */
-.adds { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 48px; }
-.add { display: grid; grid-template-columns: 9rem minmax(0, 1fr); gap: 18px; padding-block: 20px; border-top: 1px solid var(--line); min-width: 0; }
-.add .k { font: 700 0.95rem var(--f-display); }
-.add p { color: var(--muted); font-size: 0.97rem; }
+/* ---- Quickstart ---- */
+.qs { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 32px; align-items: start; }
+.qs ol.go { margin: 0; padding: 0; list-style: none; display: grid; gap: 18px; counter-reset: go; }
+.qs ol.go li { display: grid; grid-template-columns: 2rem minmax(0, 1fr); gap: 12px; counter-increment: go; }
+.qs ol.go li::before { content: counter(go); font: 700 0.95rem var(--f-display); width: 1.8rem; height: 1.8rem; border-radius: 50%; display: grid; place-items: center; background: var(--ink); color: var(--paper); }
+.qs ol.go p { color: var(--muted); font-size: 0.95rem; }
+.qs ol.go code { font-size: 0.85rem; color: var(--ink); }
+.term { position: relative; background: var(--code-bg); color: var(--code-ink); border-radius: 14px; min-width: 0; }
+.term pre { margin: 0; padding: 20px; overflow-x: auto; font: 400 0.8rem/1.65 var(--f-mono); }
+.term .c { color: var(--code-dim); }
+.term .k { color: var(--code-key); }
+.term .s { color: var(--code-str); }
+.term .copy { position: absolute; top: 10px; right: 10px; border-color: #ffffff26; background: #ffffff12; color: var(--code-ink); }
+.arch { margin-top: 36px; padding: clamp(14px, 2.5vw, 24px); }
+.arch svg { width: 100%; height: auto; display: block; }
+.arch figcaption { font-size: 0.92rem; color: var(--muted); margin-top: 12px; }
 
-/* ---- Developers ---- */
-.dev { display: grid; grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr); gap: 36px; align-items: start; }
-.surf { list-style: none; padding: 0; margin: 26px 0 0; display: grid; }
-.surf li { padding-block: 13px; border-top: 1px solid var(--line); display: grid; gap: 2px; }
-.surf li:first-child { border-top: 0; padding-top: 0; }
-.surf b { font: 600 0.98rem var(--f-display); }
-.surf span { color: var(--muted); font-size: 0.95rem; }
-.surf code, .read code { font: 400 0.85em var(--f-mono); }
-.tabs { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 10px; }
-.tabs button { font: 500 0.85rem var(--f-display); padding: 7px 12px; border-radius: 8px; border: 1px solid var(--line); background: transparent; color: var(--muted); cursor: pointer; }
-.tabs button[aria-selected="true"] { border-color: var(--ink); color: var(--ink); background: var(--sheet); }
-.code { position: relative; background: var(--code-bg); color: var(--code-ink); border-radius: 14px; min-width: 0; }
-.code pre { margin: 0; padding: 20px; overflow-x: auto; font: 400 0.82rem/1.65 var(--f-mono); }
-.code .c { color: var(--code-dim); }
-.code .k { color: var(--code-key); }
-.code .s { color: var(--code-str); }
-.copy { position: absolute; top: 10px; right: 10px; font: 500 0.74rem var(--f-display); padding: 5px 10px; border-radius: 6px; border: 1px solid #ffffff26; background: #ffffff12; color: var(--code-ink); cursor: pointer; }
+/* ---- Foundations ---- */
+.found { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 40px; }
+.facts { margin: 0; display: grid; }
+.facts div { border-top: 1px solid var(--line); padding-block: 14px; }
+.facts dt { font: 700 0.78rem var(--f-mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--key); }
+.facts dd { margin: 4px 0 0; font-size: 0.97rem; }
+.line3 { display: grid; gap: 22px; }
+.era { display: grid; grid-template-columns: 5.5rem minmax(0, 1fr); gap: 16px; }
+.era .yr { font: 800 1.5rem/1.1 var(--f-display); letter-spacing: -0.02em; }
+.era .yr.now { color: var(--key); }
+.era p { color: var(--muted); font-size: 0.96rem; margin-top: 4px; }
 
-/* ---- Evidence & status ---- */
-.ev td.h { font-family: var(--f-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.net { font: 500 0.7rem var(--f-mono); padding: 2px 7px; border-radius: 4px; background: var(--locked-soft); color: var(--muted); }
-.net.t { background: var(--key-soft); color: var(--key); }
+/* ---- Status ---- */
 .status { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
-.st { border: 1px solid var(--line); border-radius: 16px; background: var(--sheet); padding: 22px; display: grid; gap: 10px; align-content: start; }
+.st { padding: 22px; display: grid; gap: 10px; align-content: start; }
 .st .label { color: var(--shield); }
 .st.next .label { color: var(--key); }
 .st.not .label { color: var(--locked); }
 .st ul { margin: 0; padding-left: 18px; color: var(--muted); font-size: 0.95rem; display: grid; gap: 4px; }
+.caveats { margin-top: 28px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 40px; }
+.caveats div { border-top: 1px solid var(--line); padding-block: 16px; display: grid; gap: 6px; }
+.caveats p { color: var(--muted); font-size: 0.95rem; }
 footer { border-top: 1px solid var(--line); padding-block: 30px 48px; display: grid; gap: 10px; color: var(--muted); font-size: 0.9rem; }
 footer .row { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
 
 @media (max-width: 960px) {
-  .hero, .dev, .idea { grid-template-columns: minmax(0, 1fr); }
-  .steps, .build { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .cat:nth-child(3) { border-left: 0; }
-  .cat:nth-child(n+3) { border-top: 1px solid var(--line); }
-  .pv, .status { grid-template-columns: minmax(0, 1fr); }
-  .adds { grid-template-columns: minmax(0, 1fr); }
+  .hero, .qs, .found, .math { grid-template-columns: minmax(0, 1fr); }
+  .math > div + div { border-left: 0; border-top: 1px solid var(--line); }
+  .steps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .three, .status { grid-template-columns: minmax(0, 1fr); }
+  .adv, .caveats, .gallery { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 640px) {
   body { font-size: 17px; }
   .nav { display: none; }
-  .line3, .txs, .verdict, .steps, .build, .vs { grid-template-columns: minmax(0, 1fr); }
-  .era { padding: 0 0 22px; }
-  .cat { border-left: 0; border-top: 1px solid var(--line); }
-  .cat:first-child { border-top: 0; }
-  .add { grid-template-columns: minmax(0, 1fr); gap: 6px; }
+  .txs, .verdict, .steps { grid-template-columns: minmax(0, 1fr); }
+  .adv div { grid-template-columns: minmax(0, 1fr); gap: 6px; }
+  .era { grid-template-columns: minmax(0, 1fr); gap: 2px; }
 }
 @media (prefers-reduced-motion: reduce) { .tx { transition: none; } }
 </style>
@@ -237,71 +240,64 @@ footer .row { display: flex; justify-content: space-between; gap: 16px; flex-wra
   <header class="top">
     <a class="mark" href="#top" id="top">z<b>DLC</b></a>
     <nav class="nav" aria-label="Sections">
-      <a href="#lineage">Origins</a>
-      <a href="#idea">The idea</a>
+      <a href="#proof">Proof</a>
       <a href="#how">How it works</a>
-      <a href="#privacy">Privacy</a>
-      <a href="#build">What to build</a>
-      <a href="#adds">Why Zcash</a>
-      <a href="#developers">Developers</a>
+      <a href="#zcash">Why Zcash</a>
+      <a href="#build">Build</a>
+      <a href="#quickstart">Quickstart</a>
+      <a href="#status">Status</a>
     </nav>
   </header>
 
   <div class="hero">
     <div>
-      <p class="label">Discreet Log Contracts on Zcash</p>
-      <h1 style="margin-top:16px">Native programmability for Zcash, <span>shielded end to end.</span></h1>
-      <p class="read">zDLC makes ZEC programmable: escrows, hedges, payroll, loans and bets that settle on real-world outcomes, on Zcash itself. Two people lock ZEC together, sign a payout for every outcome in advance, and an oracle's signature decides which one becomes valid. Money goes in from the shielded pool and comes back out to it.</p>
-      <div class="nos" aria-label="What it is">
-        <span>Plain Zcash transactions</span><span>Shielded in and out</span><span>Settled by oracles</span><span>Self-custodial</span>
-      </div>
+      <p class="label">Contracts without contract code</p>
+      <h1 style="margin-top:16px">Native Zcash contracts. <span>Shielded in, shielded out.</span></h1>
+      <p class="read">Build escrows, hedges and payments that settle on real-world outcomes, on Zcash itself. Funds come in from the shielded pool and go back out to shielded recipients, while the agreement stays off chain. Only a temporary collateral output, and what settlement needs, is public.</p>
+      <div class="chips" aria-label="What it is"><span>Native Zcash transactions</span><span>Oracle-settled</span><span>Self-custodial</span></div>
       <div class="cta">
-        <a class="btn primary" href="#how">See how it works</a>
-        <a class="btn" href="#developers">Start building</a>
+        <a class="btn primary" href="#quickstart">Run one in five minutes</a>
+        <a class="btn" href="#how">How it works</a>
       </div>
     </div>
-    <figure class="eq" style="margin:0" aria-label="The equation at the heart of a Discreet Log Contract">
-      <div class="big"><span class="s">s</span>·G <span class="op">=</span> R <span class="op">+</span> e·P</div>
-      <dl>
-        <dt>P, R</dt><dd>the oracle's public key and the nonce it announces for one event</dd>
-        <dt>e</dt><dd>the hash of R, P and one possible outcome</dd>
-        <dt>s</dt><dd>the oracle's signature on the outcome that happens</dd>
-      </dl>
-      <p class="cap">Before the event, anyone can compute the right side for every outcome. When the oracle signs, <b>s is the discrete log of exactly one of them</b>, and it unlocks the one payout both parties pre-signed to that point. That is the "discreet log" in the name.</p>
+    <figure class="panel trail" style="margin:0" aria-label="What is public and what is private across one contract">
+      <div class="t-head"><span class="label">One contract, start to finish</span><span class="label">Cooperative path</span></div>
+      <ol>
+        <li><span class="dot"></span><div><div class="ttl">Funded from shielded notes <span class="pill priv">private</span></div><p>Scan a payment link from any Zcash wallet. Where the money came from stays in the shielded pool.</p></div></li>
+        <li class="pub"><span class="dot"></span><div><div class="ttl">Collateral in a 2-of-2 <span class="pill pub">public</span></div><p>Its existence and amount are visible while the contract is open. The terms are not on chain.</p></div></li>
+        <li><span class="dot"></span><div><div class="ttl">Closed to shielded recipients <span class="pill priv">private</span></div><p>One transaction pays every party; who received what, and what they do next, stays shielded.</p></div></li>
+      </ol>
+      <p class="foot">If a side walks away, the other settles with a pre-signed payout instead. That transaction's outputs are transparent until moved into the shielded pool.</p>
     </figure>
   </div>
 </div>
 
-<section id="lineage">
+<section id="proof">
   <div class="wrap">
     <div class="head">
-      <p class="label">Where it comes from</p>
-      <h2>An MIT design, proven on Bitcoin, brought to Zcash</h2>
+      <p class="label">Working on Zcash</p>
+      <h2>Not a whitepaper. Transactions on Zcash.</h2>
+      <p class="read">Contracts settled on Zcash testnet, with their transaction IDs, and the regtest runs anyone can reproduce from the repository.</p>
     </div>
-    <div class="line3">
-      <div class="era"><span class="yr">2017</span><span class="bar"></span><h3>Discreet Log Contracts</h3><p>Tadge Dryja, at MIT's Digital Currency Initiative, publishes the design: oracle contracts that look like ordinary multisig on chain, with an oracle that never learns about them.</p></div>
-      <div class="era"><span class="yr">2019–</span><span class="bar"></span><h3>Built out on Bitcoin</h3><p>Adaptor signatures replace the original key tweaks; the dlcspecs standardize the messages; libraries such as rust-dlc and DLC Dev Kit make them buildable.</p></div>
-      <div class="era cur"><span class="yr now">Now</span><span class="bar"></span><h3>zDLC on Zcash</h3><p>The same oracle messages (compatible with dlcspecs oracles), on Zcash v6 transactions, with funding and payouts that go through the shielded pool.</p></div>
+    <div class="panel scroll proof">
+      <table>
+        <thead><tr><th>Contract</th><th>Network</th><th>Settled by</th><th>Block</th><th>Transaction / reproduce</th></tr></thead>
+        <tbody>
+          <tr><th>ZEC/USD payment, two oracles agreeing</th><td><span class="pill pub">testnet</span></td><td class="muted">Pre-signed payout, unlocked by both attestations</td><td class="h">4,522,041</td><td><span class="txid"><span>612ba745…5822fe</span><button type="button" data-copy="612ba745f15539691117b2264335d0da24872bfa9fab8b0c10bfab49f45822fe">Copy</button></span></td></tr>
+          <tr><th>Hedge traded through the desk by two agents</th><td><span class="pill pub">testnet</span></td><td class="muted">Cooperative close to shielded recipients</td><td class="h">4,522,155</td><td><span class="txid"><span>cd366082…17756f</span><button type="button" data-copy="cd366082561c922720b58cad77a4770fe5b30fa64869b37aa08e0c465917756f">Copy</button></span></td></tr>
+          <tr><th>Pre-signed payout after a price attestation</th><td><span class="pill pub">testnet</span></td><td class="muted">Payout transaction</td><td class="h">4,521,988</td><td><span class="txid"><span>e21742c7…a339d</span><button type="button" data-copy="e21742c7930a1aa0d41864dba4cede0420abe9a5ac612e175a7cf012a77a339d">Copy</button></span></td></tr>
+          <tr><th>Cooperative close</th><td><span class="pill pub">testnet</span></td><td class="muted">Close to shielded recipients</td><td class="h">4,521,980</td><td><span class="txid"><span>0f662f85…1a64eb</span><button type="button" data-copy="0f662f85a79320141bd58f7515b5d96955554c181fb6ed7c2fba6c00991a64eb">Copy</button></span></td></tr>
+          <tr><th>Refund rebuilt from the seed alone</th><td><span class="pill pub">testnet</span></td><td class="muted">Time-locked refund, refused one block early</td><td class="h">4,521,979</td><td><span class="txid"><span>13caad64…25bb5a</span><button type="button" data-copy="13caad64027d2a5dc5de4b1c2d05f211839732b22697c2a9ec3df65beb25bb5a">Copy</button></span></td></tr>
+          <tr><th>Escrow funded by scanning a deposit link</th><td><span class="pill dim">regtest</span></td><td class="muted">Cooperative close; both nodes agree on the txid</td><td class="h">233</td><td><code class="cmd">cargo test -p zdlc-kit --test kit two_nodes</code></td></tr>
+          <tr><th>Team escrow: 0.75 / 0.45 / 0.30 ZEC</th><td><span class="pill dim">regtest</span></td><td class="muted">Payout to three addresses</td><td class="h">256</td><td><code class="cmd">cargo test -p zdlc --test beneficiaries</code></td></tr>
+          <tr><th>Collateral released on proof of repayment</th><td><span class="pill dim">regtest</span></td><td class="muted">Oracles saw it by viewing key; close</td><td class="h">363</td><td><code class="cmd">cargo test -p zdlc-kit --test kit payroll_and</code></td></tr>
+          <tr><th>A bet with the losing side offline</th><td><span class="pill dim">regtest</span></td><td class="muted">The winner settled alone</td><td class="h">307</td><td><code class="cmd">cargo test -p zdlc-kit --test kit two_nodes</code></td></tr>
+        </tbody>
+      </table>
     </div>
+    <p class="verify">Check a testnet transaction with any Zcash testnet node: <code>getrawtransaction &lt;txid&gt; 1</code>. Regtest runs start a local chain (<code>infra/zakura/scripts/up.sh</code>) and add <code>--release -- --ignored</code> to the commands above. Full logs, with every txid, are in <code>docs/spikes</code>.</p>
   </div>
 </section>
-
-<section id="idea" class="tight">
-  <div class="wrap idea">
-    <div class="head" style="margin:0">
-      <p class="label">The idea</p>
-      <h2>Contracts without contract code</h2>
-      <p class="read">There is no VM to run contract logic. The logic is agreed and signed before any money moves; the chain only sees a two-party output and, at the end, one spend of it.</p>
-    </div>
-    <dl class="vs">
-      <div><dt>Logic</dt><dd>Pre-signed transactions held by the two parties, not code run by every node</dd></div>
-      <div><dt>Custody</dt><dd>A 2-of-2 between the parties; no contract address, no custodian</dd></div>
-      <div><dt>Oracle</dt><dd>Signs a public statement and never learns who relies on it</dd></div>
-      <div><dt>Settlement</dt><dd>One ordinary transaction, usually into shielded notes; a payout or time-locked refund if someone walks away</dd></div>
-    </dl>
-  </div>
-</section>
-
 
 <section id="how">
   <div class="wrap">
@@ -310,7 +306,7 @@ footer .row { display: flex; justify-content: space-between; gap: 16px; flex-wra
       <h2>Every payout is signed. Only one ever unlocks.</h2>
       <p class="read">A client has escrowed 1.5 ZEC for a job. Three transactions were signed before the money moved. The figure plays what each possible oracle answer unlocks; pick one to look at it.</p>
     </div>
-    <div class="fig" id="fig">
+    <div class="panel fig" id="fig">
       <div class="fig-top">
         <p class="q">Example: Milestone-based escrow<small>The question: “Milestone 1 delivered?” Two arbiters announce it; both must agree. <span id="auto-note">Playing each case in turn; pick one to stop.</span></small></p>
         <div class="choose" role="group" aria-label="What the oracle does">
@@ -320,47 +316,66 @@ footer .row { display: flex; justify-content: space-between; gap: 16px; flex-wra
         </div>
       </div>
       <div class="txs">
-        <div class="tx" id="tx-del"><span class="state"><i></i><span class="st-t">Locked</span></span><h3>Pay the contractor</h3><p>1.5 ZEC to the contractor's address.</p><span class="lock">locked to R + e("delivered")·P</span></div>
-        <div class="tx" id="tx-not"><span class="state"><i></i><span class="st-t">Locked</span></span><h3>Refund the client</h3><p>1.5 ZEC back to the client.</p><span class="lock">locked to R + e("not delivered")·P</span></div>
+        <div class="tx" id="tx-del"><span class="state"><i></i><span class="st-t">Locked</span></span><h3>Pay the contractor</h3><p>1.5 ZEC to the contractor.</p><span class="lock">locked to both arbiters' "delivered" points</span></div>
+        <div class="tx" id="tx-not"><span class="state"><i></i><span class="st-t">Locked</span></span><h3>Refund the client</h3><p>1.5 ZEC back to the client.</p><span class="lock">locked to both arbiters' "not delivered" points</span></div>
         <div class="tx" id="tx-ref"><span class="state"><i></i><span class="st-t">Locked</span></span><h3>Timed refund</h3><p>Each side's money back to it.</p><span class="lock">locked until block height H</span></div>
       </div>
       <div class="verdict" aria-live="polite">
         <div><b>What happens</b><span id="v-what">Nothing yet. The money sits in a 2-of-2 that neither side can move alone.</span></div>
-        <div><b>What the chain sees</b><span id="v-chain">One multisig output, indistinguishable from any other.</span></div>
+        <div><b>What the chain sees</b><span id="v-chain">One multisig output and its amount.</span></div>
       </div>
     </div>
     <div class="steps">
-      <div class="step"><span class="n">1 · Announce</span><h3>The oracle commits</h3><p>It publishes a one-time nonce for the event. From that and its key, every outcome has a point anyone can compute.</p></div>
-      <div class="step"><span class="n">2 · Pre-sign</span><h3>Both sides sign every payout</h3><p>Each payout is signed with an adaptor signature locked to its outcome's point, and a refund is locked to a height.</p></div>
-      <div class="step"><span class="n">3 · Fund</span><h3>Only then, the money</h3><p>The funding goes into a 2-of-2 last, so nobody commits funds before holding every payout.</p></div>
-      <div class="step"><span class="n">4 · Settle</span><h3>One payout becomes valid</h3><p>The oracle's signature completes exactly one. Most contracts skip it and close cooperatively to shielded addresses.</p></div>
+      <div class="step"><span class="n">1 · Announce</span><h3>The oracles commit</h3><p>Each publishes a one-time nonce for the event. From it and the oracle's key, every outcome has a point anyone can compute.</p></div>
+      <div class="step"><span class="n">2 · Pre-sign</span><h3>Both sides sign every payout</h3><p>Each payout carries an adaptor signature locked to its outcome's point, and a refund is locked to a height.</p></div>
+      <div class="step"><span class="n">3 · Fund</span><h3>Only then, the money</h3><p>The funding is signed last, so nobody commits funds before holding every payout and the refund.</p></div>
+      <div class="step"><span class="n">4 · Settle</span><h3>One payout becomes valid</h3><p>The oracles' signatures complete exactly one. Usually the parties skip it and close cooperatively into shielded notes.</p></div>
+    </div>
+    <div class="panel math">
+      <div>
+        <p class="label">The math</p>
+        <p class="eqn"><span class="s">s</span>·G <span class="op">=</span> R <span class="op">+</span> e·P</p>
+        <dl>
+          <dt>P, R</dt><dd>an oracle's public key and the nonce it announced</dd>
+          <dt>e</dt><dd>the hash of R, P and one possible outcome</dd>
+          <dt>s</dt><dd>the oracle's signature on the outcome that happens</dd>
+        </dl>
+      </div>
+      <div>
+        <h3>Why it is called a "discreet log" contract</h3>
+        <p>Before the event, anyone can compute the right side for every outcome. When the oracle signs, its signature <code>s</code> is the discrete logarithm of exactly one of those points, and it completes the payout both parties pre-signed to that point. The oracle publishes a statement; it never learns which contracts use it.</p>
+        <p><strong>With two oracles</strong>, each payout is locked to the sum of their two points for that outcome. Only the sum of both signatures completes it, so one oracle alone unlocks nothing, and two that disagree unlock nothing: the refund settles it.</p>
+      </div>
     </div>
   </div>
 </section>
 
-<section id="privacy">
+<section id="zcash">
   <div class="wrap">
     <div class="head">
-      <p class="label">Privacy</p>
-      <h2>Discreet by design, shielded by Zcash</h2>
-      <p class="read">A DLC already keeps the oracle out of the contract. Zcash adds what Bitcoin cannot: the money comes from the shielded pool and goes back to it. Here is who learns what.</p>
+      <p class="label">Why Zcash</p>
+      <h2>Bitcoin hides the contract. Zcash also hides where the money comes from and goes.</h2>
+      <p class="read">On Bitcoin, a DLC's funding traces back to your coins and its payouts land on addresses anyone can follow. On Zcash, money enters from the shielded pool and leaves to it. The temporary 2-of-2 in between stays public, and can still link a funding and its settlement to each other, but not to the people behind them.</p>
     </div>
-    <div class="who">
+    <div class="panel scroll vis">
       <table>
-        <thead><tr><th>Who</th><th>Learns</th><th>Never learns</th></tr></thead>
+        <thead><tr><th>Information</th><th>Public?</th><th>Detail</th></tr></thead>
         <tbody>
-          <tr><th>The oracle</th><td class="y">The event it is asked to attest, and the outcome it signs</td><td class="n">Who uses the attestation, how much is at stake, or any payout</td></tr>
-          <tr><th>Your counterparty</th><td class="y">The terms you agreed and what it is owed</td><td class="n">Your other funds: a shielded deposit is redacted before it sees the funding <span class="z">Zcash</span></td></tr>
-          <tr><th>The desk</th><td class="y">That two identities exchanged messages, their sizes and times</td><td class="n">Any message: each is signed by the sender and sealed to the recipient</td></tr>
-          <tr><th>A chain observer</th><td class="y">A 2-of-2 output with its amount</td><td class="n">Where the money came from or went, on a deposit and a cooperative close <span class="z">Zcash</span></td></tr>
-          <tr><th>You, restored from your seed</th><td class="y">Every contract you were in, from encrypted memos only that seed can read <span class="z">Zcash</span></td><td class="n">Nothing is lost with the device</td></tr>
+          <tr><th>Your funding wallet and its history</th><td class="state"><span class="pill priv">no</span></td><td class="muted">When you fund from shielded notes or a deposit link</td></tr>
+          <tr><th>Contract terms and payouts per outcome</th><td class="state"><span class="pill priv">no</span></td><td class="muted">Held by the two parties; never written on chain</td></tr>
+          <tr><th>The 2-of-2 output and its amount</th><td class="state"><span class="pill pub">yes</span></td><td class="muted">While the contract is open. It can link the funding and settlement transactions to each other</td></tr>
+          <tr><th>The oracle's event and attestation</th><td class="state"><span class="pill pub">yes</span></td><td class="muted">If the oracle publishes them; nothing ties them to a contract on chain</td></tr>
+          <tr><th>Recipients of a cooperative close</th><td class="state"><span class="pill priv">no</span></td><td class="muted">Shielded outputs. The total leaving the 2-of-2 is visible; the split is not</td></tr>
+          <tr><th>Recipients of a pre-signed payout</th><td class="state"><span class="pill pub">yes</span></td><td class="muted">Transparent until each side moves its payout into the shielded pool (the kit does this by default)</td></tr>
+          <tr><th>What recipients do afterwards</th><td class="state"><span class="pill priv">no</span></td><td class="muted">Ordinary shielded spending</td></tr>
         </tbody>
       </table>
     </div>
-    <div class="pv">
-      <div><h3>Shielded in</h3><p>Fund a contract by scanning a payment link with any Zcash wallet. The deposit goes to a receiver only that contract uses, so it ties to nothing else you own.</p></div>
-      <div><h3>Shielded out</h3><p>A cooperative close pays every party, and up to 16 payees, straight into shielded notes in one transaction: amounts and recipients hidden.</p></div>
-      <div class="limit"><h3>What stays visible</h3><p>The 2-of-2 and its amount while a contract is open. If a contract settles by a pre-signed payout instead of a close, that payout is transparent until moved into the shielded pool.</p></div>
+    <div class="adv">
+      <div><span class="k">Pay from any wallet</span><p>Unified addresses and ZIP 321 links let anyone fund a contract by scanning a QR code, shielded, with a memo naming the contract.</p></div>
+      <div><span class="k">Encrypted memos</span><p>Each contract leaves a recovery record in a memo only your seed can read, and a maker can send one taker a private quote with nothing posted publicly.</p></div>
+      <div><span class="k">Viewing keys</span><p>For proof-of-payment contracts, the oracle receives the incoming viewing key of one per-contract address. It can read payments arriving there, and could disclose them, but cannot spend them or see anything else you own.</p></div>
+      <div><span class="k">Private payouts</span><p>A cooperative close can pay every party and up to 16 payees in one shielded transaction.</p></div>
     </div>
   </div>
 </section>
@@ -368,133 +383,124 @@ footer .row { display: flex; justify-content: space-between; gap: 16px; flex-wra
 <section id="build">
   <div class="wrap">
     <div class="head">
-      <p class="label">What to build</p>
-      <h2>Anything two parties can agree on and an oracle can attest</h2>
-      <p class="read">An oracle can sign a price, a ruling, or a fact it reads from the chain. The ones marked in gold ship as templates today: plain inputs in, exact terms out, checked byte for byte by the side that accepts.</p>
+      <p class="label">What developers can build</p>
+      <h2>Three places to start</h2>
     </div>
-    <div class="build">
-      <div class="cat"><p class="label">Dollar value in ZEC</p><ul>
-        <li><b>Stable payments</b>Owed $100 next month, paid in ZEC at that day's price. <code>stable_payment</code></li>
-        <li><b>Hedges</b>Lock in the dollar value of 2 ZEC until Friday. <code>hedge</code></li>
-        <li><b>Payroll</b>A dollar salary paid in ZEC, period after period. <code>payroll</code></li>
-      </ul></div>
-      <div class="cat"><p class="label">Commerce</p><ul>
-        <li><b>Escrow</b>A client funds a job; arbiters rule on delivery. <code>escrow</code></li>
-        <li><b>Team payouts</b>"Delivered" pays a whole team by share, up to 16 payees. <code>payees</code></li>
-        <li><b>Invoices from any wallet</b>The client pays a QR code; the contract funds itself.</li>
-      </ul></div>
-      <div class="cat"><p class="label">Credit</p><ul>
-        <li><b>Collateral on proof of payment</b>Collateral returns once a repayment reaches the lender's shielded address. <code>pay_on_payment</code></li>
-        <li><b>Paying an agent for an outcome</b>An AI agent is paid only if the result it promised is attested.</li>
-      </ul></div>
-      <div class="cat"><p class="label">Markets</p><ul>
-        <li><b>Bets and predictions</b>Two stakes, one question, the winner takes both. <code>bet</code></li>
-        <li><b>Parametric insurance</b>A policy pays when an oracle attests the trigger.</li>
-        <li><b>A quote desk</b>Makers quote hedges and takers fill them, on a public board or privately by invitation.</li>
-      </ul></div>
+    <div class="three">
+      <div class="panel use"><span class="pill priv" style="justify-self:start">shipped</span><h3>Escrow</h3><p>The simplest conditional settlement: a client funds a job, arbiters rule, and a time-locked refund covers silence. Neither side holds the other's money.</p><p class="ex">Milestone payments, freelance jobs, a team paid by share on delivery.</p></div>
+      <div class="panel use"><span class="pill priv" style="justify-self:start">shipped</span><h3>Stable payments and hedges</h3><p>ZEC payouts set by a real-world price: owed dollars, paid in ZEC at the attested minute, with the other side earning a premium.</p><p class="ex">Invoices in dollars, a hedged salary, protecting a ZEC balance.</p></div>
+      <div class="panel use"><span class="pill dim" style="justify-self:start">proposed</span><h3>Agent agreements</h3><p>Agents that negotiate a price and get paid only if the outcome they promised is attested, settled without a platform holding funds.</p><p class="ex">Built from escrow and the desk's quote and mailbox flow today.</p></div>
+    </div>
+    <div class="gallery">
+      <div><span class="label" style="color:var(--shield)">Shipped templates</span><ul><li><code>stable_payment</code> · <code>hedge</code> · <code>payroll</code></li><li><code>escrow</code> with up to 16 payees</li><li><code>pay_on_payment</code> · <code>bet</code></li></ul></div>
+      <div><span class="label" style="color:var(--key)">Experimental</span><ul><li>Quote desk and maker / taker agents</li><li>Paying a contract's own address from any wallet</li><li>Browser contracts in WebAssembly</li></ul></div>
+      <div><span class="label">Proposed</span><ul><li>Agent agreements</li><li>Parametric insurance</li><li>Two-of-three arbiter panels</li></ul></div>
     </div>
   </div>
 </section>
 
-<section id="adds">
+<section id="quickstart">
   <div class="wrap">
     <div class="head">
-      <p class="label">Why DLC is better on Zcash</p>
-      <h2>Bitcoin hides the contract. Zcash also hides the money.</h2>
-      <p class="read">On Bitcoin, a DLC's funding traces back to your coins and its payouts land on addresses anyone can follow. Zcash adds a shielded pool, encrypted memos and viewing keys, and each one changes what a contract can do.</p>
+      <p class="label">Quickstart</p>
+      <h2>Run your first oracle-settled Zcash contract in five minutes</h2>
+      <p class="read">A local Zcash chain, a desk, two arbiter oracles and two funded nodes, then an escrow from offer to shielded close.</p>
     </div>
-    <div class="adds">
-      <div class="add"><span class="k">Shielded in and out</span><p>Fund from shielded notes and close straight back into them. The contract's money has no visible past and no visible future; only the 2-of-2 in between is public.</p></div>
-      <div class="add"><span class="k">Pay from any wallet</span><p>Unified addresses and ZIP 321 links let anyone fund a contract by scanning a QR code, shielded, with a memo naming the contract.</p></div>
-      <div class="add"><span class="k">Encrypted memos</span><p>Every shielded note carries a private message. zDLC uses it for recovery records only your seed can read, and for private quotes delivered straight to one counterparty.</p></div>
-      <div class="add"><span class="k">Viewing keys</span><p>An oracle can attest that a shielded payment arrived by reading it with a viewing key: proof of payment without making the payment public and without holding a spending key.</p></div>
-      <div class="add"><span class="k">Payouts that stay private</span><p>A cooperative close pays every party, and up to 16 payees, in one shielded transaction: who was paid and how much stays off the public record.</p></div>
-      <div class="add"><span class="k">A private desk</span><p>Quotes and contract messages travel sealed between the two parties; a quote can arrive as a shielded memo with nothing posted publicly.</p></div>
+    <div class="qs">
+      <ol class="go">
+        <li><div><h3>Start the stack</h3><p>Needs Docker, Rust 1.97 and <code>just</code>. Builds everything, starts a regtest chain and two nodes with 5 ZEC each.</p></div></li>
+        <li><div><h3>Run an escrow</h3><p>Alice invoices Bob 1.5 ZEC; Bob funds it from a deposit link (the dev wallet pays it, as a phone would); both arbiters rule "delivered".</p></div></li>
+        <li><div><h3>See the result</h3><p>Expected output is on the right (abbreviated). Both nodes report a cooperative close into shielded notes, with its txid and block.</p></div></li>
+        <li><div><h3>Drive it from your app</h3><p><code>@zdlc/client</code> talks to the same nodes; <code>@zdlc/sdk</code> embeds one in Node.js.</p></div></li>
+      </ol>
+      <div class="term"><button class="copy" type="button" data-copy-pre>Copy</button><pre><span class="c">$</span> just dev
+<span class="c">dev stack up: alice :7950, bob :7951 (5 ZEC each)</span>
+
+<span class="c">$</span> just demo escrow
+offered escrow <span class="s">&lt;contract id&gt;</span>
+<span class="c">… a QR code for Bob's deposit link …</span>
+paid 1.5002 ZEC to utest1…: <span class="s">&lt;txid&gt;</span>
+funded
+  <span class="k">"settlement"</span>: {
+    <span class="k">"height"</span>: <span class="s">&lt;block&gt;</span>,
+    <span class="k">"how"</span>: <span class="s">"close"</span>,
+    <span class="k">"txid"</span>: <span class="s">"&lt;close txid&gt;"</span>
+  }</pre></div>
     </div>
-    <p class="read" style="margin-top:28px">Also built in, as on any good DLC stack: settlement on the agreement of two oracles, a keyless watcher for the refund, and contracts that stay valid across a network upgrade.</p>
+    <figure class="panel arch" style="margin-top:36px">
+      <svg viewBox="0 0 960 300" role="img" aria-label="How the parts fit: apps talk to a zdlc-node, which runs the kit and talks to the desk, the oracles and a Zcash node">
+        <defs><marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="var(--muted)"/></marker></defs>
+        <g font-family="Schibsted Grotesk, Helvetica Neue, Arial, sans-serif" font-size="14" fill="var(--ink)">
+          <rect x="20" y="28" width="200" height="64" rx="10" fill="var(--paper)" stroke="var(--line)"/>
+          <text x="120" y="56" text-anchor="middle" font-weight="700">Your app</text>
+          <text x="120" y="76" text-anchor="middle" font-size="12" fill="var(--muted)">@zdlc/client · zdlc-cli · REST</text>
+          <rect x="20" y="200" width="200" height="64" rx="10" fill="var(--paper)" stroke="var(--line)"/>
+          <text x="120" y="228" text-anchor="middle" font-weight="700">Embedded</text>
+          <text x="120" y="248" text-anchor="middle" font-size="12" fill="var(--muted)">@zdlc/sdk (Node, WebAssembly)</text>
+          <rect x="300" y="96" width="260" height="104" rx="12" fill="var(--key-soft)" stroke="var(--key)" stroke-width="1.5"/>
+          <text x="430" y="130" text-anchor="middle" font-weight="700">zdlc-node</text>
+          <text x="430" y="152" text-anchor="middle" font-size="12" fill="var(--muted)">zdlc-kit: keys, contract state,</text>
+          <text x="430" y="170" text-anchor="middle" font-size="12" fill="var(--muted)">setup, funding, settlement</text>
+          <rect x="660" y="14" width="280" height="56" rx="10" fill="var(--paper)" stroke="var(--line)"/>
+          <text x="800" y="38" text-anchor="middle" font-weight="700">The other party's node</text>
+          <text x="800" y="57" text-anchor="middle" font-size="12" fill="var(--muted)">via the desk's sealed mailbox</text>
+          <rect x="660" y="122" width="280" height="56" rx="10" fill="var(--paper)" stroke="var(--line)"/>
+          <text x="800" y="146" text-anchor="middle" font-weight="700">Oracles</text>
+          <text x="800" y="165" text-anchor="middle" font-size="12" fill="var(--muted)">zdlc-oracled: prices, rulings, payments</text>
+          <rect x="660" y="230" width="280" height="56" rx="10" fill="var(--shield-soft)" stroke="var(--shield)"/>
+          <text x="800" y="254" text-anchor="middle" font-weight="700">Zcash</text>
+          <text x="800" y="273" text-anchor="middle" font-size="12" fill="var(--muted)">a Zakura node (JSON-RPC)</text>
+        </g>
+        <g stroke="var(--muted)" stroke-width="1.3" fill="none">
+          <path d="M220 60 C 260 60, 260 128, 298 128" marker-end="url(#ar)"/>
+          <path d="M220 232 C 260 232, 260 168, 298 168" marker-end="url(#ar)"/>
+          <path d="M560 120 C 610 120, 610 42, 658 42" marker-end="url(#ar)" marker-start="url(#ar)"/>
+          <path d="M560 150 L 658 150" marker-end="url(#ar)"/>
+          <path d="M560 180 C 610 180, 610 258, 658 258" marker-end="url(#ar)" marker-start="url(#ar)"/>
+        </g>
+      </svg>
+      <figcaption>Apps call a node over REST, or embed the same kit. The node negotiates with the other party through the desk, reads the oracles, and builds and broadcasts every transaction itself; it never hands keys to anyone.</figcaption>
+    </figure>
   </div>
 </section>
 
-<section id="developers">
-  <div class="wrap dev">
-    <div>
-      <p class="label">Developers</p>
-      <h2 style="margin-top:16px">One object runs the contract</h2>
-      <p class="read" style="margin-top:16px">Describe a contract with a template and react to events. The kit runs setup, funding, the close, the fallbacks and recovery.</p>
-      <ul class="surf">
-        <li><b>Rust</b><span><code>zdlc-kit</code>, with swappable transport, storage, oracles and chain</span></li>
-        <li><b>Any language</b><span><code>zdlc-node</code> with a REST API and OpenAPI spec; <code>zdlc-cli</code></span></li>
-        <li><b>TypeScript</b><span><code>@zdlc/client</code>; <code>@zdlc/sdk</code> embeds a node in Node.js or runs the protocol in the browser</span></li>
-        <li><b>Local stack</b><span><code>just dev</code>: a chain, a desk, two oracles and two funded nodes</span></li>
-      </ul>
+<section id="foundations">
+  <div class="wrap">
+    <div class="head">
+      <p class="label">Architecture and origins</p>
+      <h2>Not a smart-contract VM for Zcash</h2>
+      <p class="read">zDLC compiles a conditional agreement into native Zcash transactions: a 2-of-2, one pre-signed payout per outcome, and a time-locked refund. The logic is settled before any money moves.</p>
     </div>
-    <div>
-      <div class="tabs" role="tablist" aria-label="Code samples">
-        <button type="button" role="tab" id="t-ts" aria-selected="true" aria-controls="p-ts">TypeScript</button>
-        <button type="button" role="tab" id="t-cli" aria-selected="false" aria-controls="p-cli">CLI</button>
-        <button type="button" role="tab" id="t-web" aria-selected="false" aria-controls="p-web">Browser</button>
+    <div class="found">
+      <dl class="facts">
+        <div><dt>Transactions</dt><dd>Zcash v6, built through PCZTs; the cooperative close pays the Ironwood shielded pool</dd></div>
+        <div><dt>Custody</dt><dd>A 2-of-2 between the parties; no contract address and no intermediary</dd></div>
+        <div><dt>Oracle messages</dt><dd>dlcspecs attestations, checked against an independent dlcspecs oracle implementation</dd></div>
+        <div><dt>Network upgrades</dt><dd>A contract spanning one upgrade has every payout signed for both eras (two adaptor signatures each) and its refund signed for the era it confirms in; tested across NU7 on regtest. One that spans two upgrades is refused</dd></div>
+        <div><dt>Recovery</dt><dd>With the seed, a wallet finds its recovery records and rebuilds each refund. It needs the record to have been posted (the kit pays for it from the treasury once a contract is signed), a node that can scan from the contract's height, and recovering before the close address is swept by a withdrawal</dd></div>
+      </dl>
+      <div class="line3">
+        <div class="era"><span class="yr">2017</span><div><h3>Discreet Log Contracts</h3><p>Tadge Dryja, at MIT's Digital Currency Initiative, publishes the design: oracle contracts that look like ordinary multisig on chain, with an oracle that never learns about them.</p></div></div>
+        <div class="era"><span class="yr">2019–</span><div><h3>Built out on Bitcoin</h3><p>Adaptor signatures, the dlcspecs messages, and libraries such as rust-dlc and DLC Dev Kit.</p></div></div>
+        <div class="era"><span class="yr now">Now</span><div><h3>zDLC on Zcash</h3><p>The same oracle messages, on Zcash v6 transactions, with funding and payouts through the shielded pool.</p></div></div>
       </div>
-      <div class="code" role="tabpanel" id="p-ts" aria-labelledby="t-ts"><button class="copy" type="button">Copy</button><pre><span class="k">import</span> { ZdlcClient, templates } <span class="k">from</span> <span class="s">"@zdlc/client"</span>;
-
-<span class="k">const</span> z = <span class="k">new</span> ZdlcClient(<span class="s">"http://127.0.0.1:7950"</span>, { token });
-
-<span class="k">const</span> { id } = <span class="k">await</span> z.offer(client, templates.escrow({
-  amount: <span class="s">"1.5"</span>,
-  question: <span class="s">"Milestone 1 delivered?"</span>,
-}));
-
-<span class="k">for await</span> (<span class="k">const</span> ev <span class="k">of</span> z.stream()) {
-  <span class="k">if</span> (ev.kind === <span class="s">"awaitingDeposit"</span>) showQr(ev.uri);
-  <span class="k">if</span> (ev.kind === <span class="s">"settled"</span>) console.log(ev.how, ev.txid);
-}</pre></div>
-      <div class="code" role="tabpanel" id="p-cli" aria-labelledby="t-cli" hidden><button class="copy" type="button">Copy</button><pre>zdlc-cli offer escrow --to $CLIENT --amount 1.5 \
-  --question <span class="s">"Milestone 1 delivered?"</span>
-
-zdlc-cli --url $CLIENT_NODE accept $ID --funding deposit
-zdlc-cli --url $CLIENT_NODE qr $ID   <span class="c"># the ZIP 321 link and QR</span>
-zdlc-cli events --follow            <span class="c"># offered › funded › attested › settled</span></pre></div>
-      <div class="code" role="tabpanel" id="p-web" aria-labelledby="t-web" hidden><button class="copy" type="button">Copy</button><pre><span class="k">import</span> init, * <span class="k">as</span> core <span class="k">from</span> <span class="s">"@zdlc/sdk/core"</span>;  <span class="c">// WebAssembly</span>
-<span class="k">await</span> init();
-
-<span class="k">const</span> terms = core.templateTerms(template, announcements, tip + <span class="k">1</span>);
-<span class="k">const</span> offer = core.offer(ctx, terms);                <span class="c">// → your peer</span>
-<span class="k">const</span> { sign } = core.sign(ctx, offer, accept, tip);  <span class="c">// → your peer</span>
-<span class="k">const</span> { tx } = core.cet(ctx, <span class="s">"offerer"</span>, offer, accept, sign,
-                       announcements, attestations, tip);</pre></div>
-    </div>
-  </div>
-</section>
-
-<section id="runs">
-  <div class="wrap">
-    <div class="head">
-      <p class="label">It runs</p>
-      <h2>Settled on chain</h2>
-      <p class="read">A selection from the test runs, with the block each settled in.</p>
-    </div>
-    <div class="who ev">
-      <table>
-        <thead><tr><th>Contract</th><th>Network</th><th>How it settled</th><th>Block</th></tr></thead>
-        <tbody>
-          <tr><td>ZEC/USD payment, two oracles agreeing</td><td><span class="net t">testnet</span></td><td>Pre-signed payout, unlocked by both attestations</td><td class="h">4,522,041</td></tr>
-          <tr><td>Hedge traded through the desk by two agents</td><td><span class="net t">testnet</span></td><td>Cooperative close to shielded addresses</td><td class="h">4,522,155</td></tr>
-          <tr><td>Escrow funded by scanning a deposit link</td><td><span class="net">regtest</span></td><td>Cooperative close; both nodes agree on the transaction</td><td class="h">233</td></tr>
-          <tr><td>Team escrow: 0.75, 0.45 and 0.30 ZEC to three people</td><td><span class="net">regtest</span></td><td>Pre-signed payout to three addresses</td><td class="h">256</td></tr>
-          <tr><td>Collateral released on proof of a shielded repayment</td><td><span class="net">regtest</span></td><td>Oracles saw it by viewing key; cooperative close</td><td class="h">363</td></tr>
-          <tr><td>A bet with the losing side offline</td><td><span class="net">regtest</span></td><td>The winner settled alone</td><td class="h">307</td></tr>
-        </tbody>
-      </table>
     </div>
   </div>
 </section>
 
 <section id="status">
   <div class="wrap">
-    <div class="head"><p class="label">Status</p><h2>Where zDLC is today</h2></div>
+    <div class="head"><p class="label">Status and security</p><h2>Where zDLC is today</h2></div>
     <div class="status">
-      <div class="st"><span class="label">Working</span><ul><li>Contracts, oracles and the desk on regtest and testnet</li><li>Funding by QR and multi-payee payouts</li><li>Developer kit, REST node, TypeScript and WebAssembly SDKs</li></ul></div>
-      <div class="st next"><span class="label">Next</span><ul><li>Testnet contracts paid from phone wallets</li><li>Hosted testnet oracles and desk</li><li>Two-of-three arbiter panels</li></ul></div>
-      <div class="st not"><span class="label">Not yet</span><ul><li>Mainnet (capped at 0.01 ZEC a side when it starts)</li><li>Oracles inside hardware enclaves</li><li>An external security review</li></ul></div>
+      <div class="panel st"><span class="label">Working</span><ul><li>Contracts, oracles and the desk on regtest and testnet</li><li>Funding by QR and multi-payee payouts</li><li>Developer kit, REST node, TypeScript and WebAssembly SDKs</li></ul></div>
+      <div class="panel st next"><span class="label">Next</span><ul><li>Testnet contracts paid from phone wallets</li><li>Hosted testnet oracles and desk</li><li>Two-of-three arbiter panels</li></ul></div>
+      <div class="panel st not"><span class="label">Not yet</span><ul><li>Mainnet (capped at 0.01 ZEC a side when it starts)</li><li>Oracles inside hardware enclaves</li><li>An external security review</li></ul></div>
+    </div>
+    <div class="caveats">
+      <div><h3>Self-custody, pending review</h3><p>The settlement and refund paths are tested on regtest and testnet but not yet independently audited. Do not use it for real money.</p></div>
+      <div><h3>Oracles are trusted for the outcome</h3><p>They cannot take funds, and two must agree, but colluding oracles can choose which pre-agreed payout unlocks.</p></div>
+      <div><h3>Oracle keys</h3><p>Today's oracles keep their keys in a sealed file, not yet in a hardware enclave.</p></div>
+      <div><h3>Viewing-key scope</h3><p>A proof-of-payment oracle can read every payment to the one address it watches. Use that contract's address only for the repayment.</p></div>
     </div>
   </div>
 </section>
@@ -509,12 +515,13 @@ zdlc-cli events --follow            <span class="c"># offered › funded › att
 <script>
 (function () {
   var outcomes = {
-    del: { open: "tx-del", what: "Both arbiters sign “delivered”. Their signature completes the contractor’s payout; the other two stay unusable.", chain: "Usually a cooperative close straight into shielded notes. If the client stays silent, the contractor publishes the pre-signed payout alone." },
-    not: { open: "tx-not", what: "Both arbiters sign “not delivered”. Their signature completes the client’s refund; the contractor’s payout stays locked forever.", chain: "One spend of the 2-of-2, usually to shielded notes. Nothing on chain names the oracle or the question." },
-    none: { open: "tx-ref", what: "No attestation, so neither outcome payout can ever be completed. At height H the timed refund becomes valid and anyone can publish it.", chain: "A refund spending the 2-of-2 at height H: each side's collateral back." }
+    del: { open: "tx-del", label: "Unlocked", what: "Both arbiters sign “delivered”. Together their signatures complete the contractor’s payout; the other two can never be used.", chain: "Usually a cooperative close into shielded notes. If the client stays silent, the contractor publishes the pre-signed payout alone." },
+    not: { open: "tx-not", label: "Unlocked", what: "Both arbiters sign “not delivered”. Their signatures complete the client’s refund; the contractor’s payout stays locked for good.", chain: "One spend of the 2-of-2, usually into shielded notes. Nothing on chain names the arbiters or the question." },
+    none: { open: "tx-ref", label: "Valid at height H", what: "No attestation, so neither outcome payout can be completed. At height H the timed refund becomes valid and anyone can publish it.", chain: "A refund spending the 2-of-2 at height H: each side’s collateral back." }
   };
   var buttons = { del: document.getElementById("o-del"), not: document.getElementById("o-not"), none: document.getElementById("o-none") };
   var txs = ["tx-del", "tx-not", "tx-ref"].map(function (id) { return document.getElementById(id); });
+  var current = "del";
   function choose(k) {
     current = k;
     var o = outcomes[k];
@@ -523,13 +530,13 @@ zdlc-cli events --follow            <span class="c"># offered › funded › att
       var on = t.id === o.open;
       t.classList.toggle("open", on);
       t.classList.toggle("dim", !on);
-      t.querySelector(".st-t").textContent = on ? (k === "none" ? "Valid at height H" : "Unlocked") : "Locked for good";
+      t.querySelector(".st-t").textContent = on ? o.label : "Locked for good";
     });
     document.getElementById("v-what").textContent = o.what;
     document.getElementById("v-chain").textContent = o.chain;
   }
-  // Play the three cases in turn; a click (or keyboard focus) on the figure takes over,
-  // and the rotation resumes after a quiet spell.
+  // Play the three cases in turn; a click or keyboard focus takes over, and the
+  // rotation resumes after a quiet spell.
   var order = ["del", "not", "none"], at = 0, timer = null, resume = null;
   var note = document.getElementById("auto-note");
   function tick() { choose(order[at]); at = (at + 1) % order.length; }
@@ -539,31 +546,25 @@ zdlc-cli events --follow            <span class="c"># offered › funded › att
     note.textContent = "Paused on your choice.";
     resume = setTimeout(function () { at = (order.indexOf(current) + 1) % order.length; play(); }, ms);
   }
-  var current = "del";
   Object.keys(buttons).forEach(function (k) {
-    buttons[k].addEventListener("click", function () { current = k; choose(k); hold(15000); });
+    buttons[k].addEventListener("click", function () { choose(k); hold(15000); });
   });
-  var fig = document.getElementById("fig");
-  fig.addEventListener("focusin", function () { hold(15000); });
+  document.getElementById("fig").addEventListener("focusin", function () { hold(15000); });
   tick();
   play();
 
-  var tabs = Array.prototype.slice.call(document.querySelectorAll('[role="tab"]'));
-  tabs.forEach(function (t) {
-    t.addEventListener("click", function () {
-      tabs.forEach(function (o) {
-        var on = o === t;
-        o.setAttribute("aria-selected", String(on));
-        document.getElementById(o.getAttribute("aria-controls")).hidden = !on;
-      });
-    });
-  });
-  Array.prototype.slice.call(document.querySelectorAll(".copy")).forEach(function (b) {
+  // Copy buttons: a txid (data-copy) or the terminal block next to the button.
+  Array.prototype.slice.call(document.querySelectorAll("[data-copy], [data-copy-pre]")).forEach(function (b) {
     b.addEventListener("click", function () {
-      var pre = b.parentNode.querySelector("pre");
+      var target = b.hasAttribute("data-copy-pre") ? b.parentNode.querySelector("pre") : null;
+      var text = target ? target.innerText : b.getAttribute("data-copy");
       function done(l) { b.textContent = l; setTimeout(function () { b.textContent = "Copy"; }, 1600); }
-      function sel() { var r = document.createRange(); r.selectNodeContents(pre); var s = window.getSelection(); s.removeAllRanges(); s.addRange(r); done("Selected"); }
-      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(pre.innerText).then(function () { done("Copied"); }, sel);
+      function sel() {
+        var el = target || b.previousElementSibling;
+        var r = document.createRange(); r.selectNodeContents(el);
+        var s = window.getSelection(); s.removeAllRanges(); s.addRange(r); done("Selected");
+      }
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(function () { done("Copied"); }, sel);
       else sel();
     });
   });
