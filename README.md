@@ -11,6 +11,7 @@ zdlc is oracle-settled contracts on Zcash, entered and exited through Ironwood. 
 | [docs/applications.md](docs/applications.md) | Shielded payments, private markets, cross-chain, Zcash-native extensions |
 | [docs/plan.md](docs/plan.md) | Phased plan with gates, open questions, sources |
 | [docs/beneficiaries.md](docs/beneficiaries.md) | Multi-beneficiary payouts: splits, per-outcome overrides, multi-output CETs and closes |
+| [site/index.html](site/index.html) | The landing page: open it in a browser |
 | [docs/kit.md](docs/kit.md) | Developer kit: the `Zdlc` object, templates, `zdlc-node` REST API, `zdlc-cli`, `@zdlc/client` |
 | [docs/funding.md](docs/funding.md) | Shielded funding by QR: deposit links (path A), legs paid from any wallet (path B), auto-shield and withdraw |
 
