@@ -72,6 +72,15 @@ button:focus-visible { outline: 2px solid var(--key); outline-offset: 2px; }
 .pill.no { background: var(--bad-soft); color: var(--bad); }
 .who { font-size: 0.92rem; color: var(--muted); }
 .acts { display: flex; flex-wrap: wrap; gap: 8px; }
+.bad { display: grid; gap: 12px; }
+.res { border-radius: 12px; padding: 12px 14px; background: var(--locked-soft); display: grid; gap: 4px; }
+.res b { font: 700 1.05rem var(--f-display); }
+.res span { color: var(--muted); font-size: 0.92rem; }
+.res.win { background: var(--shield-soft); }
+.res.win b { color: var(--shield); }
+.res.wait b::after { content: ""; display: inline-block; width: 0.9em; text-align: left; animation: dots 1.2s steps(4) infinite; }
+@keyframes dots { 0% { content: ""; } 25% { content: "."; } 50% { content: ".."; } 75% { content: "..."; } }
+@media (prefers-reduced-motion: reduce) { .res.wait b::after { animation: none; content: "…"; } }
 .sub { font: 600 0.72rem var(--f-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); border-top: 1px dashed var(--line); padding-top: 10px; }
 .qr { display: grid; gap: 8px; justify-items: start; }
 .qr img { width: 100%; max-width: 220px; background: #fff; padding: 8px; border-radius: 8px; }
@@ -129,10 +138,13 @@ footer { margin-top: 28px; color: var(--muted); font-size: 0.88rem; display: gri
     <section class="panel" id="p-contractor">
       <div class="ph"><h2>Contractor</h2><span class="pill" id="s-contractor">–</span></div>
       <p class="who">Did the work. Is paid the escrow if the arbiters rule "delivered".</p>
-      <div class="sub">Behave badly</div>
-      <div class="acts">
-        <button type="button" data-hold="contractor">Go offline</button>
-        <button type="button" class="cheat" data-forge="contractor" title="Completes the 'delivered' payout with made-up oracle signatures and broadcasts it">Pay myself, forging the arbiters</button>
+      <div class="res" id="res-contractor" hidden></div>
+      <div class="bad" id="bad-contractor">
+        <div class="sub">Behave badly</div>
+        <div class="acts">
+          <button type="button" data-hold="contractor">Go offline</button>
+          <button type="button" class="cheat" data-forge="contractor" title="Completes the 'delivered' payout with made-up oracle signatures and broadcasts it">Pay myself, forging the arbiters</button>
+        </div>
       </div>
       <p class="empty" id="r-contractor"></p>
     </section>
@@ -150,10 +162,13 @@ footer { margin-top: 28px; color: var(--muted); font-size: 0.88rem; display: gri
         <span class="uri" id="uri"></span>
         <p class="empty">The payment comes from your shielded balance. The client's node funds the escrow from it once it is mined.</p>
       </div>
-      <div class="sub">Behave badly</div>
-      <div class="acts">
-        <button type="button" data-hold="client">Go offline</button>
-        <button type="button" class="cheat" data-refund="client" title="Broadcasts the time-locked refund now">Take my money back now</button>
+      <div class="res" id="res-client" hidden></div>
+      <div class="bad" id="bad-client">
+        <div class="sub">Behave badly</div>
+        <div class="acts">
+          <button type="button" data-hold="client">Go offline</button>
+          <button type="button" class="cheat" data-refund="client" title="Broadcasts the time-locked refund now">Take my money back now</button>
+        </div>
       </div>
       <p class="empty" id="r-client"></p>
     </section>
@@ -162,7 +177,7 @@ footer { margin-top: 28px; color: var(--muted); font-size: 0.88rem; display: gri
       <div class="ph"><h2>Arbiters</h2><span class="pill">2 of 2 must agree</span></div>
       <p class="who" id="question">–</p>
       <div id="arbiters"></div>
-      <p class="empty">Staying silent is an option too: with no ruling, only the timed refund can ever spend the escrow.</p>
+      <p class="empty" id="silent-note">Staying silent is an option too: with no ruling, only the timed refund can ever spend the escrow.</p>
     </section>
 
     <section class="panel chain">
@@ -226,7 +241,8 @@ footer { margin-top: 28px; color: var(--muted); font-size: 0.88rem; display: gri
       var done = n <= 0;
       el.classList.toggle("done", done || settled);
       el.querySelector("b").textContent = settled ? "settled" : done ? "reached" : e > 0 ? "~" + clockText(e) : "any block now";
-      el.querySelector(".sub2").textContent = "block " + x[1] + (done ? "" : " · " + n + " to go");
+      var s = k.settlement || (room.client && room.client.settlement);
+      el.querySelector(".sub2").textContent = settled ? (s && s.height ? "in block " + s.height : "") : "block " + x[1] + (done ? "" : " · " + n + " to go");
     });
     var span = Math.max(1, (k.refundHeight - start) * info.blockSecs);
     var gone = settled ? span : span - (eta(k.refundHeight) || 0);
@@ -260,6 +276,46 @@ footer { margin-top: 28px; color: var(--muted); font-size: 0.88rem; display: gri
     return ["Both ruled “" + ruled[0] + "”: the contractor asks for a cooperative close.", "The client's node checks it pays exactly the attested outcome, co-signs, and it goes out to shielded addresses."];
   }
 
+  // What the rulings and the settlement mean for each side; the panels swap their
+  // buttons for it once both arbiters have ruled.
+  function verdictOf(r) {
+    var a = r.arbiters || [], ruled = a.filter(Boolean);
+    if (!a.length || ruled.length < a.length) return null;
+    return ruled.every(function (o) { return o === ruled[0]; }) ? ruled[0] : "split";
+  }
+  function phase(r) {
+    var k = r.contractor, c = r.client, v = verdictOf(r), amt = info ? zec(info.amountZat) : "the escrow";
+    var s = (k && k.settlement) || (c && c.settlement);
+    var paidOut = s && (s.how === "close" || s.how === "cet") && ((k && k.attested) || v) === "delivered";
+    var res = {
+      contractor: s ? (paidOut ? ["win", "Received " + amt, s.how === "close" ? "Paid straight into a shielded address by the cooperative close." : "Took the pre-signed payout alone, then moved it into the shielded pool."]
+                               : ["", "Nothing to collect", s.how === "refund" ? "The timed refund returned the escrow to the client." : "The arbiters ruled \u201cnot delivered\u201d."])
+        : v === "delivered" ? ["win wait", "Collecting " + amt, "Both arbiters ruled \u201cdelivered\u201d: this node is settling now."]
+        : v === "not delivered" ? ["", "Ruled against", "Both arbiters ruled \u201cnot delivered\u201d: nothing to collect."]
+        : v === "split" ? ["", "No payout can unlock", "The arbiters disagree. Only the timed refund can spend the escrow now."] : null,
+      client: s ? (paidOut ? ["", "Paid " + amt, "The escrow went to the contractor, as both arbiters ruled."]
+                           : ["win", "Got " + amt + " back", s.how === "refund" ? "By the timed refund, then moved into the shielded pool." : s.how === "close" ? "Straight into a shielded address by the cooperative close." : "By the pre-signed payout, then moved into the shielded pool."])
+        : v === "delivered" ? ["", "Ruled against", "Both arbiters ruled \u201cdelivered\u201d: the escrow goes to the contractor."]
+        : v === "not delivered" ? ["win wait", "Getting " + amt + " back", "Both arbiters ruled \u201cnot delivered\u201d: settling now."]
+        : v === "split" ? ["wait", "Waiting for the refund", "The arbiters disagree: the escrow comes back to you at block " + (k ? k.refundHeight : "?") + "."] : null
+    };
+    ["contractor", "client"].forEach(function (w) {
+      var x = res[w], el = $("res-" + w), held = r[w] && r[w].held;
+      el.hidden = !x;
+      if (x) { el.className = "res " + x[0]; el.innerHTML = "<b>" + esc(x[1]) + "</b><span>" + esc(x[2]) + "</span>"; }
+      // Settled: no more buttons. Ruled: the cheats are moot, but going offline (or coming
+      // back) still shows the other side settling alone.
+      $("bad-" + w).hidden = !!s;
+      $("bad-" + w).querySelector(".cheat").hidden = !!v && !(w === "client" && v === "split");
+      $("bad-" + w).querySelector(".sub").textContent = v && !held ? "Still possible" : "Behave badly";
+    });
+    // In a split, the refund button becomes the real claim once its height comes.
+    var rb = document.querySelector("[data-refund]"), due = k && r.tip >= k.refundHeight;
+    rb.textContent = v === "split" && due ? "Claim the refund" : "Take my money back now";
+    rb.className = v === "split" && due ? "primary" : "cheat";
+    $("silent-note").hidden = !!v || !!s;
+  }
+
   function render(r) {
     if (tipSeen.tip !== r.tip) tipSeen = { tip: r.tip, at: Date.now() };
     room = r;
@@ -279,6 +335,7 @@ footer { margin-top: 28px; color: var(--muted); font-size: 0.88rem; display: gri
     });
     document.querySelector("[data-forge]").disabled = !k || !live[k.state];
     document.querySelector("[data-refund]").disabled = !c || !live[c.state];
+    phase(r);
     $("accept-acts").hidden = !(c && c.state === "incoming");
     var dep = c && c.deposit && (c.state === "awaiting_deposit" || c.state === "refreshing");
     $("qr").hidden = !dep;
@@ -289,7 +346,12 @@ footer { margin-top: 28px; color: var(--muted); font-size: 0.88rem; display: gri
 
     var settled = (k && k.state === "settled") || (c && c.state === "settled");
     var funded = c && live[c.state];
-    $("arbiters").innerHTML = (r.arbiters || []).map(function (o, i) {
+    var v = verdictOf(r);
+    $("arbiters").innerHTML = v ? (r.arbiters || []).map(function (o, i) {
+      return '<div class="arb"><div class="ph"><h3>Arbiter ' + (i + 1) + '</h3><span class="pill go">ruled: ' + esc(o) + "</span></div></div>";
+    }).join("") + '<div class="res' + (v === "split" ? "" : " win") + '"><b>' + (v === "split" ? "They disagree" : "Both ruled \u201c" + esc(v) + "\u201d") + "</b><span>" +
+      (v === "split" ? "Neither payout can be completed: the timed refund settles it." : v === "delivered" ? "Their signatures complete the contractor's payout." : "Their signatures complete the client's refund payout.") + "</span></div>"
+    : (r.arbiters || []).map(function (o, i) {
       var dis = o || settled || !funded ? " disabled" : "";
       return '<div class="arb"><div class="ph"><h3>Arbiter ' + (i + 1) + '</h3><span class="pill' + (o ? " go" : "") + '">' + (o ? "ruled: " + o : "silent") + '</span></div>' +
         '<div class="acts"><button type="button" data-rule="' + i + '" data-o="delivered"' + dis + '>Delivered</button><button type="button" data-rule="' + i + '" data-o="not delivered"' + dis + '>Not delivered</button></div></div>';
@@ -316,7 +378,8 @@ footer { margin-top: 28px; color: var(--muted); font-size: 0.88rem; display: gri
     }).join("") || '<li class="empty">Nothing yet.</li>';
     ["contractor", "client"].forEach(function (w) {
       var v = r[w];
-      $("r-" + w).textContent = v && v.note && v.state !== "settled" ? "Node note: " + v.note : v && v.settlement ? "Settled: " + v.settlement.how : "";
+      // Node notes explain a stall; once both have ruled, the result box says it better.
+      $("r-" + w).textContent = v && v.note && v.state !== "settled" && !verdictOf(r) ? "Node note: " + v.note : "";
     });
     var n = nextStep(r);
     $("next").innerHTML = "<b>" + esc(n[0]) + "</b>" + (n[1] ? "<p>" + esc(n[1]) + "</p>" : "");
