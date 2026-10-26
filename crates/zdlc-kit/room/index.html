@@ -190,6 +190,8 @@ footer { margin-top: 28px; color: var(--muted); font-size: 0.88rem; display: gri
           <div><span class="label">Refund valid at</span><b id="h-ref">–</b></div>
         </div>
         <ul class="txs" id="txs"><li class="empty" style="border:0;padding:0">Nothing yet: the contract is only messages between the two nodes until the escrow is funded.</li></ul>
+        <div class="ph" id="refused-h" hidden><h3>Turned away</h3><span class="label">never on chain</span></div>
+        <ul class="txs" id="refused"></ul>
       </div>
       <div style="display:grid;gap:10px;align-content:start">
         <div class="ph"><h2>What happened</h2></div>
@@ -361,18 +363,26 @@ footer { margin-top: 28px; color: var(--muted); font-size: 0.88rem; display: gri
 
     var txs = [];
     var fund = (c && c.fundingTxid) || (k && k.fundingTxid);
-    if (fund && funded !== undefined) txs.push({ t: "Funding", txid: fund, seen: (c && c.funding === "deposit" ? "Spends shielded notes (sender hidden)" : "Spends the demo wallet's transparent coins") + " → one 2-of-2 output of " + zec(info.amountZat) + ". The terms are not on chain." });
-    var seenTx = {};
-    (r.log || []).forEach(function (e) {
-      if (e.what && e.what.txid && !seenTx[e.what.txid] && (seenTx[e.what.txid] = 1)) txs.push({ t: e.what.accepted ? "Accepted attempt" : "Refused by the network", txid: e.what.txid, no: !e.what.accepted, seen: e.what.text });
-    });
+    var out = { signed: 1, funded: 1, closing: 1, settled: 1 };
+    if (fund && c && out[c.state]) txs.push({ t: "Funding", txid: fund, seen: (c && c.funding === "deposit" ? "Spends shielded notes (sender hidden)" : "Spends the demo wallet's transparent coins") + " → one 2-of-2 output of " + zec(info.amountZat) + ". The terms are not on chain." });
+    // Refused attempts never reached the chain: they get their own list below it.
     var s = (k && k.settlement) || (c && c.settlement);
+    var seenTx = {}, refused = [];
+    (r.log || []).forEach(function (e) {
+      var x = e.what, t = x && x.txid;
+      if (!t || seenTx[t] || !(seenTx[t] = 1)) return;
+      if (!x.accepted) refused.push({ t: "Refused by the network", txid: t, no: true, seen: x.text.replace(/: refused \((.*)\)$/, ". The node said: $1.") });
+      else if (!(s && s.txid === t)) txs.push({ t: "Sent", txid: t, seen: x.text });
+    });
     if (s && s.txid) txs.push({ t: "Settlement", txid: s.txid, seen: s.how === "close" ? "Spends the 2-of-2 → shielded outputs. Who received what is hidden." : s.how === "refund" ? "Spends the 2-of-2 → the collateral back to a transparent address, then shielded by the wallet." : "Spends the 2-of-2 → the payout to a transparent address, then shielded by the winner's wallet." });
-    $("txs").innerHTML = txs.length ? txs.map(function (x) {
-      var l = link(x.txid);
+    function row(x) {
+      var l = x.no ? null : link(x.txid);
       return '<li' + (x.no ? ' class="no"' : "") + '><span class="t">' + x.t + "</span>" + (l ? '<a href="' + l + '" target="_blank" rel="noopener">explorer</a>' : "<span></span>") +
         '<span class="seen">' + esc(x.seen) + '</span><span class="id">' + x.txid + "</span></li>";
-    }).join("") : '<li class="empty" style="border:0;padding:0">Nothing yet: the contract is only messages between the two nodes until the escrow is funded.</li>';
+    }
+    $("txs").innerHTML = txs.length ? txs.map(row).join("") : '<li class="empty" style="border:0;padding:0">Nothing yet: the contract is only messages between the two nodes until the escrow is funded.</li>';
+    $("refused-h").hidden = !refused.length;
+    $("refused").innerHTML = refused.map(row).join("");
 
     $("log").innerHTML = (r.log || []).slice().reverse().map(function (e) {
       var d = new Date(e.t * 1000);
