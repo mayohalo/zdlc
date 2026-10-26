@@ -45,6 +45,8 @@ header { display: flex; justify-content: space-between; align-items: center; gap
 button { font: 600 0.9rem var(--f-display); padding: 9px 14px; border-radius: 10px; border: 1px solid var(--line); background: var(--sheet); color: var(--ink); cursor: pointer; }
 button:hover:not(:disabled) { border-color: var(--ink); }
 button:disabled { opacity: 0.4; cursor: not-allowed; }
+button.ib { display: inline-flex; align-items: center; gap: 8px; }
+button .ic { width: 18px; height: 18px; flex: none; }
 button.primary { background: var(--ink); color: var(--paper); border-color: var(--ink); }
 button.cheat { border-color: var(--bad); color: var(--bad); background: transparent; }
 button.on { background: var(--key-soft); border-color: var(--key); }
@@ -153,8 +155,8 @@ footer { margin-top: 28px; color: var(--muted); font-size: 0.88rem; display: gri
       <div class="ph"><h2>Client (You)</h2><span class="pill" id="s-client">–</span></div>
       <p class="who">Pays into the escrow. Gets it back on "not delivered", or by the timed refund.</p>
       <div class="acts" id="accept-acts">
-        <button type="button" class="primary" data-accept="treasury">Accept · fund from the demo wallet</button>
-        <button type="button" data-accept="deposit">Accept · pay with my wallet</button>
+        <button type="button" class="primary ib" data-accept="treasury"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.7C9 6.6 6 10.2 6 14a6 6 0 0 0 12 0c0-3.8-3-7.4-6-11.3z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>Deposit from the demo wallet</button>
+        <button type="button" class="ib" data-accept="deposit"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></g><g fill="currentColor"><rect x="5.5" y="5.5" width="2" height="2"/><rect x="16.5" y="5.5" width="2" height="2"/><rect x="5.5" y="16.5" width="2" height="2"/><rect x="14" y="14" width="3" height="3"/><rect x="18" y="18" width="3" height="3"/><rect x="18" y="14" width="3" height="2"/><rect x="14" y="18" width="2" height="3"/></g></svg>Deposit from my wallet</button>
       </div>
       <div class="qr" id="qr" hidden>
         <span class="label">Scan with a Zcash testnet wallet</span>
@@ -261,7 +263,7 @@ footer { margin-top: 28px; color: var(--muted); font-size: 0.88rem; display: gri
       var how = { close: "a cooperative close into shielded notes", cet: "a pre-signed payout, completed by the arbiters' signatures", refund: "the timed refund", counterparty: "the other side's transaction" }[s.how] || s.how;
       return ["Settled by " + how + (s.height ? ", block " + s.height : "") + ".", "Open a new room to try another path: disagreeing arbiters, a party that goes offline, or a cheat."];
     }
-    if (c.state === "incoming") return ["Client: accept the invoice.", "Fund it from the demo wallet, or pay the deposit link with your own testnet wallet."];
+    if (c.state === "incoming") return ["Client: deposit the escrow to accept the invoice.", "Deposit from the demo wallet, or from your own testnet wallet by scanning a QR code."];
     if (c.state === "awaiting_deposit" || c.state === "refreshing") return ["Scan the QR with a Zcash testnet wallet.", "Once the payment is mined (about one block), the client's node funds the escrow from it."];
     if (c.state === "accepted" || (c.state === "signed" && !c.fundingTxid)) return ["The parties are exchanging signatures.", "Every payout and the refund are signed before the funding transaction is."];
     if (c.state === "failed" || c.state === "declined") return ["This room stopped: " + (c.note || c.state) + ".", "Open a new room."];

@@ -232,7 +232,7 @@ async fn accept(State(a): State<Shared>, Path(id): Path<String>, Json(r): Json<A
     };
     match a.client.accept(&id, funding).await {
         Ok(()) => {
-            a.log(&id, "client", if r.funding == "deposit" { "accepted; funds by deposit link" } else { "accepted; funds from the demo wallet" }).await;
+            a.log(&id, "client", if r.funding == "deposit" { "accepted; deposits from their own wallet (QR code)" } else { "accepted; deposited from the demo wallet" }).await;
             Json(json!({"id": id})).into_response()
         }
         Err(e) => bad(e),
