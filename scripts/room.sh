@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # The escrow room on the dev stack (scripts/dev.sh up first): starts zdlc-room on
 # http://127.0.0.1:8080/, funds its demo wallet from the regtest miner, and stays in
-# the foreground. Regtest blocks come every 2 s, so the heights are wider than on testnet.
+# the foreground. Regtest blocks come every 2 s, so the heights are 37.5 times testnet's
+# to keep testnet's timing: rulings count after ~2.5 min, the refund unlocks at ~5 min.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 # shellcheck disable=SC1091
@@ -11,7 +12,7 @@ LOG="$ROOT/.dev/room.log"
 "$ZDLC_BIN/zdlc-room" --node "$ZDLC_NODE_URL" --desk http://127.0.0.1:7900 \
   --oracles http://127.0.0.1:7801,http://127.0.0.1:7802 --oracle-token-file "$ROOT/.dev/admin" \
   --dir "$ROOT/.dev/room" --listen 127.0.0.1:8080 --label regtest \
-  --block-secs 2 --maturity 10 --refund 300 >"$LOG" 2>&1 &
+  --block-secs 2 --maturity 75 --refund 150 --close-wait 37 --close-wait-secs 30 >"$LOG" 2>&1 &
 PID=$!
 trap 'kill $PID 2>/dev/null' EXIT INT TERM
 for _ in $(seq 1 30); do grep -q "http://" "$LOG" && break; sleep 1; done

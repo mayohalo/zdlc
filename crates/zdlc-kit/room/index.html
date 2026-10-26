@@ -52,6 +52,16 @@ button:focus-visible { outline: 2px solid var(--key); outline-offset: 2px; }
 .next { border-left: 4px solid var(--key); background: var(--sheet); border-radius: 0 12px 12px 0; padding: 14px 18px; margin-bottom: 18px; }
 .next b { font: 700 1rem var(--f-display); display: block; }
 .next p { color: var(--muted); font-size: 0.95rem; margin-top: 2px; }
+.clock { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 20px; align-items: center; background: var(--sheet); border: 1px solid var(--line); border-radius: 14px; padding: 14px 18px; margin-bottom: 18px; }
+.clock .ms { display: grid; gap: 2px; }
+.clock .ms:last-child { text-align: right; }
+.clock .ms b { font: 800 1.7rem/1.1 var(--f-display); font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+.clock .ms.done b { color: var(--shield); font-size: 1.1rem; }
+.clock .sub2 { font: 400 0.75rem var(--f-mono); color: var(--muted); }
+.clock .bar { position: relative; height: 8px; border-radius: 999px; background: var(--locked-soft); }
+.clock .bar i { position: absolute; inset: 0 auto 0 0; width: 0; border-radius: 999px; background: var(--key); transition: width 1s linear; }
+.clock .bar span { position: absolute; top: -5px; width: 2px; height: 18px; background: var(--ink); opacity: 0.5; }
+@media (max-width: 640px) { .clock { grid-template-columns: 1fr 1fr; } .clock .bar { grid-column: 1 / -1; grid-row: 2; } }
 .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
 .panel { background: var(--sheet); border: 1px solid var(--line); border-radius: 16px; padding: 18px; display: grid; gap: 12px; align-content: start; min-width: 0; }
 .panel.off { border-style: dashed; opacity: 0.85; }
@@ -104,12 +114,18 @@ footer { margin-top: 28px; color: var(--muted); font-size: 0.88rem; display: gri
   <div class="intro">
     <div>
       <h1>Play every side of a Zcash escrow.</h1>
-      <p>A contractor invoices a client; the client locks <b id="amt">…</b> in a 2-of-2; two arbiters decide whether the work was delivered. You press the buttons for all of them, including going offline and trying to cheat. Every transaction is real, on Zcash <span id="net2">testnet</span>.</p>
+      <p>You are the client: a contractor invoices you, you lock <b id="amt">…</b> in a 2-of-2, and two arbiters decide whether the work was delivered. You press their buttons too, and the contractor's, including going offline and trying to cheat. Each room lasts about 5 minutes. Every transaction is real, on Zcash <span id="net2">testnet</span>.</p>
     </div>
     <button class="primary" id="new" type="button">Open a new room</button>
   </div>
 
   <div class="next" id="next" aria-live="polite"><b>Open a room to start.</b><p>Each room is one escrow. Its address stays valid, so you can come back to it.</p></div>
+
+  <div class="clock" id="clock" hidden>
+    <div class="ms" id="c-mat"><span class="label">Rulings take effect</span><b>–</b><span class="sub2">–</span></div>
+    <div class="bar" aria-hidden="true"><i id="c-fill"></i><span id="c-mark"></span></div>
+    <div class="ms" id="c-ref"><span class="label">Contract ends · refund unlocks</span><b>–</b><span class="sub2">–</span></div>
+  </div>
 
   <div class="grid" id="room" hidden>
     <section class="panel" id="p-contractor">
@@ -124,7 +140,7 @@ footer { margin-top: 28px; color: var(--muted); font-size: 0.88rem; display: gri
     </section>
 
     <section class="panel" id="p-client">
-      <div class="ph"><h2>Client</h2><span class="pill" id="s-client">–</span></div>
+      <div class="ph"><h2>Client (You)</h2><span class="pill" id="s-client">–</span></div>
       <p class="who">Pays into the escrow. Gets it back on "not delivered", or by the timed refund.</p>
       <div class="acts" id="accept-acts">
         <button type="button" class="primary" data-accept="treasury">Accept · fund from the demo wallet</button>
@@ -188,7 +204,39 @@ footer { margin-top: 28px; color: var(--muted); font-size: 0.88rem; display: gri
       .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || r.statusText); return j; }); });
   }
   function act(p) { return p.then(refresh).catch(function (e) { toast(e.message); }); }
-  function mins(blocks) { if (!info || blocks <= 0) return ""; var m = Math.ceil(blocks * info.blockSecs / 60); return " (~" + m + " min)"; }
+  function mins(blocks) { if (!info || blocks <= 0) return ""; var sec = blocks * info.blockSecs; return sec < 90 ? " (~" + sec + " s)" : " (~" + Math.round(sec / 60) + " min)"; }
+  function waitText() {
+    if (!info) return "a minute";
+    var s = Math.max(info.closeWaitBlocks * info.blockSecs, info.closeWaitSecs);
+    return s >= 90 ? Math.round(s / 60) + " minutes" : s + " seconds";
+  }
+  // The next block's time is a guess: the target spacing, counted from when this page saw the tip move.
+  var tipSeen = { tip: null, at: 0 };
+  function eta(target) {
+    if (!room || !info) return null;
+    var left = (target - room.tip) * info.blockSecs - (Date.now() - tipSeen.at) / 1000;
+    return Math.max(0, Math.round(left));
+  }
+  function clockText(sec) { var m = Math.floor(sec / 60), s = sec % 60; return m + ":" + (s < 10 ? "0" : "") + s; }
+  function tickClock() {
+    var k = room && room.contractor;
+    if (!k || !k.refundHeight || !info) { $("clock").hidden = true; return; }
+    $("clock").hidden = false;
+    var settled = k.state === "settled" || (room.client && room.client.state === "settled");
+    var start = k.refundHeight - info.refundBlocks;
+    [["c-mat", k.maturity], ["c-ref", k.refundHeight]].forEach(function (x) {
+      var el = $(x[0]), n = x[1] - room.tip, e = eta(x[1]);
+      var done = n <= 0;
+      el.classList.toggle("done", done || settled);
+      el.querySelector("b").textContent = settled ? "settled" : done ? "reached" : e > 0 ? "~" + clockText(e) : "any block now";
+      el.querySelector(".sub2").textContent = "block " + x[1] + (done ? "" : " · " + n + " to go");
+    });
+    var span = Math.max(1, (k.refundHeight - start) * info.blockSecs);
+    var gone = settled ? span : span - (eta(k.refundHeight) || 0);
+    $("c-fill").style.width = Math.min(100, Math.max(0, 100 * gone / span)) + "%";
+    $("c-mark").style.left = (100 * (k.maturity - start) / (k.refundHeight - start)) + "%";
+  }
+
   function link(txid) { return info && info.explorer && txid ? info.explorer.replace("{txid}", txid) : null; }
   function state(v) { return v ? v.state.replace("_", " ") : "–"; }
   var live = { signed: 1, funded: 1, closing: 1 };
@@ -212,12 +260,13 @@ footer { margin-top: 28px; color: var(--muted); font-size: 0.88rem; display: gri
     if (ruled.some(function (o) { return o !== ruled[0]; })) return ["The arbiters disagree: no payout can ever be completed.", "The timed refund settles it at block " + k.refundHeight + mins(k.refundHeight - tip) + ". Either side's node sends it."];
     if (tip < k.maturity) return ["Both ruled “" + ruled[0] + "”; the contract matures at block " + k.maturity + mins(k.maturity - tip) + ".", ""];
     if (k.held && c.held) return ["Both parties are offline.", "Bring one back: it settles alone with the pre-signed payout."];
-    if (k.held) return ["The contractor is offline, so nobody asks for the cooperative close.", "After 6 blocks" + mins(6) + " the client's node completes the pre-signed payout with the arbiters' signatures and settles alone."];
-    if (c.held) return ["The client is offline and ignores the close request.", "After 6 blocks" + mins(6) + " the contractor's node completes the pre-signed payout alone. Nobody's permission is needed."];
+    if (k.held) return ["The contractor is offline, so nobody asks for the cooperative close.", "About " + waitText() + " after the rulings take effect, the client's node completes the pre-signed payout with the arbiters' signatures and settles alone."];
+    if (c.held) return ["The client is offline and ignores the close request.", "About " + waitText() + " after the rulings take effect, the contractor's node completes the pre-signed payout alone. Nobody's permission is needed."];
     return ["Both ruled “" + ruled[0] + "”: the contractor asks for a cooperative close.", "The client's node checks it pays exactly the attested outcome, co-signs, and it goes out to shielded addresses."];
   }
 
   function render(r) {
+    if (tipSeen.tip !== r.tip) tipSeen = { tip: r.tip, at: Date.now() };
     room = r;
     $("room").hidden = false;
     var k = r.contractor, c = r.client, tip = r.tip;
@@ -276,6 +325,7 @@ footer { margin-top: 28px; color: var(--muted); font-size: 0.88rem; display: gri
     });
     var n = nextStep(r);
     $("next").innerHTML = "<b>" + esc(n[0]) + "</b>" + (n[1] ? "<p>" + esc(n[1]) + "</p>" : "");
+    tickClock();
   }
 
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (ch) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[ch]; }); }
@@ -285,7 +335,7 @@ footer { margin-top: 28px; color: var(--muted); font-size: 0.88rem; display: gri
     return api("GET", "/api/rooms/" + id).then(render).catch(function (e) { toast(e.message); });
   }
 
-  function poll() { clearInterval(timer); timer = setInterval(function () { if (!document.hidden) refresh(); }, 3000); }
+  function poll() { clearInterval(timer); timer = setInterval(function () { if (!document.hidden) refresh(); }, 3000); setInterval(tickClock, 1000); }
 
   $("new").addEventListener("click", function () {
     $("new").disabled = true;

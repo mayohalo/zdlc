@@ -7,8 +7,13 @@
 //! ```sh
 //! zdlc-room --node $ZDLC_RPC --desk http://127.0.0.1:7900 --oracles http://127.0.0.1:7801,http://127.0.0.1:7802 \
 //!           --oracle-token-file admin.token [--dir room] [--listen 127.0.0.1:8080] [--amount 0.01] \
-//!           [--maturity 3] [--refund 24] [--block-secs 75] [--max-rooms 20] [--label testnet] [--explorer 'https://…/tx/{txid}']
+//!           [--maturity 2] [--refund 4] [--close-wait 1] [--close-wait-secs 30] [--block-secs 75] \
+//!           [--max-rooms 20] [--label testnet] [--explorer 'https://…/tx/{txid}']
 //! ```
+//!
+//! A room lasts about 5 minutes on testnet (75 s blocks): the rulings take effect at the
+//! maturity, 2 blocks after the invoice, and the refund unlocks at 4. A side whose
+//! counterparty is offline settles alone `--close-wait` blocks after the maturity.
 //!
 //! The page and its API are public and need no token: they can only run the demo
 //! escrow, at `--amount`, between the two demo nodes, with at most `--max-rooms` open at
@@ -74,6 +79,7 @@ struct Cfg {
     amount_zat: u64,
     maturity: u32,
     refund: u32,
+    close_wait: (u32, i64),
     max_rooms: usize,
     block_secs: i64,
     explorer: String,
@@ -159,7 +165,7 @@ async fn info(State(a): State<Shared>) -> Response {
     let bal = a.client.balance().await.ok();
     Json(json!({
         "network": a.cfg.label, "tip": i["tip"], "amountZat": a.cfg.amount_zat, "maturityBlocks": a.cfg.maturity,
-        "refundBlocks": a.cfg.refund, "blockSecs": a.cfg.block_secs, "explorer": a.cfg.explorer, "arbiters": a.oracles.len(),
+        "refundBlocks": a.cfg.refund, "closeWaitBlocks": a.cfg.close_wait.0, "closeWaitSecs": a.cfg.close_wait.1, "blockSecs": a.cfg.block_secs, "explorer": a.cfg.explorer, "arbiters": a.oracles.len(),
         "demoWalletZat": bal.map(|b| b.treasury_zat),
     }))
     .into_response()
@@ -336,7 +342,7 @@ async fn rule(State(a): State<Shared>, Path((id, n)): Path<(String, usize)>, Jso
 
 /// One demo party. `records`: post recovery records (the contractor puts nothing in and
 /// has no treasury to pay for one).
-async fn node(args: &[String], dir: &str, name: &str, rpc: &str, block_secs: i64, records: bool) -> Arc<Zdlc> {
+async fn node(args: &[String], dir: &str, name: &str, rpc: &str, cfg: &Cfg, records: bool) -> Arc<Zdlc> {
     let seed = secret(&format!("{dir}/{name}.seed"));
     let wallet = zdlc::wallet::Wallet::from_seed(seed);
     let storage = Arc::new(SqliteStorage::open(&format!("{dir}/{name}.db")).unwrap_or_else(|e| die(e)));
@@ -345,7 +351,8 @@ async fn node(args: &[String], dir: &str, name: &str, rpc: &str, block_secs: i64
         .chain(Arc::new(ZakuraRpc::new(rpc)))
         .storage(storage)
         .transport(Arc::new(DeskTransport::new(&arg(args, "--desk", ""), wallet.identity_key())))
-        .block_secs(block_secs)
+        .block_secs(cfg.block_secs)
+        .close_wait(cfg.close_wait.0, cfg.close_wait.1)
         .recovery_records(records);
     for o in arg(args, "--oracles", "").split(',').filter(|s| !s.is_empty()) {
         b = b.oracle(Arc::new(HttpOracle::new(o)));
@@ -374,15 +381,19 @@ async fn main() {
     let amount_zat = zat(&arg(&args, "--amount", "0.01"));
     let cfg = Cfg {
         amount_zat,
-        maturity: arg(&args, "--maturity", "3").parse().unwrap_or_else(|_| die("--maturity BLOCKS")),
-        refund: arg(&args, "--refund", "24").parse().unwrap_or_else(|_| die("--refund BLOCKS")),
+        maturity: arg(&args, "--maturity", "2").parse().unwrap_or_else(|_| die("--maturity BLOCKS")),
+        refund: arg(&args, "--refund", "4").parse().unwrap_or_else(|_| die("--refund BLOCKS")),
+        close_wait: (
+            arg(&args, "--close-wait", "1").parse().unwrap_or_else(|_| die("--close-wait BLOCKS")),
+            arg(&args, "--close-wait-secs", "30").parse().unwrap_or_else(|_| die("--close-wait-secs SECS")),
+        ),
         max_rooms: arg(&args, "--max-rooms", "20").parse().unwrap_or_else(|_| die("--max-rooms")),
         block_secs,
         explorer: arg(&args, "--explorer", ""),
         label: arg(&args, "--label", "testnet"),
     };
-    let contractor = node(&args, &dir, "contractor", &rpc, block_secs, false).await;
-    let client = node(&args, &dir, "client", &rpc, block_secs, true).await;
+    let contractor = node(&args, &dir, "contractor", &rpc, &cfg, false).await;
+    let client = node(&args, &dir, "client", &rpc, &cfg, true).await;
     // The client's node accepts nothing by itself: the visitor decides.
     println!("zdlc-room: contractor {} client {}", contractor.identity(), client.identity());
     println!("zdlc-room: fund the demo wallet (the client's treasury) at {}", client.treasury_address());

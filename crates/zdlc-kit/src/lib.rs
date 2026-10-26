@@ -72,7 +72,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 /// its share of the reserve and the funding fee.
 pub const CUSHION: u64 = zdlc::trader::CUSHION;
 /// Blocks after maturity (or after asking) a side waits for a cooperative close before
-/// settling by CET.
+/// settling by CET (the default; [`Builder::close_wait`]).
 pub const CLOSE_WAIT: u32 = 6;
 /// ...and at least this many seconds after it first saw the attestation, so a fast
 /// chain (regtest) does not outrun the counterparty.
@@ -231,6 +231,7 @@ pub struct Builder {
     auto_shield: bool,
     records: bool,
     block_secs: i64,
+    close_wait: (u32, i64),
 }
 
 impl Builder {
@@ -265,6 +266,14 @@ impl Builder {
         self.block_secs = s;
         self
     }
+    /// How long a side waits for a cooperative close before settling by CET alone:
+    /// `blocks` after maturity (or after asking), and `secs` after it first saw the
+    /// attestation. Default [`CLOSE_WAIT`] and [`CLOSE_WAIT_SECS`]. Short contracts (a
+    /// demo) need it well inside the refund height.
+    pub fn close_wait(mut self, blocks: u32, secs: i64) -> Self {
+        self.close_wait = (blocks, secs);
+        self
+    }
     /// Post a recovery record for every signed contract, paid from the treasury
     /// (default on): with it, the seed alone recovers the refund ([`Zdlc::recover`]).
     pub fn recovery_records(mut self, on: bool) -> Self {
@@ -291,6 +300,7 @@ impl Builder {
             auto_shield: self.auto_shield,
             records: self.records,
             block_secs: self.block_secs,
+            close_wait: self.close_wait,
             live: tokio::sync::Mutex::new(HashMap::new()),
             step: tokio::sync::Mutex::new(()),
             policy: std::sync::Mutex::new(None),
@@ -319,6 +329,7 @@ pub struct Zdlc {
     auto_shield: bool,
     records: bool,
     block_secs: i64,
+    close_wait: (u32, i64),
     live: tokio::sync::Mutex<HashMap<String, Contract>>,
     step: tokio::sync::Mutex<()>,
     policy: std::sync::Mutex<Option<Policy>>,
@@ -363,7 +374,7 @@ enum Attested {
 
 impl Zdlc {
     pub fn builder() -> Builder {
-        Builder { seed: None, transport: None, storage: None, oracles: vec![], chain: None, auto_shield: true, records: true, block_secs: 75 }
+        Builder { seed: None, transport: None, storage: None, oracles: vec![], chain: None, auto_shield: true, records: true, block_secs: 75, close_wait: (CLOSE_WAIT, CLOSE_WAIT_SECS) }
     }
 
     pub fn identity(&self) -> String {
@@ -1128,9 +1139,10 @@ impl Zdlc {
             self.storage.put(&rec).await?;
             self.emit(Event::Attested { id: rec.id.clone(), outcome: Self::outcome_name(&a) }).await?;
         }
-        let late = tip >= c.terms.maturity + CLOSE_WAIT
-            && rec.close_tip.is_none_or(|t| tip >= t + CLOSE_WAIT)
-            && rec.attested_at.is_some_and(|t| now_unix() - t >= CLOSE_WAIT_SECS);
+        let (wait, wait_secs) = self.close_wait;
+        let late = tip >= c.terms.maturity + wait
+            && rec.close_tip.is_none_or(|t| tip >= t + wait)
+            && rec.attested_at.is_some_and(|t| now_unix() - t >= wait_secs);
         if rec.role == Role::Offerer && rec.state == State::Funded {
             // Ask for the cooperative close.
             let anchor = self.chain.ironwood_anchor(tip).await?;
