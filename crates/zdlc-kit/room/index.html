@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>zDLC escrow room</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@500;700;800&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* The landing page's palette: amber for what is public or acting, teal for shielded. */
+:root {
+  --paper: #f3f5f8; --sheet: #ffffff; --ink: #0f1a2b; --muted: #576274; --line: #d4dbe4;
+  --key: #a8720a; --key-soft: #f5e7c8; --shield: #0c6e63; --shield-soft: #d4ece7;
+  --bad: #b3261e; --bad-soft: #f9dedc; --locked: #8a95a6; --locked-soft: #e7ebf1;
+  --f-display: "Schibsted Grotesk", "Helvetica Neue", Arial, sans-serif;
+  --f-body: "Source Serif 4", Georgia, serif;
+  --f-mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #0b111d; --sheet: #111a2a; --ink: #e5eaf2; --muted: #98a4b8; --line: #243149;
+    --key: #e3ae45; --key-soft: #3a2c10; --shield: #45c7ae; --shield-soft: #10302c;
+    --bad: #f2b8b5; --bad-soft: #3c1614; --locked: #7f8ba0; --locked-soft: #1b2638; color-scheme: dark;
+  }
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--paper); color: var(--ink); font: 400 17px/1.55 var(--f-body); padding: 0 16px 48px; -webkit-font-smoothing: antialiased; }
+.wrap { max-width: 1180px; margin: 0 auto; }
+h1, h2, h3 { font-family: var(--f-display); margin: 0; letter-spacing: -0.015em; }
+p { margin: 0; }
+a { color: var(--shield); }
+code, .mono { font-family: var(--f-mono); font-size: 0.85em; }
+.label { font: 500 0.7rem var(--f-mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+header { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; padding-block: 20px 12px; }
+.mark { font: 800 1.3rem var(--f-display); text-decoration: none; color: var(--ink); }
+.mark b { color: var(--key); }
+.net { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; font: 500 0.85rem var(--f-display); color: var(--muted); }
+.net .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--shield); display: inline-block; margin-right: 6px; }
+.intro { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 24px; align-items: end; padding-block: 12px 24px; }
+.intro h1 { font-size: clamp(1.8rem, 4vw, 2.6rem); line-height: 1.05; font-weight: 800; }
+.intro p { color: var(--muted); max-width: 70ch; margin-top: 10px; }
+button { font: 600 0.9rem var(--f-display); padding: 9px 14px; border-radius: 10px; border: 1px solid var(--line); background: var(--sheet); color: var(--ink); cursor: pointer; }
+button:hover:not(:disabled) { border-color: var(--ink); }
+button:disabled { opacity: 0.4; cursor: not-allowed; }
+button.primary { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+button.cheat { border-color: var(--bad); color: var(--bad); background: transparent; }
+button.on { background: var(--key-soft); border-color: var(--key); }
+button:focus-visible { outline: 2px solid var(--key); outline-offset: 2px; }
+.next { border-left: 4px solid var(--key); background: var(--sheet); border-radius: 0 12px 12px 0; padding: 14px 18px; margin-bottom: 18px; }
+.next b { font: 700 1rem var(--f-display); display: block; }
+.next p { color: var(--muted); font-size: 0.95rem; margin-top: 2px; }
+.grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.panel { background: var(--sheet); border: 1px solid var(--line); border-radius: 16px; padding: 18px; display: grid; gap: 12px; align-content: start; min-width: 0; }
+.panel.off { border-style: dashed; opacity: 0.85; }
+.ph { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.ph h2 { font-size: 1.15rem; }
+.pill { font: 500 0.68rem var(--f-mono); letter-spacing: 0.06em; text-transform: uppercase; padding: 2px 8px; border-radius: 4px; background: var(--locked-soft); color: var(--muted); white-space: nowrap; }
+.pill.go { background: var(--key-soft); color: var(--key); }
+.pill.ok { background: var(--shield-soft); color: var(--shield); }
+.pill.no { background: var(--bad-soft); color: var(--bad); }
+.who { font-size: 0.92rem; color: var(--muted); }
+.acts { display: flex; flex-wrap: wrap; gap: 8px; }
+.sub { font: 600 0.72rem var(--f-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); border-top: 1px dashed var(--line); padding-top: 10px; }
+.qr { display: grid; gap: 8px; justify-items: start; }
+.qr img { width: 100%; max-width: 220px; background: #fff; padding: 8px; border-radius: 8px; }
+.uri { font: 400 0.72rem var(--f-mono); overflow-wrap: anywhere; color: var(--muted); }
+.arb { display: grid; gap: 8px; padding-block: 10px; border-top: 1px solid var(--line); }
+.arb:first-of-type { border-top: 0; padding-top: 0; }
+.arb .ph h3 { font-size: 1rem; }
+.chain { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 24px; }
+.heights { display: flex; gap: 24px; flex-wrap: wrap; }
+.heights div { display: grid; }
+.heights b { font: 700 1.3rem var(--f-display); font-variant-numeric: tabular-nums; }
+.txs { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.txs li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; font-size: 0.92rem; }
+.txs li.no { border-color: var(--bad); background: var(--bad-soft); }
+.txs .t { font: 600 0.95rem var(--f-display); }
+.txs .seen { grid-column: 1 / -1; color: var(--muted); font-size: 0.88rem; }
+.txs .id { font: 400 0.72rem var(--f-mono); color: var(--muted); overflow-wrap: anywhere; grid-column: 1 / -1; }
+.log { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; font-size: 0.9rem; max-height: 320px; overflow: auto; }
+.log li { display: grid; grid-template-columns: 6rem 6.5rem minmax(0, 1fr); gap: 8px; }
+.log .tm { font: 400 0.75rem var(--f-mono); color: var(--muted); padding-top: 3px; }
+.log .wh { font: 600 0.85rem var(--f-display); }
+.empty { color: var(--muted); font-size: 0.92rem; }
+.toast { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); background: var(--ink); color: var(--paper); padding: 10px 16px; border-radius: 10px; font: 500 0.9rem var(--f-display); max-width: calc(100% - 32px); display: none; }
+footer { margin-top: 28px; color: var(--muted); font-size: 0.88rem; display: grid; gap: 6px; }
+@media (max-width: 900px) {
+  .grid, .chain, .intro { grid-template-columns: minmax(0, 1fr); }
+  .log li { grid-template-columns: 4rem minmax(0, 1fr); }
+  .log .tm { grid-row: span 2; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <a class="mark" href="/">z<b>DLC</b> escrow room</a>
+    <div class="net"><span><span class="dot"></span><span id="net">connecting…</span></span><span>block <b id="tip">–</b></span></div>
+  </header>
+
+  <div class="intro">
+    <div>
+      <h1>Play every side of a Zcash escrow.</h1>
+      <p>A contractor invoices a client; the client locks <b id="amt">…</b> in a 2-of-2; two arbiters decide whether the work was delivered. You press the buttons for all of them, including going offline and trying to cheat. Every transaction is real, on Zcash <span id="net2">testnet</span>.</p>
+    </div>
+    <button class="primary" id="new" type="button">Open a new room</button>
+  </div>
+
+  <div class="next" id="next" aria-live="polite"><b>Open a room to start.</b><p>Each room is one escrow. Its address stays valid, so you can come back to it.</p></div>
+
+  <div class="grid" id="room" hidden>
+    <section class="panel" id="p-contractor">
+      <div class="ph"><h2>Contractor</h2><span class="pill" id="s-contractor">–</span></div>
+      <p class="who">Did the work. Is paid the escrow if the arbiters rule "delivered".</p>
+      <div class="sub">Behave badly</div>
+      <div class="acts">
+        <button type="button" data-hold="contractor">Go offline</button>
+        <button type="button" class="cheat" data-forge="contractor" title="Completes the 'delivered' payout with made-up oracle signatures and broadcasts it">Pay myself, forging the arbiters</button>
+      </div>
+      <p class="empty" id="r-contractor"></p>
+    </section>
+
+    <section class="panel" id="p-client">
+      <div class="ph"><h2>Client</h2><span class="pill" id="s-client">–</span></div>
+      <p class="who">Pays into the escrow. Gets it back on "not delivered", or by the timed refund.</p>
+      <div class="acts" id="accept-acts">
+        <button type="button" class="primary" data-accept="treasury">Accept · fund from the demo wallet</button>
+        <button type="button" data-accept="deposit">Accept · pay with my wallet</button>
+      </div>
+      <div class="qr" id="qr" hidden>
+        <span class="label">Scan with a Zcash testnet wallet</span>
+        <img id="qr-img" alt="Deposit link as a QR code">
+        <span class="uri" id="uri"></span>
+        <p class="empty">The payment comes from your shielded balance. The client's node funds the escrow from it once it is mined.</p>
+      </div>
+      <div class="sub">Behave badly</div>
+      <div class="acts">
+        <button type="button" data-hold="client">Go offline</button>
+        <button type="button" class="cheat" data-refund="client" title="Broadcasts the time-locked refund now">Take my money back now</button>
+      </div>
+      <p class="empty" id="r-client"></p>
+    </section>
+
+    <section class="panel">
+      <div class="ph"><h2>Arbiters</h2><span class="pill">2 of 2 must agree</span></div>
+      <p class="who" id="question">–</p>
+      <div id="arbiters"></div>
+      <p class="empty">Staying silent is an option too: with no ruling, only the timed refund can ever spend the escrow.</p>
+    </section>
+
+    <section class="panel chain">
+      <div style="display:grid;gap:14px;align-content:start">
+        <div class="ph"><h2>On chain</h2><span class="label">what anyone can see</span></div>
+        <div class="heights">
+          <div><span class="label">Tip</span><b id="h-tip">–</b></div>
+          <div><span class="label">Rulings count from</span><b id="h-mat">–</b></div>
+          <div><span class="label">Refund valid at</span><b id="h-ref">–</b></div>
+        </div>
+        <ul class="txs" id="txs"><li class="empty" style="border:0;padding:0">Nothing yet: the contract is only messages between the two nodes until the escrow is funded.</li></ul>
+      </div>
+      <div style="display:grid;gap:10px;align-content:start">
+        <div class="ph"><h2>What happened</h2></div>
+        <ol class="log" id="log"></ol>
+      </div>
+    </section>
+  </div>
+
+  <footer>
+    <p>Both parties run as zDLC nodes on this server so you can play them; a real user runs their own. Each payout was pre-signed before any money moved, and the arbiters' signatures only choose which one becomes valid.</p>
+    <p>Demo funds are testnet coins with no value. Not audited; do not use zDLC for real money yet.</p>
+  </footer>
+</div>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var info = null, room = null, id = (location.pathname.match(/^\/r\/([0-9a-f]+)/) || [])[1] || null;
+  var timer = null;
+
+  function zec(z) { return (z / 1e8).toFixed(8).replace(/0+$/, "").replace(/\.$/, "") + " ZEC"; }
+  function toast(m) { var t = $("toast"); t.textContent = m; t.style.display = "block"; clearTimeout(t._h); t._h = setTimeout(function () { t.style.display = "none"; }, 5000); }
+  function api(method, path, body) {
+    return fetch(path, { method: method, headers: body ? { "content-type": "application/json" } : {}, body: body ? JSON.stringify(body) : undefined })
+      .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || r.statusText); return j; }); });
+  }
+  function act(p) { return p.then(refresh).catch(function (e) { toast(e.message); }); }
+  function mins(blocks) { if (!info || blocks <= 0) return ""; var m = Math.ceil(blocks * info.blockSecs / 60); return " (~" + m + " min)"; }
+  function link(txid) { return info && info.explorer && txid ? info.explorer.replace("{txid}", txid) : null; }
+  function state(v) { return v ? v.state.replace("_", " ") : "–"; }
+  var live = { signed: 1, funded: 1, closing: 1 };
+
+  function nextStep(r) {
+    var c = r.client, k = r.contractor, tip = r.tip;
+    if (!c) return ["Waiting for the invoice to reach the client.", "The contractor's node sent it through the desk's mailbox."];
+    var s = (k && k.settlement) || c.settlement;
+    if (s) {
+      var how = { close: "a cooperative close into shielded notes", cet: "a pre-signed payout, completed by the arbiters' signatures", refund: "the timed refund", counterparty: "the other side's transaction" }[s.how] || s.how;
+      return ["Settled by " + how + (s.height ? ", block " + s.height : "") + ".", "Open a new room to try another path: disagreeing arbiters, a party that goes offline, or a cheat."];
+    }
+    if (c.state === "incoming") return ["Client: accept the invoice.", "Fund it from the demo wallet, or pay the deposit link with your own testnet wallet."];
+    if (c.state === "awaiting_deposit" || c.state === "refreshing") return ["Scan the QR with a Zcash testnet wallet.", "Once the payment is mined (about one block), the client's node funds the escrow from it."];
+    if (c.state === "accepted" || (c.state === "signed" && !c.fundingTxid)) return ["The parties are exchanging signatures.", "Every payout and the refund are signed before the funding transaction is."];
+    if (c.state === "failed" || c.state === "declined") return ["This room stopped: " + (c.note || c.state) + ".", "Open a new room."];
+    if (c.state === "signed") return ["The escrow's funding transaction is out; waiting for a block" + mins(1) + ".", "Meanwhile, try the cheat buttons: the chain refuses both."];
+    var a = r.arbiters || [], ruled = a.filter(Boolean);
+    if (ruled.length === 0) return ["The escrow is funded. Arbiters: rule.", "Or try a cheat first. Or stay silent and let the refund settle it at block " + k.refundHeight + mins(k.refundHeight - tip) + "."];
+    if (ruled.length < a.length) return ["One arbiter has ruled; waiting for the other.", "One signature alone completes no payout."];
+    if (ruled.some(function (o) { return o !== ruled[0]; })) return ["The arbiters disagree: no payout can ever be completed.", "The timed refund settles it at block " + k.refundHeight + mins(k.refundHeight - tip) + ". Either side's node sends it."];
+    if (tip < k.maturity) return ["Both ruled “" + ruled[0] + "”; the contract matures at block " + k.maturity + mins(k.maturity - tip) + ".", ""];
+    if (k.held && c.held) return ["Both parties are offline.", "Bring one back: it settles alone with the pre-signed payout."];
+    if (k.held) return ["The contractor is offline, so nobody asks for the cooperative close.", "After 6 blocks" + mins(6) + " the client's node completes the pre-signed payout with the arbiters' signatures and settles alone."];
+    if (c.held) return ["The client is offline and ignores the close request.", "After 6 blocks" + mins(6) + " the contractor's node completes the pre-signed payout alone. Nobody's permission is needed."];
+    return ["Both ruled “" + ruled[0] + "”: the contractor asks for a cooperative close.", "The client's node checks it pays exactly the attested outcome, co-signs, and it goes out to shielded addresses."];
+  }
+
+  function render(r) {
+    room = r;
+    $("room").hidden = false;
+    var k = r.contractor, c = r.client, tip = r.tip;
+    $("tip").textContent = $("h-tip").textContent = tip;
+    ["contractor", "client"].forEach(function (w) {
+      var v = r[w];
+      var pill = $("s-" + w);
+      pill.textContent = v ? (v.held ? "offline" : state(v)) : "–";
+      pill.className = "pill" + (v && v.held ? " no" : v && v.state === "settled" ? " ok" : v ? " go" : "");
+      $("p-" + w).classList.toggle("off", !!(v && v.held));
+      var hb = document.querySelector('[data-hold="' + w + '"]');
+      hb.textContent = v && v.held ? "Come back online" : "Go offline";
+      hb.classList.toggle("on", !!(v && v.held));
+      hb.disabled = !v || !live[v.state];
+    });
+    document.querySelector("[data-forge]").disabled = !k || !live[k.state];
+    document.querySelector("[data-refund]").disabled = !c || !live[c.state];
+    $("accept-acts").hidden = !(c && c.state === "incoming");
+    var dep = c && c.deposit && (c.state === "awaiting_deposit" || c.state === "refreshing");
+    $("qr").hidden = !dep;
+    if (dep && $("uri").textContent !== c.deposit.uri) { $("uri").textContent = c.deposit.uri; $("qr-img").src = "/api/rooms/" + r.id + "/qr.svg?u=" + encodeURIComponent(c.deposit.uri.slice(-12)); }
+    var q = (k && k.summary && k.summary.question) || "";
+    $("question").textContent = q ? "“" + q + "”" : "–";
+    $("h-mat").textContent = k && k.maturity ? k.maturity : "–";
+    $("h-ref").textContent = k && k.refundHeight ? k.refundHeight : "–";
+
+    var settled = (k && k.state === "settled") || (c && c.state === "settled");
+    var funded = c && live[c.state];
+    $("arbiters").innerHTML = (r.arbiters || []).map(function (o, i) {
+      var dis = o || settled || !funded ? " disabled" : "";
+      return '<div class="arb"><div class="ph"><h3>Arbiter ' + (i + 1) + '</h3><span class="pill' + (o ? " go" : "") + '">' + (o ? "ruled: " + o : "silent") + '</span></div>' +
+        '<div class="acts"><button type="button" data-rule="' + i + '" data-o="delivered"' + dis + '>Delivered</button><button type="button" data-rule="' + i + '" data-o="not delivered"' + dis + '>Not delivered</button></div></div>';
+    }).join("");
+
+    var txs = [];
+    var fund = (c && c.fundingTxid) || (k && k.fundingTxid);
+    if (fund && funded !== undefined) txs.push({ t: "Funding", txid: fund, seen: (c && c.funding === "deposit" ? "Spends shielded notes (sender hidden)" : "Spends the demo wallet's transparent coins") + " → one 2-of-2 output of " + zec(info.amountZat) + ". The terms are not on chain." });
+    (r.log || []).forEach(function (e) {
+      if (e.what && e.what.txid) txs.push({ t: e.what.accepted ? "Accepted attempt" : "Refused by the network", txid: e.what.txid, no: !e.what.accepted, seen: e.what.text });
+    });
+    var s = (k && k.settlement) || (c && c.settlement);
+    if (s && s.txid) txs.push({ t: "Settlement", txid: s.txid, seen: s.how === "close" ? "Spends the 2-of-2 → shielded outputs. Who received what is hidden." : s.how === "refund" ? "Spends the 2-of-2 → the collateral back to a transparent address, then shielded by the wallet." : "Spends the 2-of-2 → the payout to a transparent address, then shielded by the winner's wallet." });
+    $("txs").innerHTML = txs.length ? txs.map(function (x) {
+      var l = link(x.txid);
+      return '<li' + (x.no ? ' class="no"' : "") + '><span class="t">' + x.t + "</span>" + (l ? '<a href="' + l + '" target="_blank" rel="noopener">explorer</a>' : "<span></span>") +
+        '<span class="seen">' + esc(x.seen) + '</span><span class="id">' + x.txid + "</span></li>";
+    }).join("") : '<li class="empty" style="border:0;padding:0">Nothing yet: the contract is only messages between the two nodes until the escrow is funded.</li>';
+
+    $("log").innerHTML = (r.log || []).slice().reverse().map(function (e) {
+      var d = new Date(e.t * 1000);
+      return '<li><span class="tm">' + d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }) + '</span><span class="wh">' + esc(e.who) + "</span><span>" + esc(typeof e.what === "string" ? e.what : e.what.text) + "</span></li>";
+    }).join("") || '<li class="empty">Nothing yet.</li>';
+    ["contractor", "client"].forEach(function (w) {
+      var v = r[w];
+      $("r-" + w).textContent = v && v.note && v.state !== "settled" ? "Node note: " + v.note : v && v.settlement ? "Settled: " + v.settlement.how : "";
+    });
+    var n = nextStep(r);
+    $("next").innerHTML = "<b>" + esc(n[0]) + "</b>" + (n[1] ? "<p>" + esc(n[1]) + "</p>" : "");
+  }
+
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (ch) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[ch]; }); }
+
+  function refresh() {
+    if (!id) return Promise.resolve();
+    return api("GET", "/api/rooms/" + id).then(render).catch(function (e) { toast(e.message); });
+  }
+
+  function poll() { clearInterval(timer); timer = setInterval(function () { if (!document.hidden) refresh(); }, 3000); }
+
+  $("new").addEventListener("click", function () {
+    $("new").disabled = true;
+    api("POST", "/api/rooms", {}).then(function (j) {
+      id = j.id; history.pushState(null, "", "/r/" + id); return refresh();
+    }).catch(function (e) { toast(e.message); }).then(function () { $("new").disabled = false; });
+  });
+  document.addEventListener("click", function (e) {
+    var b = e.target.closest("button");
+    if (!b || !id || b.disabled) return;
+    if (b.dataset.accept) act(api("POST", "/api/rooms/" + id + "/accept", { funding: b.dataset.accept }));
+    else if (b.dataset.hold) act(api("POST", "/api/rooms/" + id + "/" + b.dataset.hold + "/hold", { held: !b.classList.contains("on") }));
+    else if (b.dataset.forge) act(api("POST", "/api/rooms/" + id + "/contractor/attempt", { action: "forge" }).then(function (v) { toast(v.accepted ? "Accepted?!" : "Refused by the network: " + v.error); }));
+    else if (b.dataset.refund) act(api("POST", "/api/rooms/" + id + "/client/attempt", { action: "refund" }).then(function (v) { toast(v.accepted ? "Refund sent: its height has passed." : "Refused by the network: " + v.error); }));
+    else if (b.dataset.rule) act(api("POST", "/api/rooms/" + id + "/arbiters/" + b.dataset.rule, { outcome: b.dataset.o }));
+  });
+  window.addEventListener("popstate", function () { id = (location.pathname.match(/^\/r\/([0-9a-f]+)/) || [])[1] || null; refresh(); });
+
+  api("GET", "/api/info").then(function (i) {
+    info = i;
+    var name = i.network;
+    $("net").textContent = "Zcash " + name; $("net2").textContent = name; $("tip").textContent = i.tip; $("amt").textContent = zec(i.amountZat);
+    refresh(); poll();
+  }).catch(function (e) { $("net").textContent = "offline"; toast(e.message); });
+})();
+</script>
+</body>
+</html>

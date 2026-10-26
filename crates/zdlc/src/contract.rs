@@ -1298,6 +1298,34 @@ impl Contract {
         Err(Error::Build(format!("no CET for {outcome}")))
     }
 
+    /// The CET for `outcome` completed with `scalars` whatever they are, assembled by hand
+    /// so nothing checks the counterparty's signature before broadcast. With scalars that
+    /// are not the oracles' attestation it is a forgery, and the network's script check
+    /// refuses it: a demonstration of what the adaptor signatures enforce.
+    pub fn cet_unchecked(&self, outcome: &str, scalars: &[secp256k1_zkp::SecretKey], height: u32) -> Result<tx::Final> {
+        let s = sum_scalars(scalars)?;
+        for (i, (ct, pczt, _, era)) in self.txs.cets.iter().enumerate() {
+            if self.in_era(*era, height) && ct.unlocks[0].outcome.as_deref() == Some(outcome) {
+                let theirs = adaptor::decrypt(&self.their_adaptors[i][0], &s)?.signature;
+                let mine = ecdsa::sign(Message::from_digest(tx::sighash(pczt, 0)?), &self.funding_sk);
+                let (a, b) = if self.is_offerer { (mine, theirs) } else { (theirs, mine) };
+                // OP_0 <offerer sig> <accepter sig> <redeem script>: CHECKMULTISIG's order.
+                let mut sig_script = vec![0x00];
+                for sig in [a, b] {
+                    let mut d = sig.serialize_der().to_vec();
+                    d.push(0x01); // SIGHASH_ALL
+                    sig_script.push(d.len() as u8);
+                    sig_script.extend(d);
+                }
+                let redeem = zcash_script::script::Evaluable::to_bytes(&self.txs.redeem);
+                sig_script.push(redeem.len() as u8);
+                sig_script.extend(redeem);
+                return tx::extract_with_script_sigs(pczt.clone(), vec![sig_script]);
+            }
+        }
+        Err(Error::Build(format!("no CET for {outcome}")))
+    }
+
     /// The cooperative close: the funding output straight to both parties' Ironwood
     /// addresses, the fee split evenly (all of it from the only payee if one side gets
     /// nothing). Both sides derive the same amounts.

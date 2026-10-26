@@ -184,6 +184,10 @@ pub struct Record {
     pub record_txid: Option<String>,
     #[serde(default)]
     pub note: Option<String>,
+    /// Held: this node acts as if offline for the contract. It ignores its messages and
+    /// takes no step on it until released (demos, maintenance).
+    #[serde(default)]
+    pub held: bool,
 }
 
 impl Record {
@@ -194,7 +198,7 @@ impl Record {
             "template": self.template, "summary": self.template.summary(self.role), "eventId": self.event_id,
             "funding": self.funding, "deposit": self.deposit, "fundingTxid": self.funding_txid,
             "maturity": self.maturity, "refundHeight": self.refund_height, "attested": self.attested,
-            "settlement": self.settlement, "shieldedPayout": self.shielded_payout, "recordTxid": self.record_txid, "note": self.note,
+            "settlement": self.settlement, "shieldedPayout": self.shielded_payout, "recordTxid": self.record_txid, "note": self.note, "held": self.held,
         })
     }
 }
@@ -562,6 +566,7 @@ impl Zdlc {
             shielded_payout: None,
             record_txid: None,
             note: None,
+            held: false,
         };
         self.send_offer(&mut rec).await?;
         self.emit(Event::Offered { id: id.clone(), incoming: false, counterparty: counterparty.into(), summary: rec.template.summary(Role::Offerer) })
@@ -637,6 +642,7 @@ impl Zdlc {
                     shielded_payout: None,
                     record_txid: None,
                     note: None,
+                    held: false,
                 };
                 self.storage.put(&rec).await?;
                 self.emit(Event::Offered { id: thread.into(), incoming: true, counterparty: from.into(), summary: template.summary(Role::Accepter) })
@@ -728,7 +734,9 @@ impl Zdlc {
     async fn do_accept(&self, mut rec: Record) -> Result<()> {
         let offer = wire::offer_from_wire(rec.offer.as_ref().ok_or(Error::Usage("no offer".into()))?)?;
         let tip = self.chain.height().await?;
-        if offer.terms.sign_height + SIGN_SLACK < tip + 1 {
+        // Stale: its sign height is too old, or its maturity has come while this side
+        // decided or waited for a deposit.
+        if offer.terms.sign_height + SIGN_SLACK < tip + 1 || tip + 1 >= offer.terms.maturity {
             rec.state = State::Refreshing;
             self.storage.put(&rec).await?;
             return self.transport.send(&rec.counterparty, &rec.id, "refresh", json!({})).await;
@@ -788,7 +796,7 @@ impl Zdlc {
         let me = self.party_of(&rec)?;
         let (sign, c) = match me.sign(&self.p, tip, &offer, &accept) {
             Ok(x) => x,
-            Err(e) if e.to_string().contains("sign height") => {
+            Err(e) if e.to_string().contains("sign height") || e.to_string().contains("tip < maturity") => {
                 // The accept came too late for these heights: offer again.
                 return self.send_offer(&mut rec).await;
             }
@@ -928,6 +936,60 @@ impl Zdlc {
         let c = self.party_of(rec)?.restore(&self.p, rec.role == Role::Offerer, &offer, &accept, &sign)?;
         live.insert(rec.id.clone(), c);
         Ok(())
+    }
+
+    /// Holds or releases a contract: a held contract's messages are dropped and the loop
+    /// skips it, as if this node were offline for it.
+    pub async fn hold(&self, id: &str, held: bool) -> Result<()> {
+        let _g = self.step.lock().await;
+        let mut rec = self.storage.get(id).await?.ok_or(Error::Usage(format!("no contract {id}")))?;
+        rec.held = held;
+        self.storage.put(&rec).await
+    }
+
+    /// Tries to spend a funded contract against its terms and reports what the chain
+    /// said. `refund`: the refund, which the chain refuses before the refund height.
+    /// `forge`: the payout best for this side, completed with made-up oracle signatures,
+    /// which the chain refuses at any height. A demo of what the 2-of-2 enforces.
+    pub async fn attempt(&self, id: &str, action: &str) -> Result<Value> {
+        let rec = self.storage.get(id).await?.ok_or(Error::Usage(format!("no contract {id}")))?;
+        if !matches!(rec.state, State::Signed | State::Funded | State::Closing) {
+            return Err(Error::Usage("only a funded contract can be spent".into()));
+        }
+        self.contract_of(&rec).await?;
+        let tip = self.chain.height().await?;
+        let f = {
+            let live = self.live.lock().await;
+            let c = live.get(&rec.id).expect("loaded");
+            match action {
+                "refund" => c.refund()?,
+                "forge" => {
+                    let zdlc::contract::Payouts::Enumerated(outs) = &c.terms.payouts else {
+                        return Err(Error::Usage("forge: an outcome contract only".into()));
+                    };
+                    // The offerer's payout per outcome: the offerer wants the most, the
+                    // accepter the least.
+                    let best = if rec.role == Role::Offerer { outs.iter().max_by_key(|o| o.1) } else { outs.iter().min_by_key(|o| o.1) };
+                    let outcome = best.ok_or(Error::Usage("no outcomes".into()))?.0.clone();
+                    let fake: Vec<secp256k1_zkp::SecretKey> = (0..c.terms.event.oracles())
+                        .map(|_| loop {
+                            let mut b = [0u8; 32];
+                            rand10::fill(&mut b);
+                            if let Ok(k) = secp256k1_zkp::SecretKey::from_slice(&b) {
+                                break k;
+                            }
+                        })
+                        .collect();
+                    c.cet_unchecked(&outcome, &fake, tip + 1)?
+                }
+                _ => return Err(Error::Usage(format!("unknown attempt {action}"))),
+            }
+        };
+        let txid = txid_hex(&f.txid);
+        Ok(match self.chain.send(&f.raw).await {
+            Ok(()) => json!({"action": action, "txid": txid, "accepted": true, "tip": tip}),
+            Err(e) => json!({"action": action, "txid": txid, "accepted": false, "tip": tip, "error": e.to_string()}),
+        })
     }
 
     // ---- Settlement ---------------------------------------------------------------------
@@ -1154,6 +1216,10 @@ impl Zdlc {
         if rec.counterparty != env.from {
             return Ok(());
         }
+        if rec.held {
+            eprintln!("zdlc: {} on {} dropped (held)", env.kind, rec.id);
+            return Ok(());
+        }
         match (env.kind.as_str(), rec.role, rec.state) {
             ("accept", Role::Offerer, State::Offered) => self.on_accept(rec, &env.body).await,
             ("refresh", Role::Offerer, State::Offered) => {
@@ -1192,6 +1258,9 @@ impl Zdlc {
             }
         }
         for rec in self.storage.list().await? {
+            if rec.held {
+                continue;
+            }
             let id = rec.id.clone();
             let r = match rec.state {
                 State::AwaitingDeposit => self.poll_deposit(rec).await,

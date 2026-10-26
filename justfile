@@ -15,6 +15,10 @@ status:
 demo KIND="escrow":
     scripts/demo.sh {{KIND}}
 
+# The interactive escrow room on the stack: http://127.0.0.1:8080/
+room:
+    scripts/room.sh
+
 # zdlc-cli against alice's or bob's node, e.g. `just a contracts`.
 a *ARGS:
     bash -c 'source .dev/env && za "$@"' -- {{ARGS}}

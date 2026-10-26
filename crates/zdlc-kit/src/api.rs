@@ -56,6 +56,8 @@ pub fn router(z: Arc<Zdlc>, token: String) -> Router {
         .route("/v1/contracts/{id}/accept", post(accept))
         .route("/v1/contracts/{id}/decline", post(decline))
         .route("/v1/contracts/{id}/qr.svg", get(qr))
+        .route("/v1/contracts/{id}/hold", post(hold))
+        .route("/v1/contracts/{id}/attempt", post(attempt))
         .route("/v1/events", get(events))
         .route("/v1/withdraw", post(withdraw))
         .route("/v1/recover", post(recover))
@@ -140,6 +142,36 @@ async fn decline(State(a): State<App>, h: HeaderMap, Path(id): Path<String>) -> 
     }
     match a.z.decline(&id).await {
         Ok(()) => ok(json!({"id": id})),
+        Err(e) => bad(e),
+    }
+}
+
+#[derive(Deserialize)]
+struct HoldReq {
+    held: bool,
+}
+
+async fn hold(State(a): State<App>, h: HeaderMap, Path(id): Path<String>, Json(r): Json<HoldReq>) -> Response {
+    if let Err(r) = authed(&a, &h) {
+        return r;
+    }
+    match a.z.hold(&id, r.held).await {
+        Ok(()) => ok(json!({"id": id, "held": r.held})),
+        Err(e) => bad(e),
+    }
+}
+
+#[derive(Deserialize)]
+struct AttemptReq {
+    action: String,
+}
+
+async fn attempt(State(a): State<App>, h: HeaderMap, Path(id): Path<String>, Json(r): Json<AttemptReq>) -> Response {
+    if let Err(r) = authed(&a, &h) {
+        return r;
+    }
+    match a.z.attempt(&id, &r.action).await {
+        Ok(v) => ok(v),
         Err(e) => bad(e),
     }
 }

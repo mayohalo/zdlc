@@ -13,6 +13,7 @@ zdlc is oracle-settled contracts on Zcash, entered and exited through Ironwood. 
 | [docs/beneficiaries.md](docs/beneficiaries.md) | Multi-beneficiary payouts: splits, per-outcome overrides, multi-output CETs and closes |
 | [site/index.html](site/index.html) | The landing page: open it in a browser |
 | [docs/kit.md](docs/kit.md) | Developer kit: the `Zdlc` object, templates, `zdlc-node` REST API, `zdlc-cli`, `@zdlc/client` |
+| [docs/room.md](docs/room.md) | The escrow room: an interactive page where a visitor plays the client, the contractor and both arbiters, goes offline and tries to cheat (`just room`) |
 | [docs/funding.md](docs/funding.md) | Shielded funding by QR: deposit links (path A), legs paid from any wallet (path B), auto-shield and withdraw |
 
 ## Demo
