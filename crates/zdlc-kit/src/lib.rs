@@ -169,6 +169,9 @@ pub struct Record {
     /// Unix time this node first saw the attestation.
     #[serde(default)]
     pub attested_at: Option<i64>,
+    /// Tip when this node first saw the attestation.
+    #[serde(default)]
+    pub attested_height: Option<u32>,
     /// Tip the close was built at (offerer), when asked.
     #[serde(default)]
     pub close_tip: Option<u32>,
@@ -571,6 +574,7 @@ impl Zdlc {
             refund_height: None,
             attested: None,
             attested_at: None,
+            attested_height: None,
             close_tip: None,
             pending: None,
             settlement: None,
@@ -647,6 +651,7 @@ impl Zdlc {
                     funding_txid: None,
                     attested: None,
                     attested_at: None,
+                    attested_height: None,
                     close_tip: None,
                     pending: None,
                     settlement: None,
@@ -1086,10 +1091,8 @@ impl Zdlc {
             if let Some(Settlement { how, txid: Some(t), .. }) = &rec.pending {
                 known.push((how.clone(), txid_from_hex(t)?));
             }
-            if tip >= c.terms.maturity {
-                if let Some(a) = self.attested(&rec, c).await.ok().flatten() {
-                    known.push(("cet".into(), self.cet(c, &a, tip)?.txid));
-                }
+            if let Some(a) = self.attested(&rec, c).await.ok().flatten() {
+                known.push(("cet".into(), self.cet(c, &a, tip)?.txid));
             }
             known.push(("refund".into(), c.refund()?.txid));
             let mut s = Settlement { how: "counterparty".into(), txid: None, height: None };
@@ -1129,18 +1132,19 @@ impl Zdlc {
             drop(live);
             return self.broadcast(&mut rec, "refund", &f).await;
         }
-        if tip < c.terms.maturity {
-            return Ok(());
-        }
+        // Settle as soon as every oracle has attested: neither the close nor a CET is
+        // time-locked, and an arbiter may rule before the maturity height.
         let Some(a) = self.attested(&rec, c).await? else { return Ok(()) };
         if rec.attested.is_none() {
             rec.attested = Some(Self::outcome_name(&a));
             rec.attested_at = Some(now_unix());
+            rec.attested_height = Some(tip);
             self.storage.put(&rec).await?;
             self.emit(Event::Attested { id: rec.id.clone(), outcome: Self::outcome_name(&a) }).await?;
         }
         let (wait, wait_secs) = self.close_wait;
-        let late = tip >= c.terms.maturity + wait
+        let seen = rec.attested_height.unwrap_or(c.terms.maturity);
+        let late = tip >= seen + wait
             && rec.close_tip.is_none_or(|t| tip >= t + wait)
             && rec.attested_at.is_some_and(|t| now_unix() - t >= wait_secs);
         if rec.role == Role::Offerer && rec.state == State::Funded {

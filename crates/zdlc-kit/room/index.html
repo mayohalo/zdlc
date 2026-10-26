@@ -52,7 +52,7 @@ button:focus-visible { outline: 2px solid var(--key); outline-offset: 2px; }
 .next { border-left: 4px solid var(--key); background: var(--sheet); border-radius: 0 12px 12px 0; padding: 14px 18px; margin-bottom: 18px; }
 .next b { font: 700 1rem var(--f-display); display: block; }
 .next p { color: var(--muted); font-size: 0.95rem; margin-top: 2px; }
-.clock { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 20px; align-items: center; background: var(--sheet); border: 1px solid var(--line); border-radius: 14px; padding: 14px 18px; margin-bottom: 18px; }
+.clock { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 20px; align-items: center; background: var(--sheet); border: 1px solid var(--line); border-radius: 14px; padding: 14px 18px; margin-bottom: 18px; }
 .clock .ms { display: grid; gap: 2px; }
 .clock .ms:last-child { text-align: right; }
 .clock .ms b { font: 800 1.7rem/1.1 var(--f-display); font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
@@ -60,8 +60,7 @@ button:focus-visible { outline: 2px solid var(--key); outline-offset: 2px; }
 .clock .sub2 { font: 400 0.75rem var(--f-mono); color: var(--muted); }
 .clock .bar { position: relative; height: 8px; border-radius: 999px; background: var(--locked-soft); }
 .clock .bar i { position: absolute; inset: 0 auto 0 0; width: 0; border-radius: 999px; background: var(--key); transition: width 1s linear; }
-.clock .bar span { position: absolute; top: -5px; width: 2px; height: 18px; background: var(--ink); opacity: 0.5; }
-@media (max-width: 640px) { .clock { grid-template-columns: 1fr 1fr; } .clock .bar { grid-column: 1 / -1; grid-row: 2; } }
+@media (max-width: 640px) { .clock { grid-template-columns: minmax(0, 1fr); } .clock .ms:last-child { text-align: left; } }
 .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
 .panel { background: var(--sheet); border: 1px solid var(--line); border-radius: 16px; padding: 18px; display: grid; gap: 12px; align-content: start; min-width: 0; }
 .panel.off { border-style: dashed; opacity: 0.85; }
@@ -122,8 +121,7 @@ footer { margin-top: 28px; color: var(--muted); font-size: 0.88rem; display: gri
   <div class="next" id="next" aria-live="polite"><b>Open a room to start.</b><p>Each room is one escrow. Its address stays valid, so you can come back to it.</p></div>
 
   <div class="clock" id="clock" hidden>
-    <div class="ms" id="c-mat"><span class="label">Rulings take effect</span><b>–</b><span class="sub2">–</span></div>
-    <div class="bar" aria-hidden="true"><i id="c-fill"></i><span id="c-mark"></span></div>
+    <div class="bar" aria-hidden="true"><i id="c-fill"></i></div>
     <div class="ms" id="c-ref"><span class="label">Contract ends · refund unlocks</span><b>–</b><span class="sub2">–</span></div>
   </div>
 
@@ -172,7 +170,6 @@ footer { margin-top: 28px; color: var(--muted); font-size: 0.88rem; display: gri
         <div class="ph"><h2>On chain</h2><span class="label">what anyone can see</span></div>
         <div class="heights">
           <div><span class="label">Tip</span><b id="h-tip">–</b></div>
-          <div><span class="label">Rulings count from</span><b id="h-mat">–</b></div>
           <div><span class="label">Refund valid at</span><b id="h-ref">–</b></div>
         </div>
         <ul class="txs" id="txs"><li class="empty" style="border:0;padding:0">Nothing yet: the contract is only messages between the two nodes until the escrow is funded.</li></ul>
@@ -224,7 +221,7 @@ footer { margin-top: 28px; color: var(--muted); font-size: 0.88rem; display: gri
     $("clock").hidden = false;
     var settled = k.state === "settled" || (room.client && room.client.state === "settled");
     var start = k.refundHeight - info.refundBlocks;
-    [["c-mat", k.maturity], ["c-ref", k.refundHeight]].forEach(function (x) {
+    [["c-ref", k.refundHeight]].forEach(function (x) {
       var el = $(x[0]), n = x[1] - room.tip, e = eta(x[1]);
       var done = n <= 0;
       el.classList.toggle("done", done || settled);
@@ -234,7 +231,6 @@ footer { margin-top: 28px; color: var(--muted); font-size: 0.88rem; display: gri
     var span = Math.max(1, (k.refundHeight - start) * info.blockSecs);
     var gone = settled ? span : span - (eta(k.refundHeight) || 0);
     $("c-fill").style.width = Math.min(100, Math.max(0, 100 * gone / span)) + "%";
-    $("c-mark").style.left = (100 * (k.maturity - start) / (k.refundHeight - start)) + "%";
   }
 
   function link(txid) { return info && info.explorer && txid ? info.explorer.replace("{txid}", txid) : null; }
@@ -258,10 +254,9 @@ footer { margin-top: 28px; color: var(--muted); font-size: 0.88rem; display: gri
     if (ruled.length === 0) return ["The escrow is funded. Arbiters: rule.", "Or try a cheat first. Or stay silent and let the refund settle it at block " + k.refundHeight + mins(k.refundHeight - tip) + "."];
     if (ruled.length < a.length) return ["One arbiter has ruled; waiting for the other.", "One signature alone completes no payout."];
     if (ruled.some(function (o) { return o !== ruled[0]; })) return ["The arbiters disagree: no payout can ever be completed.", "The timed refund settles it at block " + k.refundHeight + mins(k.refundHeight - tip) + ". Either side's node sends it."];
-    if (tip < k.maturity) return ["Both ruled “" + ruled[0] + "”; the contract matures at block " + k.maturity + mins(k.maturity - tip) + ".", ""];
     if (k.held && c.held) return ["Both parties are offline.", "Bring one back: it settles alone with the pre-signed payout."];
-    if (k.held) return ["The contractor is offline, so nobody asks for the cooperative close.", "About " + waitText() + " after the rulings take effect, the client's node completes the pre-signed payout with the arbiters' signatures and settles alone."];
-    if (c.held) return ["The client is offline and ignores the close request.", "About " + waitText() + " after the rulings take effect, the contractor's node completes the pre-signed payout alone. Nobody's permission is needed."];
+    if (k.held) return ["The contractor is offline, so nobody asks for the cooperative close.", "About " + waitText() + " after both rulings, the client's node completes the pre-signed payout with the arbiters' signatures and settles alone."];
+    if (c.held) return ["The client is offline and ignores the close request.", "About " + waitText() + " after both rulings, the contractor's node completes the pre-signed payout alone. Nobody's permission is needed."];
     return ["Both ruled “" + ruled[0] + "”: the contractor asks for a cooperative close.", "The client's node checks it pays exactly the attested outcome, co-signs, and it goes out to shielded addresses."];
   }
 
@@ -290,7 +285,6 @@ footer { margin-top: 28px; color: var(--muted); font-size: 0.88rem; display: gri
     if (dep && $("uri").textContent !== c.deposit.uri) { $("uri").textContent = c.deposit.uri; $("qr-img").src = "/api/rooms/" + r.id + "/qr.svg?u=" + encodeURIComponent(c.deposit.uri.slice(-12)); }
     var q = (k && k.summary && k.summary.question) || "";
     $("question").textContent = q ? "“" + q + "”" : "–";
-    $("h-mat").textContent = k && k.maturity ? k.maturity : "–";
     $("h-ref").textContent = k && k.refundHeight ? k.refundHeight : "–";
 
     var settled = (k && k.state === "settled") || (c && c.state === "settled");
@@ -304,8 +298,9 @@ footer { margin-top: 28px; color: var(--muted); font-size: 0.88rem; display: gri
     var txs = [];
     var fund = (c && c.fundingTxid) || (k && k.fundingTxid);
     if (fund && funded !== undefined) txs.push({ t: "Funding", txid: fund, seen: (c && c.funding === "deposit" ? "Spends shielded notes (sender hidden)" : "Spends the demo wallet's transparent coins") + " → one 2-of-2 output of " + zec(info.amountZat) + ". The terms are not on chain." });
+    var seenTx = {};
     (r.log || []).forEach(function (e) {
-      if (e.what && e.what.txid) txs.push({ t: e.what.accepted ? "Accepted attempt" : "Refused by the network", txid: e.what.txid, no: !e.what.accepted, seen: e.what.text });
+      if (e.what && e.what.txid && !seenTx[e.what.txid] && (seenTx[e.what.txid] = 1)) txs.push({ t: e.what.accepted ? "Accepted attempt" : "Refused by the network", txid: e.what.txid, no: !e.what.accepted, seen: e.what.text });
     });
     var s = (k && k.settlement) || (c && c.settlement);
     if (s && s.txid) txs.push({ t: "Settlement", txid: s.txid, seen: s.how === "close" ? "Spends the 2-of-2 → shielded outputs. Who received what is hidden." : s.how === "refund" ? "Spends the 2-of-2 → the collateral back to a transparent address, then shielded by the wallet." : "Spends the 2-of-2 → the payout to a transparent address, then shielded by the winner's wallet." });

@@ -11,9 +11,10 @@
 //!           [--max-rooms 20] [--label testnet] [--explorer 'https://…/tx/{txid}']
 //! ```
 //!
-//! A room lasts about 5 minutes on testnet (75 s blocks): the rulings take effect at the
-//! maturity, 2 blocks after the invoice, and the refund unlocks at 4. A side whose
-//! counterparty is offline settles alone `--close-wait` blocks after the maturity.
+//! A room lasts about 5 minutes on testnet (75 s blocks): the refund unlocks 4 blocks
+//! after the invoice. The contract settles as soon as both arbiters have ruled; a side
+//! whose counterparty is offline settles alone `--close-wait` blocks after the rulings.
+//! The maturity (2 blocks) only bounds how long the invoice stays valid.
 //!
 //! The page and its API are public and need no token: they can only run the demo
 //! escrow, at `--amount`, between the two demo nodes, with at most `--max-rooms` open at
