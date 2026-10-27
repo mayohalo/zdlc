@@ -1,6 +1,6 @@
 # zdlc-kit
 
-Depend on it from the repo, pinned to a release (not on crates.io yet):
+Depend on it from the repo, pinned to a release (not on crates.io yet; Rust 1.89 or newer):
 
 ```toml
 [dependencies]

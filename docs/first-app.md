@@ -26,7 +26,7 @@ npm install https://github.com/mayohalo/zdlc/releases/download/v0.1.0/zdlc-sdk-0
 curl -L https://github.com/mayohalo/zdlc/releases/download/v0.1.0/zdlc-0.1.0-x86_64-linux.tar.gz | tar -xz
 ```
 
-Rust crates come straight from the repo, pinned to the release tag:
+Rust crates come straight from the repo, pinned to the release tag (Rust 1.89 or newer):
 
 ```toml
 [dependencies]
