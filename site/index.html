@@ -279,6 +279,19 @@ h2 { font-size: clamp(2rem, 3.8vw, 2.9rem); line-height: 1.06; }
 .h-lead + .h-lead { margin-top: 6px; color: var(--muted); }
 .hero2 .read { margin-top: 18px; font-size: 1rem; }
 .hero2 .cta { margin-top: 30px; align-items: center; }
+.demos-l { margin-top: 30px; }
+.demos { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
+.demo { display: grid; gap: 6px; padding: 14px 16px; border: 1px solid var(--ink); border-radius: 2px; text-decoration: none; color: var(--ink); }
+.demo b { font: 500 0.74rem/1.2 var(--f-mono); letter-spacing: 0.1em; text-transform: uppercase; }
+.demo span { font-size: 0.85rem; color: var(--muted); }
+.demo:first-child { background: var(--ink); }
+.demo:first-child b { color: var(--paper); }
+.demo:first-child span { color: rgba(11, 17, 29, 0.7); }
+.demo:hover { border-color: var(--key); }
+.demo:hover b { color: var(--key); }
+.demo:first-child:hover { background: var(--key); }
+.demo:first-child:hover b { color: var(--paper); }
+@media (max-width: 640px) { .demos { grid-template-columns: minmax(0, 1fr); } }
 .btn.ghost { border-color: transparent; padding-inline: 0; color: var(--muted); text-decoration: underline; text-underline-offset: 5px; text-decoration-color: var(--line); }
 .btn.ghost:hover { border-color: transparent; color: var(--key); }
 .h-fig { margin: 0; }
@@ -347,12 +360,13 @@ h2 { font-size: clamp(2rem, 3.8vw, 2.9rem); line-height: 1.06; }
       <h1 class="h-mark">zDLC</h1>
       <p class="h-sub">Contracts without contract code</p>
       <p class="h-lead">Discreet by design. Enforced by signatures.</p>
-      <p class="h-lead">Private, oracle-settled payments on Zcash.</p>
+      <p class="h-lead">Private markets, settled on Zcash.</p>
       <p class="read">Two parties lock funds and pre-sign every possible payout with adaptor signatures; an oracle's signature makes exactly one of them valid. It all runs on Zcash as it is, with no protocol change. Money comes in from the shielded pool and goes back out to it; while a contract is open, only its collateral is visible on chain, never its terms.</p>
-      <div class="cta">
-        <a class="btn primary" href="/escrow">Try the escrow room &rarr;</a>
-        <a class="btn" href="/hedge">Try the hedge desk &rarr;</a>
-        <a class="btn ghost" href="#quickstart">View quickstart</a>
+      <p class="label demos-l">Try the private market demos</p>
+      <div class="demos">
+        <a class="demo" href="/escrow"><b>Escrow room &rarr;</b><span>Settle a deal</span></a>
+        <a class="demo" href="/hedge"><b>Hedge desk &rarr;</b><span>Trade a price</span></a>
+        <a class="demo" href="/auction"><b>Auction &rarr;</b><span>Discover a price</span></a>
       </div>
     </div>
     <figure class="h-fig hx" id="hx">
