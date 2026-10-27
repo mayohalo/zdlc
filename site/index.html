@@ -285,6 +285,32 @@ h2 { font-size: clamp(2rem, 3.8vw, 2.9rem); line-height: 1.06; }
 .tenets b { display: block; color: var(--ink); font-weight: 500; }
 @media (max-width: 960px) { .hero2 { grid-template-columns: minmax(0, 1fr); } .nav { border-left: 0; padding-left: 0; } }
 @media (max-width: 640px) { .tenets { grid-template-columns: minmax(0, 1fr); } .tenets div + div { border-left: 0; border-top: 1px solid var(--line); } .top .chip-status { display: none; } }
+
+/* Hero diagram: one contract's life in five steps; data-step and data-win drive it. */
+.hx svg .hx-node, .hx svg .hx-ln, .hx svg .hx-tx, .hx svg .hx-card { transition: opacity 0.45s ease; }
+.hx svg .hx-ln, .hx svg .hx-tx { opacity: 0; }
+.hx svg .hx-card { opacity: 0.18; }
+.hx svg .hx-node { opacity: 0.35; }
+.hx[data-step="0"] #hx-a, .hx[data-step="0"] #hx-b, .hx[data-step="0"] #hx-terms, .hx[data-step="0"] #hx-terms-t { opacity: 1; }
+.hx[data-step="1"] #hx-a, .hx[data-step="1"] #hx-b, .hx[data-step="1"] #hx-esc, .hx[data-step="1"] #hx-in-a, .hx[data-step="1"] #hx-in-b, .hx[data-step="1"] #hx-amt { opacity: 1; }
+.hx[data-step="2"] #hx-esc, .hx[data-step="2"] #hx-amt, .hx[data-step="2"] .hx-card, .hx[data-step="2"] #hx-a, .hx[data-step="2"] #hx-b { opacity: 1; }
+.hx[data-step="3"] #hx-oracle, .hx[data-step="3"] #hx-sig, .hx[data-step="3"] #hx-sig-t, .hx[data-step="3"] #hx-esc, .hx[data-step="3"] #hx-amt { opacity: 1; }
+.hx[data-step="3"] .hx-card { opacity: 0.6; }
+.hx[data-step="4"] #hx-esc, .hx[data-step="4"] #hx-oracle { opacity: 0.6; }
+.hx[data-step="4"][data-win="a"] #hx-a, .hx[data-step="4"][data-win="a"] #hx-out-a, .hx[data-step="4"][data-win="a"] #hx-paid-a, .hx[data-step="4"][data-win="a"] #hx-c-a,
+.hx[data-step="4"][data-win="b"] #hx-b, .hx[data-step="4"][data-win="b"] #hx-out-b, .hx[data-step="4"][data-win="b"] #hx-paid-b, .hx[data-step="4"][data-win="b"] #hx-c-b { opacity: 1; }
+.hx[data-step="4"][data-win="a"] #hx-c-a rect, .hx[data-step="4"][data-win="b"] #hx-c-b rect { stroke: var(--key); fill: var(--key-soft); }
+.hx[data-step="4"][data-win="a"] #hx-c-a .hx-lock, .hx[data-step="4"][data-win="b"] #hx-c-b .hx-lock { color: var(--key); }
+.hx[data-step="2"] .hx-card rect { stroke: var(--muted); }
+.hx-flow { animation: hx-dash 1.1s linear infinite; }
+@keyframes hx-dash { to { stroke-dashoffset: -18; } }
+.hx-ctl { display: grid; gap: 12px; margin-top: 6px; }
+.hx-steps { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+.hx-steps button { padding: 9px 4px; white-space: nowrap; font-size: 0.66rem !important; border-color: var(--line); color: var(--muted); }
+.hx-steps button[aria-pressed="true"] { border-color: var(--key); color: var(--key); background: var(--key-soft); }
+.hx-cap { font-size: 0.98rem; color: var(--ink); min-height: 4.8em; max-width: 52ch; }
+.hx-cap b { font: 500 0.7rem var(--f-mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--key); display: block; margin-bottom: 4px; }
+@media (prefers-reduced-motion: reduce) { .hx-flow { animation: none; } .hx svg * { transition: none !important; } }
 </style>
 </head>
 <body>
@@ -298,7 +324,7 @@ h2 { font-size: clamp(2rem, 3.8vw, 2.9rem); line-height: 1.06; }
         <a href="#quickstart">Developers</a>
         <a href="#lineage">About</a>
         <a href="/room">Escrow room</a>
-        <a href="/desk">Desk</a>
+        <a href="/desk">Hedge desk</a>
       </nav>
     </div>
     <span class="chip-status"><i></i>Testnet · unaudited</span>
@@ -317,34 +343,53 @@ h2 { font-size: clamp(2rem, 3.8vw, 2.9rem); line-height: 1.06; }
         <a class="btn" href="#quickstart">View quickstart</a>
       </div>
     </div>
-    <figure class="h-fig">
-        <svg viewBox="0 0 540 440" role="img" aria-label="Party A and Party B, equal on either side of one oracle; the oracle signs the outcome and the escrow settles on Zcash">
-          <g fill="none" stroke="var(--line)">
-            <circle cx="270" cy="200" r="196"/><circle cx="270" cy="200" r="140" stroke-dasharray="2 6"/>
-            <path d="M270 0V430M30 200H510"/>
-          </g>
-          <g fill="none" stroke="var(--key)" stroke-width="1.4">
-            <circle cx="270" cy="40" r="8"/><circle cx="270" cy="372" r="8"/>
-            <path d="M270 48V146M270 326V364" stroke-dasharray="3 6"/>
-            <circle cx="98" cy="200" r="56"/><circle cx="442" cy="200" r="56"/>
-            <path d="M154 200H232M308 200H386" stroke-dasharray="2 7" stroke-linecap="round" stroke-width="2"/>
-          </g>
-          <g fill="var(--key)"><circle cx="160" cy="200" r="3"/><circle cx="228" cy="200" r="3"/><circle cx="312" cy="200" r="3"/><circle cx="380" cy="200" r="3"/></g>
-          <g transform="translate(-172 0)"><circle cx="270" cy="186" r="11" fill="none" stroke="var(--ink)" stroke-width="1.6"/><path d="M250 222c3-14 11-20 20-20s17 6 20 20" fill="none" stroke="var(--ink)" stroke-width="1.6"/></g><g transform="translate(172 0)"><circle cx="270" cy="186" r="11" fill="none" stroke="var(--ink)" stroke-width="1.6"/><path d="M250 222c3-14 11-20 20-20s17 6 20 20" fill="none" stroke="var(--ink)" stroke-width="1.6"/></g>
-          <path d="M240 150H288L304 166V250H240Z M288 150V166H304" fill="var(--sheet)" stroke="var(--ink)" stroke-width="1.6" stroke-linejoin="round"/>
-          <path d="M252 182H292M252 196H292M252 210H292M252 224H280" stroke="var(--ink)" stroke-width="1.4"/>
-          <g font-family="IBM Plex Mono, ui-monospace, monospace" font-size="12" letter-spacing="1.6" text-anchor="middle" fill="var(--ink)">
-            <text x="98" y="290">PARTY A</text><text x="442" y="290">PARTY B</text><text x="270" y="282">ORACLE</text>
-          </g>
-          <g font-family="IBM Plex Mono, ui-monospace, monospace" font-size="10" letter-spacing="1.4" text-anchor="middle" fill="var(--muted)">
-            <text x="98" y="307">ZCASH ADDRESS</text><text x="442" y="307">ZCASH ADDRESS</text>
-            <text x="270" y="299">TRUTH SOURCE</text><text x="270" y="314">SIGNS THE OUTCOME</text>
-          </g>
-          <g font-family="IBM Plex Mono, ui-monospace, monospace" font-size="10" letter-spacing="1.4" text-anchor="end" fill="var(--muted)">
-            <text x="536" y="392">SAME RULES, BOTH PARTIES</text><text x="536" y="408">NO CONTRACT CODE</text><text x="536" y="424">SETTLED ON ZCASH</text>
-          </g>
+    <figure class="h-fig hx" id="hx">
+        <svg viewBox="0 0 540 430" role="img" aria-labelledby="hx-cap">
+          <g fill="none" stroke="var(--line)"><circle cx="270" cy="230" r="200" stroke-dasharray="2 6"/><path d="M270 10V420M20 230H520"/></g>
+          <path id="hx-terms" class="hx-ln" d="M134 204Q270 96 406 204" fill="none" stroke="var(--key)" stroke-width="1.6" stroke-dasharray="2 7" stroke-linecap="round"/>
+          <text id="hx-terms-t" class="hx-tx" x="270" y="140" text-anchor="middle" font-family="IBM Plex Mono, ui-monospace, monospace" font-size="10" letter-spacing="1.4" fill="var(--key)">TERMS · OFF CHAIN</text>
+          <path id="hx-in-a" class="hx-ln hx-flow" d="M140 230H206" fill="none" stroke="var(--key)" stroke-width="2" stroke-dasharray="2 7" stroke-linecap="round"/>
+          <path id="hx-in-b" class="hx-ln hx-flow" d="M400 230H334" fill="none" stroke="var(--key)" stroke-width="2" stroke-dasharray="2 7" stroke-linecap="round"/>
+          <path id="hx-out-a" class="hx-ln hx-flow" d="M206 230H140" fill="none" stroke="var(--gold)" stroke-width="2" stroke-dasharray="2 7" stroke-linecap="round"/>
+          <path id="hx-out-b" class="hx-ln hx-flow" d="M334 230H400" fill="none" stroke="var(--gold)" stroke-width="2" stroke-dasharray="2 7" stroke-linecap="round"/>
+          <path id="hx-sig" class="hx-ln hx-flow" d="M270 86V164" fill="none" stroke="var(--key)" stroke-width="2" stroke-dasharray="3 6" stroke-linecap="round"/>
+          <text id="hx-sig-t" class="hx-tx" x="282" y="130" font-family="IBM Plex Mono, ui-monospace, monospace" font-size="10" letter-spacing="1.4" fill="var(--key)">SIGNED: <tspan id="hx-sig-o">A</tspan></text>
+          <g id="hx-oracle" class="hx-node"><rect x="190" y="24" width="160" height="62" rx="2" fill="var(--sheet)" stroke="var(--line)"/>
+            <path d="M206 36H224L232 44V74H206Z M224 36V44H232" fill="none" stroke="var(--ink)" stroke-width="1.4" stroke-linejoin="round"/>
+            <path d="M211 52H227M211 59H227M211 66H222" stroke="var(--ink)" stroke-width="1.2"/>
+            <text x="246" y="52" font-family="IBM Plex Mono, ui-monospace, monospace" font-size="11" letter-spacing="1.4" fill="var(--ink)">ORACLE</text>
+            <text x="246" y="68" font-family="IBM Plex Mono, ui-monospace, monospace" font-size="9" letter-spacing="1" fill="var(--muted)">TRUTH SOURCE</text></g>
+          <g id="hx-esc" class="hx-node"><path d="M270 166L334 230L270 294L206 230Z" fill="var(--sheet)" stroke="var(--line)" stroke-width="1.4"/>
+            <g color="var(--ink)"><g transform="translate(270 210)" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="-7" y="-1" width="14" height="10" rx="1.5"/><path d="M-4 -1v-4a4 4 0 0 1 8 0v4"/></g></g>
+            <text x="270" y="240" text-anchor="middle" font-family="IBM Plex Mono, ui-monospace, monospace" font-size="10" letter-spacing="1.4" fill="var(--ink)">ESCROW</text>
+            <text x="270" y="254" text-anchor="middle" font-family="IBM Plex Mono, ui-monospace, monospace" font-size="8.5" letter-spacing="1" fill="var(--muted)">2-OF-2 ON ZCASH</text></g>
+          <text id="hx-amt" class="hx-tx" x="270" y="318" text-anchor="middle" font-family="IBM Plex Mono, ui-monospace, monospace" font-size="11" letter-spacing="1.2" fill="var(--gold)">1.00 ZEC LOCKED</text>
+          <g id="hx-a" class="hx-node"><circle cx="92" cy="230" r="48" fill="var(--paper)" stroke="var(--key)" stroke-width="1.4"/><circle cx="92" cy="218" r="10" fill="none" stroke="var(--ink)" stroke-width="1.6"/><path d="M74 250c3-13 10-18 18-18s15 5 18 18" fill="none" stroke="var(--ink)" stroke-width="1.6"/>
+            <text x="92" y="300" text-anchor="middle" font-family="IBM Plex Mono, ui-monospace, monospace" font-size="11" letter-spacing="1.6" fill="var(--ink)">PARTY A</text></g>
+          <g id="hx-b" class="hx-node"><circle cx="448" cy="230" r="48" fill="var(--paper)" stroke="var(--key)" stroke-width="1.4"/><circle cx="448" cy="218" r="10" fill="none" stroke="var(--ink)" stroke-width="1.6"/><path d="M430 250c3-13 10-18 18-18s15 5 18 18" fill="none" stroke="var(--ink)" stroke-width="1.6"/>
+            <text x="448" y="300" text-anchor="middle" font-family="IBM Plex Mono, ui-monospace, monospace" font-size="11" letter-spacing="1.6" fill="var(--ink)">PARTY B</text></g>
+          <text id="hx-paid-a" class="hx-tx" x="92" y="318" text-anchor="middle" font-family="IBM Plex Mono, ui-monospace, monospace" font-size="9.5" letter-spacing="1.2" fill="var(--gold)">SHIELDED PAYOUT</text>
+          <text id="hx-paid-b" class="hx-tx" x="448" y="318" text-anchor="middle" font-family="IBM Plex Mono, ui-monospace, monospace" font-size="9.5" letter-spacing="1.2" fill="var(--gold)">SHIELDED PAYOUT</text>
+          <g class="hx-card" id="hx-c-a"><rect x="52" y="356" width="132" height="58" rx="2" fill="var(--sheet)" stroke="var(--line)"/>
+              <g color="var(--muted)" class="hx-lock"><g transform="translate(70 380)" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="-7" y="-1" width="14" height="10" rx="1.5"/><path d="M-4 -1v-4a4 4 0 0 1 8 0v4"/></g></g>
+              <text x="86" y="381" font-family="IBM Plex Mono, ui-monospace, monospace" font-size="11" letter-spacing="1.3" fill="var(--ink)">PAYS A</text>
+              <text x="86" y="398" font-family="IBM Plex Mono, ui-monospace, monospace" font-size="9" letter-spacing="1" fill="var(--muted)">IF OUTCOME A</text></g>
+          <g class="hx-card" id="hx-c-r"><rect x="204" y="356" width="132" height="58" rx="2" fill="var(--sheet)" stroke="var(--line)"/>
+              <g color="var(--muted)" class="hx-lock"><g transform="translate(222 380)" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="-7" y="-1" width="14" height="10" rx="1.5"/><path d="M-4 -1v-4a4 4 0 0 1 8 0v4"/></g></g>
+              <text x="238" y="381" font-family="IBM Plex Mono, ui-monospace, monospace" font-size="11" letter-spacing="1.3" fill="var(--ink)">REFUND</text>
+              <text x="238" y="398" font-family="IBM Plex Mono, ui-monospace, monospace" font-size="9" letter-spacing="1" fill="var(--muted)">AFTER BLOCK H</text></g>
+          <g class="hx-card" id="hx-c-b"><rect x="356" y="356" width="132" height="58" rx="2" fill="var(--sheet)" stroke="var(--line)"/>
+              <g color="var(--muted)" class="hx-lock"><g transform="translate(374 380)" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="-7" y="-1" width="14" height="10" rx="1.5"/><path d="M-4 -1v-4a4 4 0 0 1 8 0v4"/></g></g>
+              <text x="390" y="381" font-family="IBM Plex Mono, ui-monospace, monospace" font-size="11" letter-spacing="1.3" fill="var(--ink)">PAYS B</text>
+              <text x="390" y="398" font-family="IBM Plex Mono, ui-monospace, monospace" font-size="9" letter-spacing="1" fill="var(--muted)">IF OUTCOME B</text></g>
         </svg>
-    </figure>
+        <div class="hx-ctl">
+          <div class="hx-steps" role="group" aria-label="Steps of one contract">
+            <button type="button" data-s="0">1 · Agree</button><button type="button" data-s="1">2 · Lock</button><button type="button" data-s="2">3 · Pre-sign</button><button type="button" data-s="3">4 · Oracle</button><button type="button" data-s="4">5 · Settle</button>
+          </div>
+          <p class="hx-cap" id="hx-cap" aria-live="polite"></p>
+        </div>
+      </figure>
   </div>
   <div class="tenets" aria-label="Principles">
     <div><b>Private</b>by default</div>
@@ -656,6 +701,42 @@ funded
       else sel();
     });
   });
+})();
+</script>
+
+<script>
+(function () {
+  // The hero plays one contract's life; each loop the oracle favours the other party.
+  var fig = document.getElementById("hx"), cap = document.getElementById("hx-cap");
+  if (!fig) return;
+  var steps = [
+    ["Agree", function () { return "Two parties agree, off chain, who is paid what for each outcome. No contract code is written and nothing is published."; }],
+    ["Lock", function () { return "Both put their funds into one 2-of-2 output on Zcash. From here, neither side can move the money alone."; }],
+    ["Pre-sign", function () { return "Before any money moves, both sign every possible payout, each locked to the oracle's signature for one outcome, plus a refund that unlocks at a set block."; }],
+    ["Oracle signs", function (w) { return "The oracle publishes its signature on what happened: outcome " + w + ". It never learns this contract exists, and it cannot move the funds."; }],
+    ["Settle", function (w) { return "That signature completes exactly one pre-signed payout. Party " + w + " is paid into a shielded address; the other payouts can never be used."; }]
+  ];
+  var btns = Array.prototype.slice.call(fig.querySelectorAll("[data-s]"));
+  var step = 0, win = "a", timer = null, resume = null;
+  function show(n) {
+    step = n;
+    fig.setAttribute("data-step", n); fig.setAttribute("data-win", win);
+    document.getElementById("hx-sig-o").textContent = win.toUpperCase();
+    btns.forEach(function (b) { b.setAttribute("aria-pressed", String(+b.dataset.s === n)); });
+    var w = win.toUpperCase();
+    cap.innerHTML = "<b>Step " + (n + 1) + " of 5 · " + steps[n][0] + "</b>" + steps[n][1](w);
+  }
+  function next() {
+    if (step === steps.length - 1) { win = win === "a" ? "b" : "a"; show(0); } else show(step + 1);
+  }
+  function play() { clearInterval(timer); timer = setInterval(next, 4200); }
+  btns.forEach(function (b) {
+    b.addEventListener("click", function () {
+      clearInterval(timer); clearTimeout(resume); show(+b.dataset.s);
+      resume = setTimeout(play, 15000);
+    });
+  });
+  show(0); play();
 })();
 </script>
 </body>

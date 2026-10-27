@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>zDLC desk</title>
+<title>zDLC hedge desk</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
@@ -197,8 +197,8 @@ footer { border-top: 1px solid var(--line); padding-top: 18px; }
 <body>
 <div class="wrap">
   <header>
-    <div><a class="mark" href="/">z<b>DLC</b></a><a class="mark page" href="/desk">desk</a></div>
-    <nav class="nav"><a href="/room">Escrow room</a><a class="on" href="/desk">Desk</a><span class="net" style="margin-left:8px"><span class="chip-status"><i></i><span id="net">connecting…</span></span><span>block <b id="tip">–</b></span></span></nav>
+    <div><a class="mark" href="/">z<b>DLC</b></a><a class="mark page" href="/desk">hedge desk</a></div>
+    <nav class="nav"><a href="/room">Escrow room</a><a class="on" href="/desk">Hedge desk</a><span class="net" style="margin-left:8px"><span class="chip-status"><i></i><span id="net">connecting…</span></span><span>block <b id="tip">–</b></span></span></nav>
   </header>
 
   <div class="intro">
@@ -229,8 +229,8 @@ footer { border-top: 1px solid var(--line); padding-top: 18px; }
     </section>
 
     <section class="panel">
-      <div class="ph"><h2>Desk</h2><span class="pill">quote board</span></div>
-      <p class="who">Lists signed requests and quotes. It holds no funds and no keys, and never sees the contract.</p>
+      <div class="ph"><h2>Quote board</h2><span class="pill">RFQ</span></div>
+      <p class="who">Request for quote (RFQ): lists signed requests and the quotes on them. It holds no funds and no keys, and never sees the contract.</p>
       <div class="card" id="rfq" hidden></div>
       <ul class="quotes" id="quotes"></ul>
       <div class="card" id="sealed" hidden><b>Offer sent in a sealed box</b><span>The taker offered on the cheapest quote through the desk's mailbox, encrypted to the maker. The desk relays it without reading it.</span></div>
