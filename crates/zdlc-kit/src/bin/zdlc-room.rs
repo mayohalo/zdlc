@@ -782,7 +782,7 @@ async fn main() {
         tokio::spawn(async move {
             // Both nodes need the chain to start; retry until it answers.
             let (contractor, client) = loop {
-                match (node(&args, &dir, "contractor", &rpc, &cfg, false, false).await, node(&args, &dir, "client", &rpc, &cfg, true, false).await) {
+                match (node(&args, &dir, "contractor", &rpc, &cfg, false, true).await, node(&args, &dir, "client", &rpc, &cfg, true, true).await) {
                     (Ok(k), Ok(c)) => break (k, c),
                     (Err(e), _) | (_, Err(e)) => eprintln!("zdlc-room: waiting for the node: {e}"),
                 }
