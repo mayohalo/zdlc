@@ -449,7 +449,7 @@ footer { border-top: 1px solid var(--line); padding-top: 18px; }
   function start() {
     api("GET", "/api/info").then(function (i) {
       info = i;
-      $("net").textContent = i.network + " · unaudited"; $("net2").textContent = i.network; $("tip").textContent = i.tip;
+      $("net").textContent = i.network; $("net2").textContent = i.network; $("tip").textContent = i.tip;
       $("amt").textContent = zec(i.collateralZat); $("bps").textContent = (i.premiumBps / 100) + "%";
       var z = i.collateralZat / 1e8, sp = i.spotCents;
       $("example").innerHTML = sp

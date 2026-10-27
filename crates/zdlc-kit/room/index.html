@@ -501,7 +501,7 @@ footer { border-top: 1px solid var(--line); padding-top: 18px; }
     api("GET", BASE + "/api/info").then(function (i) {
       info = i;
       var name = i.network;
-      $("net").textContent = name + " · unaudited"; $("net2").textContent = name; $("tip").textContent = i.tip; $("amt").textContent = zec(i.amountZat);
+      $("net").textContent = name; $("net2").textContent = name; $("tip").textContent = i.tip; $("amt").textContent = zec(i.amountZat);
       $("new").disabled = false;
       if (i.fundAddress && (i.demoWalletZat || 0) < 3 * i.amountZat) { $("fund").hidden = false; $("fund-addr").textContent = i.fundAddress; }
       refresh(); poll();

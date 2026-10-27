@@ -371,7 +371,7 @@ footer { border-top: 1px solid var(--line); padding-top: 18px; }
   function start() {
     api("GET", "/api/info").then(function (i) {
       info = i;
-      $("net").textContent = i.network + " · unaudited"; $("net2").textContent = i.network;
+      $("net").textContent = i.network; $("net2").textContent = i.network;
       $("lot").textContent = i.lot; $("dep").textContent = zec(i.depositZat);
       $("ladder").innerHTML = i.pricesZat.map(function (p) { return '<button type="button" data-p="' + p + '" aria-pressed="false">' + zec(p).replace(" ZEC", "") + "</button>"; }).join("");
       Array.prototype.forEach.call($("ladder").children, function (b) {
