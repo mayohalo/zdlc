@@ -26,7 +26,7 @@ async fn party(name: &str) -> Result<Arc<Zdlc>, Box<dyn Error>> {
     let mut b = Zdlc::builder()
         .seed(seed)
         .chain(Arc::new(ZakuraRpc::new(RPC)))
-        .storage(Arc::new(SqliteStorage::open(&format!("first-app-{name}.db"))?))
+        .storage(Arc::new(SqliteStorage::open(&std::env::temp_dir().join(format!("zdlc-first-app-{name}-{}.db", hex::encode(&seed[..4]))).to_string_lossy())?))
         .transport(Arc::new(DeskTransport::new(DESK, wallet.identity_key())))
         .block_secs(2);
     for o in ORACLES {
@@ -99,7 +99,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     //    the ruled outcome and co-signs, and the escrow goes out into shielded notes.
     wait(&contractor, &id, State::Settled).await?;
     let s = contractor.contract(&id).await?.and_then(|r| r.settlement).ok_or("no settlement")?;
-    println!("settled by {} in block {:?}: {:?}", s.how, s.height, s.txid);
+    println!("settled by {} in block {}: {}", s.how, s.height.unwrap_or_default(), s.txid.unwrap_or_default());
     Ok(())
 }
 
