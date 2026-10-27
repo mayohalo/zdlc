@@ -118,9 +118,9 @@ mod client {
         }
 
         async fn json(&self, r: reqwest::RequestBuilder) -> Result<serde_json::Value> {
-            let r = r.send().await.map_err(|e| Error::Rpc(format!("desk: {e}")))?;
+            let r = r.send().await.map_err(|e| Error::Rpc(format!("desk: {}", e.without_url())))?;
             let ok = r.status().is_success();
-            let v: serde_json::Value = r.json().await.map_err(|e| Error::Rpc(format!("desk: {e}")))?;
+            let v: serde_json::Value = r.json().await.map_err(|e| Error::Rpc(format!("desk: {}", e.without_url())))?;
             if !ok {
                 return Err(Error::Rpc(format!("desk: {v}")));
             }

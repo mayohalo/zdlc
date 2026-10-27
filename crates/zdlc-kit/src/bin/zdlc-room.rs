@@ -108,8 +108,79 @@ struct App {
 
 type Shared = Arc<App>;
 
+/// Hides addresses from what the page sees: any http(s) URL and any dotted IPv4 address
+/// become "[hidden]". Errors from the node, the desk or the oracles end up in contract
+/// notes and refusals; the endpoints behind this server are private.
+fn scrub(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    let mut rest = s;
+    while !rest.is_empty() {
+        let lower = rest.to_ascii_lowercase();
+        if lower.starts_with("http://") || lower.starts_with("https://") {
+            let end = rest.find(|c: char| c.is_whitespace() || matches!(c, ')' | '"' | '\'' | ',' | ']' | '>')).unwrap_or(rest.len());
+            out.push_str("[hidden]");
+            rest = &rest[end..];
+            continue;
+        }
+        if let Some(n) = ipv4_len(rest) {
+            if !out.ends_with(|c: char| c.is_ascii_alphanumeric() || c == '.') {
+                out.push_str("[hidden]");
+                rest = &rest[n..];
+                continue;
+            }
+        }
+        let c = rest.chars().next().expect("not empty");
+        out.push(c);
+        rest = &rest[c.len_utf8()..];
+    }
+    out
+}
+
+/// The length of a dotted IPv4 address (with an optional :port) at the start of `s`.
+fn ipv4_len(s: &str) -> Option<usize> {
+    let b = s.as_bytes();
+    let mut i = 0;
+    for part in 0..4 {
+        let start = i;
+        while i < b.len() && b[i].is_ascii_digit() && i - start < 3 {
+            i += 1;
+        }
+        if i == start || (i < b.len() && b[i].is_ascii_digit()) {
+            return None;
+        }
+        if part < 3 {
+            if b.get(i) != Some(&b'.') {
+                return None;
+            }
+            i += 1;
+        }
+    }
+    if b.get(i) == Some(&b':') && b.get(i + 1).is_some_and(u8::is_ascii_digit) {
+        i += 1;
+        while i < b.len() && b[i].is_ascii_digit() {
+            i += 1;
+        }
+    }
+    (b.get(i).is_none_or(|c| !c.is_ascii_alphanumeric() && *c != b'.')).then_some(i)
+}
+
+fn scrub_json(v: &mut Value) {
+    match v {
+        Value::String(s) => *s = scrub(s),
+        Value::Array(a) => a.iter_mut().for_each(scrub_json),
+        Value::Object(o) => o.values_mut().for_each(scrub_json),
+        _ => {}
+    }
+}
+
+/// A JSON response with every string scrubbed.
+fn out(mut v: Value) -> Response {
+    scrub_json(&mut v);
+    Json(v).into_response()
+}
+
 fn err(code: StatusCode, m: impl ToString) -> Response {
-    (code, Json(json!({"error": m.to_string()}))).into_response()
+    (code, Json(json!({"error": scrub(&m.to_string())}))).into_response()
 }
 
 fn bad(e: impl ToString) -> Response {
@@ -208,12 +279,11 @@ async fn show(State(a): State<Shared>, Path(id): Path<String>) -> Response {
     let client = a.client.contract(&id).await.ok().flatten().map(|r| r.view());
     let rooms = a.rooms.lock().await;
     let room = rooms.get(&id);
-    Json(json!({
+    out(json!({
         "id": id, "tip": tip, "contractor": contractor, "client": client,
         "arbiters": room.map(|r| r.arbiters.clone()).unwrap_or_default(),
         "log": room.map(|r| r.log.clone()).unwrap_or_default(),
     }))
-    .into_response()
 }
 
 #[derive(Deserialize)]
@@ -294,7 +364,7 @@ async fn attempt(State(a): State<Shared>, Path((id, who)): Path<(String, String)
                 (_, false) => format!("tried to pay itself with forged attestations: refused ({})", v["error"].as_str().unwrap_or("")),
             };
             a.log(&id, &who, json!({"text": what, "txid": v["txid"], "accepted": v["accepted"]})).await;
-            Json(v).into_response()
+            out(v)
         }
         Err(e) => bad(e),
     }
@@ -337,7 +407,7 @@ async fn rule(State(a): State<Shared>, Path((id, n)): Path<(String, usize)>, Jso
             let t = resp.text().await.unwrap_or_default();
             bad(format!("the oracle refused: {t}"))
         }
-        Err(e) => bad(format!("oracle: {e}")),
+        Err(e) => bad(format!("oracle: {}", e.without_url())),
     }
 }
 
@@ -417,4 +487,18 @@ async fn main() {
     println!("zdlc-room: http://{listen}/");
     let l = tokio::net::TcpListener::bind(&listen).await.unwrap_or_else(|e| die(e));
     axum::serve(l, r).await.unwrap_or_else(|e| die(e));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::scrub;
+
+    #[test]
+    fn scrub_hides_endpoints_and_keeps_the_rest() {
+        assert_eq!(scrub("getblockcount: error sending request for url (http://10.0.0.2:18232/)"), "getblockcount: error sending request for url ([hidden])");
+        assert_eq!(scrub("oracle 192.168.1.20:7801 refused"), "oracle [hidden] refused");
+        assert_eq!(scrub("locked until after block height 1306"), "locked until after block height 1306");
+        assert_eq!(scrub("0.01 ZEC, version 1.2.3"), "0.01 ZEC, version 1.2.3");
+        assert_eq!(scrub("zcash:utest1abc?amount=0.0102&memo=ekRM"), "zcash:utest1abc?amount=0.0102&memo=ekRM");
+    }
 }

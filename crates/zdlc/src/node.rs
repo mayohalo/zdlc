@@ -1,4 +1,5 @@
-//! Minimal JSON-RPC client for a Zakura node.
+//! Minimal JSON-RPC client for a Zakura node. Errors never carry the node's URL: they
+//! can reach an app's users (a contract's note), and the endpoint is private.
 
 use serde_json::{json, Value};
 
@@ -25,10 +26,10 @@ impl Node {
             .json(&body)
             .send()
             .await
-            .map_err(|e| Error::Rpc(format!("{method}: {e}")))?
+            .map_err(|e| Error::Rpc(format!("{method}: {}", e.without_url())))?
             .json()
             .await
-            .map_err(|e| Error::Rpc(format!("{method}: {e}")))?;
+            .map_err(|e| Error::Rpc(format!("{method}: {}", e.without_url())))?;
         if !v["error"].is_null() {
             return Err(Error::Rpc(format!("{method}: {}", v["error"])));
         }
@@ -147,5 +148,18 @@ impl Node {
             .and_then(|a| a.iter().find(|p| p["id"] == id))
             .and_then(|p| p["chainValueZat"].as_i64())
             .ok_or(Error::Rpc(format!("valuePools {id}")))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn errors_do_not_carry_the_url() {
+        // Nothing listens on port 1: the request fails before any response.
+        let e = Node::new("http://127.0.0.1:1/").call("getblockcount", json!([])).await.unwrap_err().to_string();
+        assert!(e.starts_with("rpc: getblockcount: ") || e.contains("getblockcount: "), "{e}");
+        assert!(!e.contains("127.0.0.1") && !e.contains("http://"), "the URL leaked: {e}");
     }
 }

@@ -24,9 +24,9 @@ impl OracleClient {
     }
 
     async fn send(&self, req: reqwest::RequestBuilder) -> Result<(u16, Value)> {
-        let r = req.send().await.map_err(|e| Error::Rpc(format!("oracle {}: {e}", self.base)))?;
+        let r = req.send().await.map_err(|e| Error::Rpc(format!("oracle: {}", e.without_url())))?;
         let status = r.status().as_u16();
-        let v = r.json().await.map_err(|e| Error::Rpc(format!("oracle {}: {e}", self.base)))?;
+        let v = r.json().await.map_err(|e| Error::Rpc(format!("oracle: {}", e.without_url())))?;
         Ok((status, v))
     }
 
