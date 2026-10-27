@@ -16,5 +16,8 @@ BIN="$ROOT/target/linux/$T/release"
   "${SCP[@]}" "$BIN/zdlc-desk" "$BIN/zdlc-oracled" "$BIN/zdlc-room" "$HOST:/opt/zdlc/bin.new/"
 }
 "${SCP[@]}" -r "$ROOT/deploy/." "$HOST:/opt/zdlc/deploy/"
+# The landing page, served at / beside the room.
+"${SSH[@]}" "$HOST" 'install -d /opt/zdlc/site'
+"${SCP[@]}" "$ROOT/site/index.html" "$HOST:/opt/zdlc/site/index.html"
 # Swap the binaries in while the services restart.
 "${SSH[@]}" "$HOST" 'chmod 755 /opt/zdlc/bin.new/* && mv /opt/zdlc/bin.new/* /opt/zdlc/bin/ && rmdir /opt/zdlc/bin.new && bash /opt/zdlc/deploy/install.sh '"$DOMAIN"

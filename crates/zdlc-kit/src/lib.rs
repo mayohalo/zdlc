@@ -80,6 +80,10 @@ pub const CLOSE_WAIT_SECS: i64 = 60;
 
 pub use zdlc::templates::Role;
 
+/// The wallet index of the treasury's shielded inbox ([`Zdlc::inbox_address`]): far
+/// above any contract's.
+const INBOX: u32 = u32::MAX;
+
 /// How a side funds its collateral.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -1353,6 +1357,55 @@ impl Zdlc {
             }
         }
         Ok(out)
+    }
+
+    /// The treasury's shielded inbox: a unified address any Zcash wallet can pay (some
+    /// refuse transparent addresses). [`Zdlc::sweep_inbox`] turns what arrives into
+    /// treasury coins.
+    pub fn inbox_address(&self) -> String {
+        paylink::unified_address(&self.wallet.deposit_address(INBOX), self.net)
+    }
+
+    /// Moves every note at the inbox, received from height `from` on, into `coins` equal
+    /// treasury coins (fewer if they would be under 0.0001 ZEC): one shielded spend, so
+    /// several contracts can fund at once. Returns the txid, or `None` with nothing to sweep.
+    pub async fn sweep_inbox(&self, from: u32, coins: u32) -> Result<Option<String>> {
+        let tip = self.chain.height().await?;
+        let fvk = self.wallet.deposit_fvk(INBOX);
+        let notes: Vec<_> = self.chain.notes(&fvk, from, tip).await?.into_iter().filter(|n| n.value() > 0).collect();
+        if notes.is_empty() {
+            return Ok(None);
+        }
+        let (spends, anchor) = self.chain.spends(&fvk, &notes, tip).await?;
+        let have: u64 = notes.iter().map(|n| n.value()).sum();
+        let to = self.wallet.coin_address(0);
+        let spec_for = |n: u32, each: u64, spends| Spec {
+            target_height: tip + 1,
+            expiry_height: tip + 1 + contract::EXPIRY_DELTA,
+            lock_height: None,
+            inputs: vec![],
+            outputs: (0..n).map(|_| Pay::Transparent(to, each)).collect(),
+            ironwood_anchor: Some(anchor),
+            ironwood_spends: spends,
+        };
+        let mut n = coins.max(1);
+        let spec = loop {
+            let fee = tx::fee(&self.p, &spec_for(n, 1, spends.clone()))?;
+            let net = have.checked_sub(fee).ok_or(Error::Usage(format!("inbox holds {have} zat, short of the fee {fee}")))?;
+            if n == 1 || net / n as u64 >= 10_000 {
+                let mut spec = spec_for(n, net / n as u64, spends);
+                // The remainder of the division goes to the first coin.
+                if let Pay::Transparent(_, v) = &mut spec.outputs[0] {
+                    *v += net % n as u64;
+                }
+                break spec;
+            }
+            n /= 2;
+        };
+        let (pczt, _) = tx::sign_ironwood(tx::build(&self.p, &spec)?, &orchard::keys::SpendAuthorizingKey::from(&self.wallet.deposit_sk(INBOX)))?;
+        let f = tx::extract(pczt)?;
+        self.chain.send(&f.raw).await?;
+        Ok(Some(txid_hex(&f.txid)))
     }
 
     /// The treasury alone: one UTXO lookup, without scanning any contract's shielded

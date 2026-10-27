@@ -253,7 +253,7 @@ async fn info(Ready(a): Ready) -> Response {
     Json(json!({
         "network": a.cfg.label, "tip": i["tip"], "amountZat": a.cfg.amount_zat, "maturityBlocks": a.cfg.maturity,
         "refundBlocks": a.cfg.refund, "closeWaitBlocks": a.cfg.close_wait.0, "closeWaitSecs": a.cfg.close_wait.1, "blockSecs": a.cfg.block_secs, "explorer": a.cfg.explorer, "arbiters": a.oracles.len(),
-        "demoWalletZat": bal,
+        "demoWalletZat": bal, "fundAddress": a.client.inbox_address(),
     }))
     .into_response()
 }
@@ -494,7 +494,28 @@ async fn main() {
             }
             // The client's node accepts nothing by itself: the visitor decides.
             println!("zdlc-room: contractor {} client {}", contractor.identity(), client.identity());
-            println!("zdlc-room: fund the demo wallet (the client's treasury) at {}", client.treasury_address());
+            println!("zdlc-room: fund the demo wallet at {} (shielded; swept into coins every minute)", client.inbox_address());
+            // Sweep the shielded inbox into treasury coins. Scanning starts where the last
+            // empty pass ended, so it never rescans the chain.
+            {
+                let (z, path) = (client.clone(), format!("{dir}/inbox.from"));
+                tokio::spawn(async move {
+                    loop {
+                        if let Ok(tip) = z.info().await.map(|i| i["tip"].as_u64().unwrap_or_default() as u32) {
+                            let from = std::fs::read_to_string(&path).ok().and_then(|s| s.trim().parse().ok()).unwrap_or(tip.saturating_sub(100));
+                            match z.sweep_inbox(from, 10).await {
+                                Ok(Some(txid)) => println!("zdlc-room: swept the inbox into treasury coins: {txid}"),
+                                // Nothing unspent before this tip (less a margin for reorgs).
+                                Ok(None) => {
+                                    let _ = std::fs::write(&path, tip.saturating_sub(5).max(from).to_string());
+                                }
+                                Err(e) => eprintln!("zdlc-room: inbox sweep: {e}"),
+                            }
+                        }
+                        tokio::time::sleep(std::time::Duration::from_secs(60)).await;
+                    }
+                });
+            }
             let rooms_file = format!("{dir}/rooms.json");
             let rooms: HashMap<String, Room> = std::fs::read(&rooms_file).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_default();
             let app = Arc::new(App { contractor, client, oracles, oracle_token, http: reqwest::Client::new(), rooms: Mutex::new(rooms), rooms_file, cfg });
@@ -502,18 +523,20 @@ async fn main() {
         });
     }
     let r = Router::new()
-        .route("/", get(page))
-        .route("/r/{id}", get(page))
-        .route("/api/info", get(info))
-        .route("/api/rooms", post(open))
-        .route("/api/rooms/{id}", get(show))
-        .route("/api/rooms/{id}/accept", post(accept))
-        .route("/api/rooms/{id}/qr.svg", get(qr))
-        .route("/api/rooms/{id}/{who}/hold", post(hold))
-        .route("/api/rooms/{id}/{who}/attempt", post(attempt))
-        .route("/api/rooms/{id}/arbiters/{n}", post(rule))
+        // Everything under /room, so a site can serve its own pages beside it.
+        .route("/", get(|| async { axum::response::Redirect::temporary("/room") }))
+        .route("/room", get(page))
+        .route("/room/r/{id}", get(page))
+        .route("/room/api/info", get(info))
+        .route("/room/api/rooms", post(open))
+        .route("/room/api/rooms/{id}", get(show))
+        .route("/room/api/rooms/{id}/accept", post(accept))
+        .route("/room/api/rooms/{id}/qr.svg", get(qr))
+        .route("/room/api/rooms/{id}/{who}/hold", post(hold))
+        .route("/room/api/rooms/{id}/{who}/attempt", post(attempt))
+        .route("/room/api/rooms/{id}/arbiters/{n}", post(rule))
         .with_state(slot);
-    println!("zdlc-room: http://{listen}/");
+    println!("zdlc-room: http://{listen}/room");
     let l = tokio::net::TcpListener::bind(&listen).await.unwrap_or_else(|e| die(e));
     axum::serve(l, r).await.unwrap_or_else(|e| die(e));
 }

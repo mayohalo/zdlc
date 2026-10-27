@@ -37,6 +37,7 @@ code, .mono { font-family: var(--f-mono); font-size: 0.85em; }
 header { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; padding-block: 20px 12px; }
 .mark { font: 800 1.3rem var(--f-display); text-decoration: none; color: var(--ink); }
 .mark b { color: var(--key); }
+.mark.sub { font-weight: 700; margin-left: 8px; }
 .net { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; font: 500 0.85rem var(--f-display); color: var(--muted); }
 .net .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--shield); display: inline-block; margin-right: 6px; }
 .intro { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 24px; align-items: end; padding-block: 12px 24px; }
@@ -117,7 +118,7 @@ footer { margin-top: 28px; color: var(--muted); font-size: 0.88rem; display: gri
 <body>
 <div class="wrap">
   <header>
-    <a class="mark" href="/">z<b>DLC</b> escrow room</a>
+    <a class="mark" href="/">z<b>DLC</b></a><a class="mark sub" href="/room">escrow room</a>
     <div class="net"><span><span class="dot"></span><span id="net">connecting…</span></span><span>block <b id="tip">–</b></span></div>
   </header>
 
@@ -202,6 +203,7 @@ footer { margin-top: 28px; color: var(--muted); font-size: 0.88rem; display: gri
 
   <footer>
     <p>Both parties run as zDLC nodes on this server so you can play them; a real user runs their own. Each payout was pre-signed before any money moved, and the arbiters' signatures only choose which one becomes valid.</p>
+    <p id="fund" hidden>The demo wallet is low. Anyone can top it up with testnet ZEC at <code id="fund-addr" style="overflow-wrap:anywhere"></code>.</p>
     <p>Demo funds are testnet coins with no value. Not audited; do not use zDLC for real money yet.</p>
   </footer>
 </div>
@@ -210,7 +212,10 @@ footer { margin-top: 28px; color: var(--muted); font-size: 0.88rem; display: gri
 <script>
 (function () {
   var $ = function (id) { return document.getElementById(id); };
-  var info = null, room = null, id = (location.pathname.match(/^\/r\/([0-9a-f]+)/) || [])[1] || null;
+  // The page and its API live under /room; the site's landing page is at /.
+  var BASE = "/room";
+  function idFromPath() { return (location.pathname.match(/^\/room\/r\/([0-9a-f]+)/) || [])[1] || null; }
+  var info = null, room = null, id = idFromPath();
   var timer = null;
 
   function zec(z) { return (z / 1e8).toFixed(8).replace(/0+$/, "").replace(/\.$/, "") + " ZEC"; }
@@ -343,7 +348,7 @@ footer { margin-top: 28px; color: var(--muted); font-size: 0.88rem; display: gri
     $("accept-acts").hidden = !(c && c.state === "incoming");
     var dep = c && c.deposit && (c.state === "awaiting_deposit" || c.state === "refreshing");
     $("qr").hidden = !dep;
-    if (dep && $("uri").textContent !== c.deposit.uri) { $("uri").textContent = c.deposit.uri; $("qr-img").src = "/api/rooms/" + r.id + "/qr.svg?u=" + encodeURIComponent(c.deposit.uri.slice(-12)); }
+    if (dep && $("uri").textContent !== c.deposit.uri) { $("uri").textContent = c.deposit.uri; $("qr-img").src = BASE + "/api/rooms/" + r.id + "/qr.svg?u=" + encodeURIComponent(c.deposit.uri.slice(-12)); }
     var q = (k && k.summary && k.summary.question) || "";
     $("question").textContent = q ? "“" + q + "”" : "–";
     $("h-ref").textContent = k && k.refundHeight ? k.refundHeight : "–";
@@ -402,35 +407,36 @@ footer { margin-top: 28px; color: var(--muted); font-size: 0.88rem; display: gri
 
   function refresh() {
     if (!id) return Promise.resolve();
-    return api("GET", "/api/rooms/" + id).then(render).catch(function (e) { toast(e.message); });
+    return api("GET", BASE + "/api/rooms/" + id).then(render).catch(function (e) { toast(e.message); });
   }
 
   function poll() { clearInterval(timer); timer = setInterval(function () { if (!document.hidden) refresh(); }, 3000); setInterval(tickClock, 1000); }
 
   $("new").addEventListener("click", function () {
     $("new").disabled = true;
-    api("POST", "/api/rooms", {}).then(function (j) {
-      id = j.id; history.pushState(null, "", "/r/" + id); return refresh();
+    api("POST", BASE + "/api/rooms", {}).then(function (j) {
+      id = j.id; history.pushState(null, "", BASE + "/r/" + id); return refresh();
     }).catch(function (e) { toast(e.message); }).then(function () { $("new").disabled = false; });
   });
   document.addEventListener("click", function (e) {
     var b = e.target.closest("button");
     if (!b || !id || b.disabled) return;
-    if (b.dataset.accept) act(api("POST", "/api/rooms/" + id + "/accept", { funding: b.dataset.accept }));
-    else if (b.dataset.hold) act(api("POST", "/api/rooms/" + id + "/" + b.dataset.hold + "/hold", { held: !b.classList.contains("on") }));
-    else if (b.dataset.forge) act(api("POST", "/api/rooms/" + id + "/contractor/attempt", { action: "forge" }).then(function (v) { toast(v.accepted ? "Accepted?!" : "Refused by the network: " + v.error); }));
-    else if (b.dataset.refund) act(api("POST", "/api/rooms/" + id + "/client/attempt", { action: "refund" }).then(function (v) { toast(v.accepted ? "Refund sent: its height has passed." : "Refused by the network: " + v.error); }));
-    else if (b.dataset.rule) act(api("POST", "/api/rooms/" + id + "/arbiters/" + b.dataset.rule, { outcome: b.dataset.o }));
+    if (b.dataset.accept) act(api("POST", BASE + "/api/rooms/" + id + "/accept", { funding: b.dataset.accept }));
+    else if (b.dataset.hold) act(api("POST", BASE + "/api/rooms/" + id + "/" + b.dataset.hold + "/hold", { held: !b.classList.contains("on") }));
+    else if (b.dataset.forge) act(api("POST", BASE + "/api/rooms/" + id + "/contractor/attempt", { action: "forge" }).then(function (v) { toast(v.accepted ? "Accepted?!" : "Refused by the network: " + v.error); }));
+    else if (b.dataset.refund) act(api("POST", BASE + "/api/rooms/" + id + "/client/attempt", { action: "refund" }).then(function (v) { toast(v.accepted ? "Refund sent: its height has passed." : "Refused by the network: " + v.error); }));
+    else if (b.dataset.rule) act(api("POST", BASE + "/api/rooms/" + id + "/arbiters/" + b.dataset.rule, { outcome: b.dataset.o }));
   });
-  window.addEventListener("popstate", function () { id = (location.pathname.match(/^\/r\/([0-9a-f]+)/) || [])[1] || null; refresh(); });
+  window.addEventListener("popstate", function () { id = idFromPath(); refresh(); });
 
   // Until the server's nodes reach the chain, /api/info answers 503: say so and retry.
   function start() {
-    api("GET", "/api/info").then(function (i) {
+    api("GET", BASE + "/api/info").then(function (i) {
       info = i;
       var name = i.network;
       $("net").textContent = "Zcash " + name; $("net2").textContent = name; $("tip").textContent = i.tip; $("amt").textContent = zec(i.amountZat);
       $("new").disabled = false;
+      if (i.fundAddress && (i.demoWalletZat || 0) < 3 * i.amountZat) { $("fund").hidden = false; $("fund-addr").textContent = i.fundAddress; }
       refresh(); poll();
     }).catch(function () {
       $("net").textContent = "connecting…";
