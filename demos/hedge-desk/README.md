@@ -4,6 +4,23 @@ Two software agents trade a ZEC/USD hedge with nobody in the loop after the visi
 
 Live at `/hedge` on the hosted site.
 
+## Code
+
+The trading logic is in the agents, not the demo; the demo file starts them and records their steps. Read these first:
+
+| Where | What it does |
+| --- | --- |
+| [`agent.rs`](../../crates/zdlc-kit/src/agent.rs) `run_maker` | the maker's loop: read requests on the desk, quote, accept offers that match a standing quote |
+| `run_taker_with` | the taker: post a request, wait for quotes, offer on the cheapest, follow it to settlement, reporting each step |
+| [`hedge.rs`](../../crates/zdlc-kit/src/bin/zdlc-room/hedge.rs) `desk_trade` | the visitor's click: sizes the windows in blocks and spawns `run_taker_with` |
+| `desk_demo` | builds the two nodes and starts `run_maker` forever |
+
+`desk_spot` and the top-ups in `desk_demo` are demo-only (the page's spot price, refilling the agents' wallets).
+
+- Page: [`pages/hedge.html`](../../crates/zdlc-kit/src/bin/zdlc-room/pages/hedge.html) polls `GET /hedge/api/state` and draws the trade
+- API: `GET /hedge/api/info`, `GET /hedge/api/state`, `POST /hedge/api/trade`. One trade at a time; every visitor watches the same one.
+- The same agents as a program: `zdlc-agent maker | taker`
+
 ## How it works
 
 | | |
@@ -19,13 +36,6 @@ Live at `/hedge` on the hosted site.
 4. **Accept.** The maker's policy accepts offers that match its standing quote, funded from its treasury; both sign every payout and the refund.
 5. **Price.** The price minute is the one in progress at the click; the oracles attest it while the funding is mined.
 6. **Settle.** The taker asks for the cooperative close as soon as the price is attested (`close_before_funded`); the payout splits at that price into shielded notes.
-
-## The code
-
-- Server: [`crates/zdlc-kit/src/bin/zdlc-room/hedge.rs`](../../crates/zdlc-kit/src/bin/zdlc-room/hedge.rs)
-- The agents: [`crates/zdlc-kit/src/agent.rs`](../../crates/zdlc-kit/src/agent.rs) (also the standalone `zdlc-agent maker | taker`)
-- Page: [`pages/hedge.html`](../../crates/zdlc-kit/src/bin/zdlc-room/pages/hedge.html)
-- API: `GET /hedge/api/info`, `GET /hedge/api/state`, `POST /hedge/api/trade`. One trade at a time; every visitor watches the same one.
 
 ## On testnet
 

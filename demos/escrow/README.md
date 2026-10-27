@@ -4,6 +4,23 @@ A contractor invoices a client for 0.001 ZEC; two arbiters decide whether the wo
 
 Live at `/escrow` on the hosted site.
 
+## Code
+
+One server file (about 270 lines) and one page. Read these first:
+
+| Where | What it does |
+| --- | --- |
+| [`escrow.rs`](../../crates/zdlc-kit/src/bin/zdlc-room/escrow.rs) `open` | the contractor offers `Template::Escrow` to the client's identity (`contractor.offer`) |
+| `accept` | the client accepts, funded from the treasury or a deposit link (`client.accept(id, Funding::…)`) |
+| `rule` | an arbiter rules: a POST to its oracle's `/events/{event_id}/resolve` |
+| [`common.rs`](../../crates/zdlc-kit/src/bin/zdlc-room/common.rs) `node` | how each party is built: `Zdlc::builder()` with `close_before_funded`, then `run` in the background |
+
+There is no settlement code in the demo: once both arbiters have ruled, the kit's `run` loop on each node closes the contract. `show` only reads the record (`contract(id)`) for the page. `hold` and `attempt` are the misbehave buttons, demo-only.
+
+- Page: [`pages/escrow.html`](../../crates/zdlc-kit/src/bin/zdlc-room/pages/escrow.html) polls `GET /escrow/api/rooms/{id}` and draws it
+- API: `POST /escrow/api/rooms` (`{"team": true}` splits the payout 50/30/20 between three payees), `GET /escrow/api/rooms/{id}`, `POST …/accept`, `…/{who}/hold`, `…/{who}/attempt`, `…/arbiters/{n}`, `GET …/qr.svg`
+- The same flow without any demo machinery: [`examples/first_app.rs`](../../crates/zdlc-kit/examples/first_app.rs)
+
 ## How it works
 
 | | |
@@ -19,12 +36,6 @@ Live at `/escrow` on the hosted site.
 4. **Settle.** With both rulings, the contractor asks for the cooperative close (even before the funding is mined: `close_before_funded`), the client checks it pays the ruled outcome and co-signs, and it goes into shielded notes. If a party is offline, the other completes its pre-signed payout alone after `--close-wait`. If the arbiters disagree or stay silent, the refund settles it.
 
 The buttons that misbehave use two kit calls built for this demo: `Zdlc::hold` (a node acts offline for one contract) and `Zdlc::attempt` (broadcast the refund early, or a payout completed with forged oracle signatures); the network refuses both.
-
-## The code
-
-- Server: [`crates/zdlc-kit/src/bin/zdlc-room/escrow.rs`](../../crates/zdlc-kit/src/bin/zdlc-room/escrow.rs)
-- Page: [`pages/escrow.html`](../../crates/zdlc-kit/src/bin/zdlc-room/pages/escrow.html)
-- API: `POST /escrow/api/rooms` (`{"team": true}` splits the payout 50/30/20 between three payees), `GET /escrow/api/rooms/{id}`, `POST …/accept`, `…/{who}/hold`, `…/{who}/attempt`, `…/arbiters/{n}`, `GET …/qr.svg`
 
 ## On testnet
 

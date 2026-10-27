@@ -4,6 +4,20 @@ A sealed-bid, second-price auction for one lot. Bids stay sealed; only the clear
 
 Live at `/auction` on the hosted site.
 
+## Code
+
+One server file (about 300 lines) and one page. Read these first:
+
+| Where | What it does |
+| --- | --- |
+| [`auction.rs`](../../crates/zdlc-kit/src/bin/zdlc-room/auction.rs) `run_round` | the whole round, about 80 lines: offer each bidder a contract, wait until all four are signed, clear (second price), have both oracles rule each contract, wait for the closes |
+| `auction_demo` | builds the seller and bidders nodes; the bidders' accept policy is one line (`set_policy`) |
+| `auction_bid` | the visitor's bid: draws three house bids and spawns `run_round` |
+| [`templates.rs`](../../crates/zdlc/src/templates.rs) `Template::Auction` | the contract: one outcome per price ("won at P") plus "lost" |
+
+- Page: [`pages/auction.html`](../../crates/zdlc-kit/src/bin/zdlc-room/pages/auction.html) polls `GET /auction/api/state` and draws the round
+- API: `GET /auction/api/info`, `GET /auction/api/state`, `POST /auction/api/bid {"bid_zat": …}`
+
 ## How it works
 
 | | |
@@ -18,13 +32,6 @@ Live at `/auction` on the hosted site.
 3. **Clear.** Once all four are signed, the auctioneer opens the bids: the highest wins and pays the second-highest.
 4. **Rule.** Both oracles rule each contract: "won at P" for the winner, "lost" for the others.
 5. **Settle.** All four close cooperatively into shielded notes, often in the same block as their funding. The clearing price goes on the public tape.
-
-## The code
-
-- Server: [`crates/zdlc-kit/src/bin/zdlc-room/auction.rs`](../../crates/zdlc-kit/src/bin/zdlc-room/auction.rs) (`run_round` is the whole round)
-- Template: `Template::Auction` in [`crates/zdlc/src/templates.rs`](../../crates/zdlc/src/templates.rs)
-- Page: [`pages/auction.html`](../../crates/zdlc-kit/src/bin/zdlc-room/pages/auction.html)
-- API: `GET /auction/api/info`, `GET /auction/api/state`, `POST /auction/api/bid {"bid_zat": …}`
 
 ## On testnet
 
