@@ -35,6 +35,10 @@ just room   # http://127.0.0.1:8080/ with a funded demo wallet
 
 ## On testnet
 
+`scripts/deploy.sh root@HOST DOMAIN [SSH_KEY]` builds the server binaries here for Linux x86_64 (with cargo-zigbuild: a 1 GB server cannot compile the proving stack), copies them over and runs `deploy/install.sh`. The installer sets up the desk, two arbiter oracles and the room under systemd on localhost, Caddy for HTTPS, a firewall that allows only SSH and HTTPS, and swap. The node endpoint and the room's settings live in `/etc/zdlc/zdlc.env` on the server (`deploy/zdlc.env.example`), never in git. A 1 vCPU / 1 GB server is enough: one close proves in about 6 s on one thread and the room peaks near 100 MB.
+
+The flags, if running it by hand:
+
 `zdlc-room` needs a Zakura testnet node, the desk, two `zdlc-oracled` arbiters started with `--admin-token FILE`, and that token file:
 
 ```sh

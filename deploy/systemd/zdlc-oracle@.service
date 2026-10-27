@@ -1,0 +1,14 @@
+# One arbiter oracle per instance, named by its port: zdlc-oracle@7801, zdlc-oracle@7802.
+[Unit]
+Description=zDLC arbiter oracle on port %i
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=zdlc
+ExecStart=/opt/zdlc/bin/zdlc-oracled --listen 127.0.0.1:%i --state /var/lib/zdlc/oracle-%i.sealed --sealing-key /var/lib/zdlc/oracle-%i.key --admin-token /var/lib/zdlc/admin.token
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

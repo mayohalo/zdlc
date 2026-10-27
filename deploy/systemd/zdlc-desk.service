@@ -1,0 +1,14 @@
+[Unit]
+Description=zDLC desk (quote board and sealed mailbox)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=zdlc
+EnvironmentFile=/etc/zdlc/zdlc.env
+ExecStart=/opt/zdlc/bin/zdlc-desk --listen 127.0.0.1:7900 --state /var/lib/zdlc/desk.json --node ${ZDLC_RPC}
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
