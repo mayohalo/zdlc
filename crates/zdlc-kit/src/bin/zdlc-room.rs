@@ -404,6 +404,10 @@ async fn info(Ready(a): Ready) -> Response {
 struct OpenReq {
     #[serde(default)]
     question: Option<String>,
+    /// A team escrow: the contractor's payout split 50/30/20 between three payees (this
+    /// server's agent wallets, transparent so a CET shows the split). Not on the page.
+    #[serde(default)]
+    team: bool,
 }
 
 /// The contractor invoices the client: a new escrow, a new room.
@@ -420,7 +424,16 @@ async fn open(Ready(a): Ready, Json(r): Json<OpenReq>) -> Response {
     // in blocks at the rate the chain is running now.
     let maturity = a.blocks(a.cfg.maturity as i64 * a.cfg.block_secs, 2).await;
     let refund = a.blocks(a.cfg.refund as i64 * a.cfg.block_secs, maturity + 2).await;
-    let t = Template::Escrow { amount_zat: a.cfg.amount_zat, question: question.clone(), payees: vec![], maturity_blocks: maturity, refund_blocks: refund };
+    let payees = if r.team {
+        vec![
+            zdlc::templates::PayeeSpec { label: "Ana".into(), address: a.desk.maker.treasury_address(), shielded: None, bps: 5000 },
+            zdlc::templates::PayeeSpec { label: "Ben".into(), address: a.desk.taker.treasury_address(), shielded: None, bps: 3000 },
+            zdlc::templates::PayeeSpec { label: "Chen".into(), address: a.auction.bidders.treasury_address(), shielded: None, bps: 2000 },
+        ]
+    } else {
+        vec![]
+    };
+    let t = Template::Escrow { amount_zat: a.cfg.amount_zat, question: question.clone(), payees, maturity_blocks: maturity, refund_blocks: refund };
     match a.contractor.offer(t, &a.client.identity()).await {
         Ok(id) => {
             a.rooms.lock().await.insert(id.clone(), Room { arbiters: vec![None; a.oracles.len()], log: vec![] });
