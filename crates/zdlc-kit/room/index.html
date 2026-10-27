@@ -424,12 +424,22 @@ footer { margin-top: 28px; color: var(--muted); font-size: 0.88rem; display: gri
   });
   window.addEventListener("popstate", function () { id = (location.pathname.match(/^\/r\/([0-9a-f]+)/) || [])[1] || null; refresh(); });
 
-  api("GET", "/api/info").then(function (i) {
-    info = i;
-    var name = i.network;
-    $("net").textContent = "Zcash " + name; $("net2").textContent = name; $("tip").textContent = i.tip; $("amt").textContent = zec(i.amountZat);
-    refresh(); poll();
-  }).catch(function (e) { $("net").textContent = "offline"; toast(e.message); });
+  // Until the server's nodes reach the chain, /api/info answers 503: say so and retry.
+  function start() {
+    api("GET", "/api/info").then(function (i) {
+      info = i;
+      var name = i.network;
+      $("net").textContent = "Zcash " + name; $("net2").textContent = name; $("tip").textContent = i.tip; $("amt").textContent = zec(i.amountZat);
+      $("new").disabled = false;
+      refresh(); poll();
+    }).catch(function () {
+      $("net").textContent = "connecting…";
+      $("new").disabled = true;
+      $("next").innerHTML = "<b>Connecting to the Zcash node…</b><p>The room starts as soon as the node answers. This page retries on its own.</p>";
+      setTimeout(start, 5000);
+    });
+  }
+  start();
 })();
 </script>
 </body>

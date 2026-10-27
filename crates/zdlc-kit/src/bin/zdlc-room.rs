@@ -24,7 +24,7 @@
 use std::{collections::HashMap, io::Write, os::unix::fs::OpenOptionsExt, sync::Arc};
 
 use axum::{
-    extract::{Path, State},
+    extract::Path,
     http::{header, StatusCode},
     response::{Html, IntoResponse, Response},
     routing::{get, post},
@@ -106,7 +106,22 @@ struct App {
     cfg: Cfg,
 }
 
-type Shared = Arc<App>;
+/// The app once both demo nodes are up. The page is served from the start; until the
+/// node answers, every API call says so (503) and startup keeps retrying.
+struct Slot(tokio::sync::OnceCell<Arc<App>>);
+
+type Shared = Arc<Slot>;
+
+/// A handler's app, or 503 while the nodes are still connecting.
+struct Ready(Arc<App>);
+
+impl axum::extract::FromRequestParts<Shared> for Ready {
+    type Rejection = Response;
+
+    async fn from_request_parts(_: &mut axum::http::request::Parts, s: &Shared) -> Result<Self, Response> {
+        s.0.get().cloned().map(Ready).ok_or_else(|| err(StatusCode::SERVICE_UNAVAILABLE, "connecting to the Zcash node; try again in a moment"))
+    }
+}
 
 /// Hides addresses from what the page sees: any http(s) URL and any dotted IPv4 address
 /// become "[hidden]". Errors from the node, the desk or the oracles end up in contract
@@ -229,7 +244,7 @@ async fn page() -> Html<&'static str> {
     Html(PAGE)
 }
 
-async fn info(State(a): State<Shared>) -> Response {
+async fn info(Ready(a): Ready) -> Response {
     let i = match a.contractor.info().await {
         Ok(i) => i,
         Err(e) => return bad(e),
@@ -250,7 +265,7 @@ struct OpenReq {
 }
 
 /// The contractor invoices the client: a new escrow, a new room.
-async fn open(State(a): State<Shared>, Json(r): Json<OpenReq>) -> Response {
+async fn open(Ready(a): Ready, Json(r): Json<OpenReq>) -> Response {
     let open = match a.contractor.contracts().await {
         Ok(v) => v.iter().filter(|c| !matches!(c.state, zdlc_kit::State::Settled | zdlc_kit::State::Declined | zdlc_kit::State::Failed)).count(),
         Err(e) => return bad(e),
@@ -270,7 +285,7 @@ async fn open(State(a): State<Shared>, Json(r): Json<OpenReq>) -> Response {
     }
 }
 
-async fn show(State(a): State<Shared>, Path(id): Path<String>) -> Response {
+async fn show(Ready(a): Ready, Path(id): Path<String>) -> Response {
     if let Err(r) = a.known(&id).await {
         return r;
     }
@@ -291,7 +306,7 @@ struct AcceptReq {
     funding: String,
 }
 
-async fn accept(State(a): State<Shared>, Path(id): Path<String>, Json(r): Json<AcceptReq>) -> Response {
+async fn accept(Ready(a): Ready, Path(id): Path<String>, Json(r): Json<AcceptReq>) -> Response {
     if let Err(r) = a.known(&id).await {
         return r;
     }
@@ -309,7 +324,7 @@ async fn accept(State(a): State<Shared>, Path(id): Path<String>, Json(r): Json<A
     }
 }
 
-async fn qr(State(a): State<Shared>, Path(id): Path<String>) -> Response {
+async fn qr(Ready(a): Ready, Path(id): Path<String>) -> Response {
     if let Err(r) = a.known(&id).await {
         return r;
     }
@@ -327,7 +342,7 @@ struct HoldReq {
     held: bool,
 }
 
-async fn hold(State(a): State<Shared>, Path((id, who)): Path<(String, String)>, Json(r): Json<HoldReq>) -> Response {
+async fn hold(Ready(a): Ready, Path((id, who)): Path<(String, String)>, Json(r): Json<HoldReq>) -> Response {
     if let Err(r) = a.known(&id).await {
         return r;
     }
@@ -346,7 +361,7 @@ struct AttemptReq {
     action: String,
 }
 
-async fn attempt(State(a): State<Shared>, Path((id, who)): Path<(String, String)>, Json(r): Json<AttemptReq>) -> Response {
+async fn attempt(Ready(a): Ready, Path((id, who)): Path<(String, String)>, Json(r): Json<AttemptReq>) -> Response {
     if let Err(r) = a.known(&id).await {
         return r;
     }
@@ -376,7 +391,7 @@ struct RuleReq {
 }
 
 /// Arbiter `n` resolves the room's event.
-async fn rule(State(a): State<Shared>, Path((id, n)): Path<(String, usize)>, Json(r): Json<RuleReq>) -> Response {
+async fn rule(Ready(a): Ready, Path((id, n)): Path<(String, usize)>, Json(r): Json<RuleReq>) -> Response {
     if let Err(r) = a.known(&id).await {
         return r;
     }
@@ -413,7 +428,7 @@ async fn rule(State(a): State<Shared>, Path((id, n)): Path<(String, usize)>, Jso
 
 /// One demo party. `records`: post recovery records (the contractor puts nothing in and
 /// has no treasury to pay for one).
-async fn node(args: &[String], dir: &str, name: &str, rpc: &str, cfg: &Cfg, records: bool) -> Arc<Zdlc> {
+async fn node(args: &[String], dir: &str, name: &str, rpc: &str, cfg: &Cfg, records: bool) -> zdlc_kit::Result<Arc<Zdlc>> {
     let seed = secret(&format!("{dir}/{name}.seed"));
     let wallet = zdlc::wallet::Wallet::from_seed(seed);
     let storage = Arc::new(SqliteStorage::open(&format!("{dir}/{name}.db")).unwrap_or_else(|e| die(e)));
@@ -428,9 +443,7 @@ async fn node(args: &[String], dir: &str, name: &str, rpc: &str, cfg: &Cfg, reco
     for o in arg(args, "--oracles", "").split(',').filter(|s| !s.is_empty()) {
         b = b.oracle(Arc::new(HttpOracle::new(o)));
     }
-    let z = Arc::new(b.build().await.unwrap_or_else(|e| die(e)));
-    tokio::spawn(z.clone().run(std::time::Duration::from_millis(1000)));
-    z
+    Ok(Arc::new(b.build().await?))
 }
 
 #[tokio::main]
@@ -463,14 +476,31 @@ async fn main() {
         explorer: arg(&args, "--explorer", ""),
         label: arg(&args, "--label", "testnet"),
     };
-    let contractor = node(&args, &dir, "contractor", &rpc, &cfg, false).await;
-    let client = node(&args, &dir, "client", &rpc, &cfg, true).await;
-    // The client's node accepts nothing by itself: the visitor decides.
-    println!("zdlc-room: contractor {} client {}", contractor.identity(), client.identity());
-    println!("zdlc-room: fund the demo wallet (the client's treasury) at {}", client.treasury_address());
-    let rooms_file = format!("{dir}/rooms.json");
-    let rooms: HashMap<String, Room> = std::fs::read(&rooms_file).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_default();
-    let app = Arc::new(App { contractor, client, oracles, oracle_token, http: reqwest::Client::new(), rooms: Mutex::new(rooms), rooms_file, cfg });
+    let listen = arg(&args, "--listen", "127.0.0.1:8080");
+    let slot: Shared = Arc::new(Slot(tokio::sync::OnceCell::new()));
+    {
+        let slot = slot.clone();
+        tokio::spawn(async move {
+            // Both nodes need the chain to start; retry until it answers.
+            let (contractor, client) = loop {
+                match (node(&args, &dir, "contractor", &rpc, &cfg, false).await, node(&args, &dir, "client", &rpc, &cfg, true).await) {
+                    (Ok(k), Ok(c)) => break (k, c),
+                    (Err(e), _) | (_, Err(e)) => eprintln!("zdlc-room: waiting for the node: {e}"),
+                }
+                tokio::time::sleep(std::time::Duration::from_secs(10)).await;
+            };
+            for z in [&contractor, &client] {
+                tokio::spawn(z.clone().run(std::time::Duration::from_millis(1000)));
+            }
+            // The client's node accepts nothing by itself: the visitor decides.
+            println!("zdlc-room: contractor {} client {}", contractor.identity(), client.identity());
+            println!("zdlc-room: fund the demo wallet (the client's treasury) at {}", client.treasury_address());
+            let rooms_file = format!("{dir}/rooms.json");
+            let rooms: HashMap<String, Room> = std::fs::read(&rooms_file).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_default();
+            let app = Arc::new(App { contractor, client, oracles, oracle_token, http: reqwest::Client::new(), rooms: Mutex::new(rooms), rooms_file, cfg });
+            let _ = slot.0.set(app);
+        });
+    }
     let r = Router::new()
         .route("/", get(page))
         .route("/r/{id}", get(page))
@@ -482,8 +512,7 @@ async fn main() {
         .route("/api/rooms/{id}/{who}/hold", post(hold))
         .route("/api/rooms/{id}/{who}/attempt", post(attempt))
         .route("/api/rooms/{id}/arbiters/{n}", post(rule))
-        .with_state(app);
-    let listen = arg(&args, "--listen", "127.0.0.1:8080");
+        .with_state(slot);
     println!("zdlc-room: http://{listen}/");
     let l = tokio::net::TcpListener::bind(&listen).await.unwrap_or_else(|e| die(e));
     axum::serve(l, r).await.unwrap_or_else(|e| die(e));
