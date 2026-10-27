@@ -345,7 +345,7 @@ h2 { font-size: clamp(2rem, 3.8vw, 2.9rem); line-height: 1.06; }
       <p class="h-sub">Contracts without contract code</p>
       <p class="h-lead">Discreet by design. Enforced by signatures.</p>
       <p class="h-lead">Private, oracle-settled payments on Zcash.</p>
-      <p class="read">Two parties lock funds, pre-sign every possible payout, and an oracle's signature makes exactly one of them valid. Money comes in from the shielded pool and goes back out to it; while a contract is open, only its collateral is visible on chain, never its terms.</p>
+      <p class="read">Two parties lock funds and pre-sign every possible payout with adaptor signatures; an oracle's signature makes exactly one of them valid. It all runs on Zcash as it is, with no protocol change. Money comes in from the shielded pool and goes back out to it; while a contract is open, only its collateral is visible on chain, never its terms.</p>
       <div class="cta">
         <a class="btn primary" href="/escrow">Try the escrow room &rarr;</a>
         <a class="btn" href="/hedge">Try the hedge desk &rarr;</a>
@@ -598,6 +598,7 @@ funded
       <dl class="facts cols2">
         <div><dt>Transactions</dt><dd>Zcash v6, built through PCZTs; the cooperative close pays the Ironwood shielded pool</dd></div>
         <div><dt>Custody</dt><dd>A 2-of-2 between the parties; no contract address and no intermediary</dd></div>
+        <div><dt>Adaptor signatures</dt><dd>Each pre-signed payout carries the counterparty's ECDSA adaptor signature (secp256k1-zkp, as in rust-dlc), encrypted to the oracles' point for one outcome; only their attestation completes it. This all happens off chain: Zcash sees an ordinary 2-of-2 signature, so it needs no protocol change</dd></div>
         <div><dt>Oracle messages</dt><dd>dlcspecs attestations, checked against an independent dlcspecs oracle implementation</dd></div>
         <div><dt>Network upgrades</dt><dd>A contract spanning one upgrade has every payout signed for both eras (two adaptor signatures each) and its refund signed for the era it confirms in; tested across NU7 on regtest. One that spans two upgrades is refused</dd></div>
         <div><dt>Recovery</dt><dd>With the seed, a wallet finds its recovery records and rebuilds each refund. It needs the record to have been posted (the kit pays for it from the treasury once a contract is signed), a node that can scan from the contract's height, and recovering before the close address is swept by a withdrawal</dd></div>
@@ -617,6 +618,9 @@ funded
       <table>
         <thead><tr><th>Contract</th><th>Network</th><th>How it settled</th><th>Block</th><th>Transaction</th></tr></thead>
         <tbody>
+          <tr><th>Escrow room: both arbiters ruled before the funding was mined</th><td><span class="pill pub">testnet</span></td><td class="muted">Funding and cooperative close mined in the same block</td><td class="h">4,547,229</td><td><span class="txid"><span>5baa0dec…97de08</span><button type="button" data-copy="5baa0dec4e4f6f7f8f46ae7e45091b19d27364907535a351b6912064f397de08">Copy</button></span></td></tr>
+          <tr><th>Hedge desk: two agents, ZEC/USD attested at $1,265</th><td><span class="pill pub">testnet</span></td><td class="muted">Funding and cooperative close mined in the same block</td><td class="h">4,547,436</td><td><span class="txid"><span>b8902db6…a4e54d</span><button type="button" data-copy="b8902db686b39a6ae37a87e4901423ed80182373385d5bfe1dc2699195a4e54d">Copy</button></span></td></tr>
+          <tr><th>Escrow room: the contractor forges the arbiters' signatures</th><td><span class="pill pub">testnet</span></td><td class="muted">Refused by the network: script verification failed</td><td class="h">–</td><td class="muted">never on chain</td></tr>
           <tr><th>ZEC/USD payment, two oracles agreeing</th><td><span class="pill pub">testnet</span></td><td class="muted">Pre-signed payout, unlocked by both attestations</td><td class="h">4,522,041</td><td><span class="txid"><span>612ba745…5822fe</span><button type="button" data-copy="612ba745f15539691117b2264335d0da24872bfa9fab8b0c10bfab49f45822fe">Copy</button></span></td></tr>
           <tr><th>Hedge traded through the desk by two agents</th><td><span class="pill pub">testnet</span></td><td class="muted">Cooperative close to shielded addresses</td><td class="h">4,522,155</td><td><span class="txid"><span>cd366082…17756f</span><button type="button" data-copy="cd366082561c922720b58cad77a4770fe5b30fa64869b37aa08e0c465917756f">Copy</button></span></td></tr>
           <tr><th>Refund rebuilt from the seed alone</th><td><span class="pill pub">testnet</span></td><td class="muted">Time-locked refund</td><td class="h">4,521,979</td><td><span class="txid"><span>13caad64…25bb5a</span><button type="button" data-copy="13caad64027d2a5dc5de4b1c2d05f211839732b22697c2a9ec3df65beb25bb5a">Copy</button></span></td></tr>
@@ -634,14 +638,15 @@ funded
   <div class="wrap">
     <div class="head"><p class="label">Status and security</p><h2>Where zDLC is today</h2></div>
     <div class="status">
-      <div class="panel st"><span class="label">Working</span><ul><li>Contracts, oracles and the desk on regtest and testnet</li><li>Funding by QR and multi-payee payouts</li><li>Developer kit, REST node, TypeScript and WebAssembly SDKs</li></ul></div>
-      <div class="panel st next"><span class="label">Next</span><ul><li>Testnet contracts paid from phone wallets</li><li>Hosted testnet oracles and desk</li><li>Two-of-three arbiter panels</li></ul></div>
+      <div class="panel st"><span class="label">Working</span><ul><li>Live on testnet: the escrow room and the hedge desk, with hosted oracles and desk</li><li>Contracts settle in one block when the outcome is known before funding</li><li>Funding by QR and multi-payee payouts</li><li>Developer kit, REST node, TypeScript and WebAssembly SDKs</li></ul></div>
+      <div class="panel st next"><span class="label">Next</span><ul><li>Testnet contracts paid from phone wallets</li><li>A fully shielded escrow: adaptor signatures over RedPallas (research)</li><li>Two-of-three arbiter panels</li></ul></div>
       <div class="panel st not"><span class="label">Not yet</span><ul><li>Mainnet (capped at 0.01 ZEC a side when it starts)</li><li>Oracles inside hardware enclaves</li><li>An external security review</li></ul></div>
     </div>
     <div class="caveats">
       <div><h3>Self-custody, pending review</h3><p>The settlement and refund paths are tested on regtest and testnet but not yet independently audited. Do not use it for real money.</p></div>
       <div><h3>Oracles are trusted for the outcome</h3><p>They cannot take funds, and two must agree, but colluding oracles can choose which pre-agreed payout unlocks.</p></div>
       <div><h3>Oracle keys</h3><p>Today's oracles keep their keys in a sealed file, not yet in a hardware enclave.</p></div>
+      <div><h3>Demo shortcuts</h3><p>Both sides of each live demo run on our server so you can play them; a real user runs their own node or the SDK. Arbiter rulings are buttons, and the coins are testnet.</p></div>
       <div><h3>Viewing-key scope</h3><p>A proof-of-payment oracle can read every payment to the repayment address it watches, including amounts and memos. That address exists for one contract and nothing else.</p></div>
     </div>
   </div>
