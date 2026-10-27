@@ -1,0 +1,357 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>zDLC desk</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@500;700;800&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* The landing page's palette: amber for what is public or acting, teal for shielded. */
+:root {
+  --paper: #f3f5f8; --sheet: #ffffff; --ink: #0f1a2b; --muted: #576274; --line: #d4dbe4;
+  --key: #a8720a; --key-soft: #f5e7c8; --shield: #0c6e63; --shield-soft: #d4ece7;
+  --bad: #b3261e; --bad-soft: #f9dedc; --locked: #8a95a6; --locked-soft: #e7ebf1;
+  --f-display: "Schibsted Grotesk", "Helvetica Neue", Arial, sans-serif;
+  --f-body: "Source Serif 4", Georgia, serif;
+  --f-mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #0b111d; --sheet: #111a2a; --ink: #e5eaf2; --muted: #98a4b8; --line: #243149;
+    --key: #e3ae45; --key-soft: #3a2c10; --shield: #45c7ae; --shield-soft: #10302c;
+    --bad: #f2b8b5; --bad-soft: #3c1614; --locked: #7f8ba0; --locked-soft: #1b2638; color-scheme: dark;
+  }
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--paper); color: var(--ink); font: 400 17px/1.55 var(--f-body); padding: 0 16px 48px; -webkit-font-smoothing: antialiased; }
+.wrap { max-width: 1180px; margin: 0 auto; }
+h1, h2, h3 { font-family: var(--f-display); margin: 0; letter-spacing: -0.015em; }
+p { margin: 0; }
+a { color: var(--shield); }
+code, .mono { font-family: var(--f-mono); font-size: 0.85em; }
+.label { font: 500 0.7rem var(--f-mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+header { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; padding-block: 20px 12px; }
+.mark { font: 800 1.3rem var(--f-display); text-decoration: none; color: var(--ink); }
+.mark b { color: var(--key); }
+.mark.page { font-weight: 700; margin-left: 8px; }
+.net { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; font: 500 0.85rem var(--f-display); color: var(--muted); }
+.net .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--shield); display: inline-block; margin-right: 6px; }
+.intro { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 24px; align-items: end; padding-block: 12px 24px; }
+.intro h1 { font-size: clamp(1.8rem, 4vw, 2.6rem); line-height: 1.05; font-weight: 800; }
+.intro p { color: var(--muted); max-width: 70ch; margin-top: 10px; }
+button { font: 600 0.9rem var(--f-display); padding: 9px 14px; border-radius: 10px; border: 1px solid var(--line); background: var(--sheet); color: var(--ink); cursor: pointer; }
+button:hover:not(:disabled) { border-color: var(--ink); }
+button:disabled { opacity: 0.4; cursor: not-allowed; }
+button.ib { display: inline-flex; align-items: center; gap: 8px; }
+button .ic { width: 18px; height: 18px; flex: none; }
+button.primary { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+button.cheat { border-color: var(--bad); color: var(--bad); background: transparent; }
+button.on { background: var(--key-soft); border-color: var(--key); }
+button:focus-visible { outline: 2px solid var(--key); outline-offset: 2px; }
+.next { border-left: 4px solid var(--key); background: var(--sheet); border-radius: 0 12px 12px 0; padding: 14px 18px; margin-bottom: 18px; }
+.next b { font: 700 1rem var(--f-display); display: block; }
+.next p { color: var(--muted); font-size: 0.95rem; margin-top: 2px; }
+.clock { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 20px; align-items: center; background: var(--sheet); border: 1px solid var(--line); border-radius: 14px; padding: 14px 18px; margin-bottom: 18px; }
+.clock .ms { display: grid; gap: 2px; }
+.clock .ms:last-child { text-align: right; }
+.clock .ms b { font: 800 1.7rem/1.1 var(--f-display); font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+.clock .ms.done b { color: var(--shield); font-size: 1.1rem; }
+.clock .sub2 { font: 400 0.75rem var(--f-mono); color: var(--muted); }
+.clock .bar { position: relative; height: 8px; border-radius: 999px; background: var(--locked-soft); }
+.clock .bar i { position: absolute; inset: 0 auto 0 0; width: 0; border-radius: 999px; background: var(--key); transition: width 1s linear; }
+@media (max-width: 640px) { .clock { grid-template-columns: minmax(0, 1fr); } .clock .ms:last-child { text-align: left; } }
+.grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.panel { background: var(--sheet); border: 1px solid var(--line); border-radius: 16px; padding: 18px; display: grid; gap: 12px; align-content: start; min-width: 0; }
+.panel.off { border-style: dashed; opacity: 0.85; }
+.ph { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.ph h2 { font-size: 1.15rem; }
+.pill { font: 500 0.68rem var(--f-mono); letter-spacing: 0.06em; text-transform: uppercase; padding: 2px 8px; border-radius: 4px; background: var(--locked-soft); color: var(--muted); white-space: nowrap; }
+.pill.go { background: var(--key-soft); color: var(--key); }
+.pill.ok { background: var(--shield-soft); color: var(--shield); }
+.pill.no { background: var(--bad-soft); color: var(--bad); }
+.who { font-size: 0.92rem; color: var(--muted); }
+.acts { display: flex; flex-wrap: wrap; gap: 8px; }
+.bad { display: grid; gap: 12px; }
+.res { border-radius: 12px; padding: 12px 14px; background: var(--locked-soft); display: grid; gap: 4px; }
+.res b { font: 700 1.05rem var(--f-display); }
+.res span { color: var(--muted); font-size: 0.92rem; }
+.res.win { background: var(--shield-soft); }
+.res.win b { color: var(--shield); }
+.res.wait b::after { content: ""; display: inline-block; width: 0.9em; text-align: left; animation: dots 1.2s steps(4) infinite; }
+@keyframes dots { 0% { content: ""; } 25% { content: "."; } 50% { content: ".."; } 75% { content: "..."; } }
+@media (prefers-reduced-motion: reduce) { .res.wait b::after { animation: none; content: "…"; } }
+.sub { font: 600 0.72rem var(--f-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); border-top: 1px dashed var(--line); padding-top: 10px; }
+.qr { display: grid; gap: 8px; justify-items: start; }
+.qr img { width: 100%; max-width: 220px; background: #fff; padding: 8px; border-radius: 8px; }
+.uri { font: 400 0.72rem var(--f-mono); overflow-wrap: anywhere; color: var(--muted); }
+.arb { display: grid; gap: 8px; padding-block: 10px; border-top: 1px solid var(--line); }
+.arb:first-of-type { border-top: 0; padding-top: 0; }
+.arb .ph h3 { font-size: 1rem; }
+.chain { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 24px; }
+.heights { display: flex; gap: 24px; flex-wrap: wrap; }
+.heights div { display: grid; }
+.heights b { font: 700 1.3rem var(--f-display); font-variant-numeric: tabular-nums; }
+.txs { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.txs li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; font-size: 0.92rem; }
+.txs li.no { border-color: var(--bad); background: var(--bad-soft); }
+.txs .t { font: 600 0.95rem var(--f-display); }
+.txs .seen { grid-column: 1 / -1; color: var(--muted); font-size: 0.88rem; }
+.txs .id { font: 400 0.72rem var(--f-mono); color: var(--muted); overflow-wrap: anywhere; grid-column: 1 / -1; }
+.log { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; font-size: 0.9rem; max-height: 320px; overflow: auto; }
+.log li { display: grid; grid-template-columns: 6rem 6.5rem minmax(0, 1fr); gap: 8px; }
+.log .tm { font: 400 0.75rem var(--f-mono); color: var(--muted); padding-top: 3px; }
+.log .wh { font: 600 0.85rem var(--f-display); }
+.empty { color: var(--muted); font-size: 0.92rem; }
+.toast { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); background: var(--ink); color: var(--paper); padding: 10px 16px; border-radius: 10px; font: 500 0.9rem var(--f-display); max-width: calc(100% - 32px); display: none; }
+footer { margin-top: 28px; color: var(--muted); font-size: 0.88rem; display: grid; gap: 6px; }
+@media (max-width: 900px) {
+  .grid, .chain, .intro { grid-template-columns: minmax(0, 1fr); }
+  .log li { grid-template-columns: 4rem minmax(0, 1fr); }
+  .log .tm { grid-row: span 2; }
+}
+
+.nav { display: flex; gap: 16px; font: 600 0.9rem var(--f-display); }
+.nav a { color: var(--muted); text-decoration: none; }
+.nav a.on { color: var(--ink); }
+.facts { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 0.92rem; margin: 0; }
+.facts dt { color: var(--muted); }
+.facts dd { margin: 0; font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; }
+.quotes { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.quotes li { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; font-size: 0.9rem; }
+.quotes li.best { border-color: var(--key); background: var(--key-soft); }
+.quotes .p { font: 700 1rem var(--f-display); }
+.quotes .m { color: var(--muted); font: 400 0.75rem var(--f-mono); grid-column: 1 / -1; overflow-wrap: anywhere; }
+.card { border: 1px dashed var(--line); border-radius: 10px; padding: 10px 12px; font-size: 0.9rem; display: grid; gap: 2px; }
+.card b { font: 700 0.95rem var(--f-display); }
+.card span { color: var(--muted); }
+.price { font: 800 2rem/1.1 var(--f-display); font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div><a class="mark" href="/">z<b>DLC</b></a><a class="mark page" href="/desk">desk</a></div>
+    <nav class="nav"><a href="/room">Escrow room</a><a class="on" href="/desk">Desk</a><span class="net" style="margin-left:8px"><span><span class="dot"></span><span id="net">connecting…</span></span><span>block <b id="tip">–</b></span></span></nav>
+  </header>
+
+  <div class="intro">
+    <div>
+      <h1>Watch two agents trade a hedge.</h1>
+      <p>You are the taker: you want today's dollar value of <b id="amt">…</b>, whatever ZEC does next. A house maker agent quotes a premium to take the other side. Nobody presses a button after yours: the request, the quote, a sealed offer, both agents funding the contract, two oracles attesting the ZEC/USD price, and the settlement all happen on their own. Every transaction is real, on Zcash <span id="net2">testnet</span>.</p>
+    </div>
+    <button class="primary ib" id="trade" type="button" disabled><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17l6-6 4 4 8-8M15 7h6v6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Request a hedge</button>
+  </div>
+
+  <div class="next" id="next" aria-live="polite"><b>Request a hedge to start.</b><p>One trade runs at a time; everyone watching this page sees the same one.</p></div>
+
+  <div class="clock" id="clock" hidden>
+    <div class="bar" aria-hidden="true"><i id="c-fill"></i></div>
+    <div class="ms" id="c-ref"><span class="label" id="c-label">Price minute</span><b>–</b><span class="sub2">–</span></div>
+  </div>
+
+  <div class="grid" id="board" hidden>
+    <section class="panel">
+      <div class="ph"><h2>Taker (You)</h2><span class="pill" id="s-taker">–</span></div>
+      <p class="who">Owed today's dollar value of the ZEC at the price minute; pays the maker a premium for it.</p>
+      <dl class="facts">
+        <dt>Locks the value of</dt><dd id="f-coll">–</dd>
+        <dt>Owed at the minute</dt><dd id="f-usd">–</dd>
+        <dt>Premium to the maker</dt><dd id="f-prem">–</dd>
+      </dl>
+      <div class="res" id="res-taker" hidden></div>
+    </section>
+
+    <section class="panel">
+      <div class="ph"><h2>Desk</h2><span class="pill">quote board</span></div>
+      <p class="who">Lists signed requests and quotes. It holds no funds and no keys, and never sees the contract.</p>
+      <div class="card" id="rfq" hidden></div>
+      <ul class="quotes" id="quotes"></ul>
+      <div class="card" id="sealed" hidden><b>Offer sent in a sealed box</b><span>The taker offered on the cheapest quote through the desk's mailbox, encrypted to the maker. The desk relays it without reading it.</span></div>
+    </section>
+
+    <section class="panel">
+      <div class="ph"><h2>Maker</h2><span class="pill" id="s-maker">–</span></div>
+      <p class="who">A house agent. It quotes a <b id="bps">…</b> premium on every request and accepts the offers that match its quotes, with nobody in the loop.</p>
+      <div class="card"><b>ZEC/USD at the price minute</b><span class="price" id="price">–</span><span id="price-note">Two oracles attest the median of four exchanges.</span></div>
+      <div class="res" id="res-maker" hidden></div>
+    </section>
+
+    <section class="panel chain">
+      <div style="display:grid;gap:14px;align-content:start">
+        <div class="ph"><h2>On chain</h2><span class="label">what anyone can see</span></div>
+        <ul class="txs" id="txs"><li class="empty" style="border:0;padding:0">Nothing yet: the request, the quotes and the offer are messages, not transactions.</li></ul>
+      </div>
+      <div style="display:grid;gap:10px;align-content:start">
+        <div class="ph"><h2>What happened</h2></div>
+        <ol class="log" id="log"></ol>
+      </div>
+    </section>
+  </div>
+
+  <footer>
+    <p id="fund" hidden>An agent is low on funds. Top it up with testnet ZEC: maker <code id="fund-m" style="overflow-wrap:anywhere"></code>, taker <code id="fund-t" style="overflow-wrap:anywhere"></code>.</p>
+    <p>Both agents run as zDLC nodes on this server, each with its own keys; in practice each runs its own. Demo funds are testnet coins with no value. Not audited; do not use zDLC for real money yet.</p>
+  </footer>
+</div>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var BASE = "/desk", info = null, st = null, tipSeen = { tip: null, at: 0 };
+  function zec(z) { return (z / 1e8).toFixed(8).replace(/0+$/, "").replace(/\.$/, "") + " ZEC"; }
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+  function toast(m) { var t = $("toast"); t.textContent = m; t.style.display = "block"; clearTimeout(t._h); t._h = setTimeout(function () { t.style.display = "none"; }, 5000); }
+  function api(method, path) {
+    return fetch(BASE + path, { method: method }).then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || r.statusText); return j; }); });
+  }
+  function link(txid) { return info && info.explorer && txid ? info.explorer.replace("{txid}", txid) : null; }
+  function short(s) { return s ? s.slice(0, 8) + "…" + s.slice(-6) : ""; }
+  function clockText(sec) { var m = Math.floor(sec / 60), s = sec % 60; return m + ":" + (s < 10 ? "0" : "") + s; }
+  function dollars(c) { return "$" + (c / 100).toFixed(2); }
+
+  function stepText(e) {
+    var s = e.step;
+    if (s.step === "rfq posted") return ["taker", "posted a signed request for quotes on the desk"];
+    if (s.step === "quotes") return ["desk", s.quotes.length + (s.quotes.length === 1 ? " quote" : " quotes") + " arrived" + (s.quotes.length ? "; best premium " + zec(Math.min.apply(null, s.quotes.map(function (q) { return q.premium; }))) : "")];
+    if (s.step === "offered") return ["taker", "offered on the cheapest quote through the sealed mailbox (spot " + dollars(s.spot_cents) + ")"];
+    var ev = s.event || {};
+    switch (ev.kind) {
+      case "accepted": return ["maker", "accepted: the offer matches its quote"];
+      case "signed": return ["both", "signed every payout and the refund before any money moved"];
+      case "funded": return ["chain", "contract funded by both agents, block " + ev.height];
+      case "attested": return ["oracles", "attested ZEC/USD at $" + ev.outcome];
+      case "settled": return ["chain", "settled by " + ({ close: "a cooperative close into shielded notes", cet: "a pre-signed payout", refund: "the timed refund" }[ev.how] || ev.how) + (ev.height ? ", block " + ev.height : "")];
+      case "payoutShielded": return ["taker", "moved its payout into the shielded pool"];
+      case "warning": return ["node", ev.message];
+      case "failed": return ["node", "failed: " + ev.reason];
+      default: return null;
+    }
+  }
+
+  function tpl(v) { return v && v.template && v.template.template === "stable_payment" ? v.template : null; }
+
+  function next(r) {
+    var t = r.trade, k = r.taker || {}, m = r.maker || {};
+    if (!t) return ["Request a hedge to start.", "One trade runs at a time; everyone watching this page sees the same one."];
+    var s = k.settlement || m.settlement;
+    if (s) return ["Settled" + (s.height ? " in block " + s.height : "") + ".", "Request another hedge to watch the agents trade again."];
+    if (t.error) return ["This trade stopped: " + t.error, "Request another hedge to try again."];
+    if (!t.rfq) return ["Posting the request…", ""];
+    if (!t.contract) return ["The maker is quoting…", "The taker waits a few seconds for quotes, then offers on the cheapest."];
+    if (!k.fundingTxid || k.state === "accepted" || k.state === "offered") return ["The agents are setting up the contract.", "The maker checks the offer against its quote, then both sign every payout and the refund."];
+    if (k.state === "signed") return ["The contract is funded; waiting for a block (~75 s).", ""];
+    if (!k.attested) return ["Funded. Waiting for the price minute.", "Then two oracles attest ZEC/USD and the payout follows from it."];
+    return ["The oracles attested $" + k.attested + ".", "The agents close cooperatively; the payout splits at that price."];
+  }
+
+  function render(r) {
+    st = r;
+    if (tipSeen.tip !== r.tip) tipSeen = { tip: r.tip, at: Date.now() };
+    $("tip").textContent = r.tip;
+    var t = r.trade, k = r.taker || {}, m = r.maker || {}, T = tpl(k) || tpl(m);
+    var running = t && !t.done;
+    $("trade").disabled = !info || running;
+    $("trade").lastChild.textContent = running ? "Trade running…" : "Request a hedge";
+    $("board").hidden = !t;
+    var n = next(r);
+    $("next").innerHTML = "<b>" + esc(n[0]) + "</b>" + (n[1] ? "<p>" + esc(n[1]) + "</p>" : "");
+    if (!t) return;
+    ["taker", "maker"].forEach(function (w) {
+      var v = r[w] || {}, p = $("s-" + w);
+      p.textContent = v.state ? v.state.replace("_", " ") : (w === "maker" ? "quoting" : "requesting");
+      p.className = "pill" + (v.state === "settled" ? " ok" : v.state ? " go" : "");
+    });
+    $("f-coll").textContent = info ? zec(info.collateralZat) : "–";
+    $("f-usd").textContent = T ? dollars(T.usd_cents) : "–";
+    $("f-prem").textContent = T ? zec(T.premium_zat) : "–";
+    var steps = t.steps || [];
+    var rq = steps.filter(function (e) { return e.step.step === "rfq posted"; })[0];
+    $("rfq").hidden = !rq;
+    if (rq) $("rfq").innerHTML = "<b>Request " + esc(short(rq.step.rfq)) + "</b><span>Hedge " + (info ? zec(info.collateralZat) : "") + " against ZEC/USD, " + (info ? info.oracles : 2) + " oracles, signed by the taker.</span>";
+    var qs = steps.filter(function (e) { return e.step.step === "quotes"; })[0];
+    var best = qs && qs.step.quotes.length ? Math.min.apply(null, qs.step.quotes.map(function (q) { return q.premium; })) : null;
+    $("quotes").innerHTML = qs ? qs.step.quotes.map(function (q) {
+      return '<li class="' + (q.premium === best ? "best" : "") + '"><span class="p">' + zec(q.premium) + "</span><span>" + (q.premium === best ? "best" : "") + '</span><span class="m">from ' + esc(short(q.from)) + " · valid to block " + q.valid_until + "</span></li>";
+    }).join("") : "";
+    $("sealed").hidden = !t.contract;
+    $("price").textContent = k.attested ? "$" + Number(k.attested).toLocaleString("en-US") : "–";
+    $("price-note").textContent = k.attested ? "The median of four exchanges, attested by both oracles." : T && T.price_minute ? "Attested for the minute at " + new Date(T.price_minute * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) + "." : "Two oracles attest the median of four exchanges.";
+    var s = k.settlement || m.settlement;
+    if (s && T && k.attested) {
+      var got = Math.min(T.usd_cents / 100 / Number(k.attested), 2 * T.collateral_zat / 1e8);
+      res("taker", "win", "Received ~" + got.toFixed(6) + " ZEC", "Worth " + dollars(T.usd_cents) + " at $" + k.attested + ", as hedged.");
+      res("maker", "win", "Kept the rest, plus the premium", "Earned " + zec(T.premium_zat) + " for taking the price risk.");
+    } else { $("res-taker").hidden = true; $("res-maker").hidden = true; }
+    var txs = [];
+    if (k.fundingTxid && k.state !== "accepted") txs.push({ t: "Funding", txid: k.fundingTxid, seen: "Both agents' coins \u2192 one 2-of-2 output. The terms and the price are not on chain." });
+    if (s && s.txid) txs.push({ t: "Settlement", txid: s.txid, seen: s.how === "close" ? "Spends the 2-of-2 \u2192 shielded outputs. Who received what is hidden." : "Spends the 2-of-2 \u2192 transparent payouts, then shielded by each agent." });
+    $("txs").innerHTML = txs.length ? txs.map(function (x) {
+      var l = link(x.txid);
+      return '<li><span class="t">' + x.t + "</span>" + (l ? '<a href="' + l + '" target="_blank" rel="noopener">explorer</a>' : "<span></span>") + '<span class="seen">' + esc(x.seen) + '</span><span class="id">' + x.txid + "</span></li>";
+    }).join("") : '<li class="empty" style="border:0;padding:0">Nothing yet: the request, the quotes and the offer are messages, not transactions.</li>';
+    $("log").innerHTML = steps.map(stepText_).filter(Boolean).reverse().join("") || '<li class="empty">Nothing yet.</li>';
+    tick();
+  }
+  function stepText_(e) {
+    var x = stepText(e);
+    if (!x) return null;
+    var d = new Date(e.t * 1000);
+    return '<li><span class="tm">' + d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }) + '</span><span class="wh">' + esc(x[0]) + "</span><span>" + esc(x[1]) + "</span></li>";
+  }
+  function res(w, cls, b, t) { var el = $("res-" + w); el.hidden = false; el.className = "res " + cls; el.innerHTML = "<b>" + esc(b) + "</b><span>" + esc(t) + "</span>"; }
+
+  // Counts down to the price minute, then to the refund height.
+  function tick() {
+    var r = st, k = r && (r.taker || {}), T = r && (tpl(k) || tpl(r.maker || {}));
+    if (!r || !r.trade || !T || !k.refundHeight) { $("clock").hidden = true; return; }
+    $("clock").hidden = false;
+    var el = $("c-ref"), settled = !!((r.taker || {}).settlement || (r.maker || {}).settlement);
+    var now = Date.now() / 1000, left;
+    if (settled) { $("c-label").textContent = "Trade"; el.querySelector("b").textContent = "settled"; el.querySelector(".sub2").textContent = ""; el.classList.add("done"); $("c-fill").style.width = "100%"; return; }
+    el.classList.remove("done");
+    if (T.price_minute && now < T.price_minute + 60) {
+      left = Math.max(0, Math.round(T.price_minute + 60 - now));
+      $("c-label").textContent = "Price minute closes";
+      el.querySelector("b").textContent = left > 0 ? "~" + clockText(left) : "now";
+      el.querySelector(".sub2").textContent = new Date(T.price_minute * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) + " minute";
+      $("c-fill").style.width = Math.min(100, 100 * (1 - left / Math.max(60, T.price_minute + 60 - r.trade.started))) + "%";
+    } else {
+      var n = k.refundHeight - r.tip, sec = Math.max(0, Math.round(n * info.blockSecs - (Date.now() - tipSeen.at) / 1000));
+      $("c-label").textContent = "Refund unlocks if unsettled";
+      el.querySelector("b").textContent = n > 0 ? "~" + clockText(sec) : "reached";
+      el.querySelector(".sub2").textContent = "block " + k.refundHeight + (n > 0 ? " · " + n + " to go" : "");
+      $("c-fill").style.width = "100%";
+    }
+  }
+
+  function refresh() { return api("GET", "/api/state").then(render).catch(function (e) { toast(e.message); }); }
+  $("trade").addEventListener("click", function () {
+    $("trade").disabled = true;
+    api("POST", "/api/trade").then(refresh).catch(function (e) { toast(e.message); refresh(); });
+  });
+  function start() {
+    api("GET", "/api/info").then(function (i) {
+      info = i;
+      $("net").textContent = "Zcash " + i.network; $("net2").textContent = i.network; $("tip").textContent = i.tip;
+      $("amt").textContent = zec(i.collateralZat); $("bps").textContent = (i.premiumBps / 100) + "%";
+      var low = 4 * i.collateralZat + 400000;
+      if ((i.makerZat || 0) < low || (i.takerZat || 0) < low) { $("fund").hidden = false; $("fund-m").textContent = i.makerFund; $("fund-t").textContent = i.takerFund; }
+      refresh();
+      setInterval(function () { if (!document.hidden) refresh(); }, 3000);
+      setInterval(tick, 1000);
+    }).catch(function () {
+      $("net").textContent = "connecting…";
+      $("next").innerHTML = "<b>Connecting to the Zcash node…</b><p>The desk starts as soon as the node answers. This page retries on its own.</p>";
+      setTimeout(start, 5000);
+    });
+  }
+  start();
+})();
+</script>
+</body>
+</html>

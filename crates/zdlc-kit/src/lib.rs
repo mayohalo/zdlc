@@ -1359,6 +1359,28 @@ impl Zdlc {
         Ok(out)
     }
 
+    /// Pays at least `need` zat of treasury coins, whole, into the shielded address of
+    /// `unified_address` (less the fee): funding another wallet's inbox. Returns the txid.
+    pub async fn pay_from_treasury(&self, unified_address: &str, need: u64) -> Result<String> {
+        let (_, to) = paylink::decode_unified(unified_address).ok_or(Error::Usage("not a unified address with an Ironwood receiver".into()))?;
+        let coins = self.select(need).await?;
+        let key = self.wallet.coin_key(0);
+        let tip = self.chain.height().await?;
+        let signed: Vec<_> = coins.iter().map(|c| (c.clone(), key)).collect();
+        let sent = async { funds::shield(&self.p, tip, &signed, to, self.chain.ironwood_anchor(tip).await?).map_err(Error::from) }.await;
+        let r = match sent {
+            Ok(f) => self.chain.send(&f.raw).await.map(|()| txid_hex(&f.txid)),
+            Err(e) => Err(e),
+        };
+        // A sent payment keeps its coins reserved: they stay listed until it is mined.
+        if r.is_err() {
+            let mut reserved = self.reserved().await?;
+            reserved.retain(|r| !coins.iter().any(|c| txid_hex(&c.txid) == r.0 && c.index == r.1));
+            self.storage.put_kv("reserved", &json!(reserved)).await?;
+        }
+        r
+    }
+
     /// The treasury's shielded inbox: a unified address any Zcash wallet can pay (some
     /// refuse transparent addresses). [`Zdlc::sweep_inbox`] turns what arrives into
     /// treasury coins.

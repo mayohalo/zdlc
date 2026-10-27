@@ -37,7 +37,7 @@ code, .mono { font-family: var(--f-mono); font-size: 0.85em; }
 header { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; padding-block: 20px 12px; }
 .mark { font: 800 1.3rem var(--f-display); text-decoration: none; color: var(--ink); }
 .mark b { color: var(--key); }
-.mark.sub { font-weight: 700; margin-left: 8px; }
+.mark.page { font-weight: 700; margin-left: 8px; }
 .net { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; font: 500 0.85rem var(--f-display); color: var(--muted); }
 .net .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--shield); display: inline-block; margin-right: 6px; }
 .intro { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 24px; align-items: end; padding-block: 12px 24px; }
@@ -118,8 +118,8 @@ footer { margin-top: 28px; color: var(--muted); font-size: 0.88rem; display: gri
 <body>
 <div class="wrap">
   <header>
-    <a class="mark" href="/">z<b>DLC</b></a><a class="mark sub" href="/room">escrow room</a>
-    <div class="net"><span><span class="dot"></span><span id="net">connecting…</span></span><span>block <b id="tip">–</b></span></div>
+    <a class="mark" href="/">z<b>DLC</b></a><a class="mark page" href="/room">escrow room</a>
+    <div class="net"><a href="/desk" style="color:inherit;font-weight:600">Desk demo →</a><span><span class="dot"></span><span id="net">connecting…</span></span><span>block <b id="tip">–</b></span></div>
   </header>
 
   <div class="intro">

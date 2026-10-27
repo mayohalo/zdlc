@@ -1,8 +1,11 @@
 # HTTPS for the site; Caddy gets the certificate. DOMAIN is filled in by install.sh.
-# The landing page is at /, the escrow room (page and API) at /room.
+# The landing page is at /; the escrow room at /room and the desk demo at /desk.
 DOMAIN {
 	encode gzip
 	handle /room* {
+		reverse_proxy 127.0.0.1:8080
+	}
+	handle /desk* {
 		reverse_proxy 127.0.0.1:8080
 	}
 	handle {

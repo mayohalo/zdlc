@@ -113,7 +113,20 @@ pub struct TakerArgs {
 /// Asks the desk for a hedge on `collateral_zat`, offers on the cheapest quote and
 /// returns once the contract settles.
 pub async fn run_taker(z: Arc<Zdlc>, desk: &DeskClient, id_key: &secp256k1::SecretKey, oracle_keys: Vec<String>, a: &TakerArgs) -> Result<Vec<Value>> {
-    let mut log = vec![];
+    let log = Mutex::new(vec![]);
+    run_taker_with(z, desk, id_key, oracle_keys, a, &|step| log.lock().unwrap().push(step)).await?;
+    Ok(log.into_inner().unwrap())
+}
+
+/// [`run_taker`], reporting each step to `on` as it happens (a live page, a log).
+pub async fn run_taker_with(
+    z: Arc<Zdlc>,
+    desk: &DeskClient,
+    id_key: &secp256k1::SecretKey,
+    oracle_keys: Vec<String>,
+    a: &TakerArgs,
+    on: &(dyn Fn(Value) + Send + Sync),
+) -> Result<()> {
     let mut nonce = [0u8; 8];
     rand10::fill(&mut nonce);
     let rfq = RfqBody {
@@ -127,12 +140,14 @@ pub async fn run_taker(z: Arc<Zdlc>, desk: &DeskClient, id_key: &secp256k1::Secr
     };
     let rfq_id = desk.post_rfq(&Signed::new(desk::RFQ_TAG, rfq, id_key)).await?;
     println!("[taker] rfq {rfq_id}");
-    log.push(json!({"step": "rfq posted", "rfq": rfq_id}));
+    on(json!({"step": "rfq posted", "rfq": rfq_id}));
     tokio::time::sleep(Duration::from_secs(a.quote_wait_s)).await;
     let tip = z.info().await?["tip"].as_u64().unwrap_or_default() as u32;
-    let best = desk
-        .quotes(&rfq_id)
-        .await?
+    let quotes = desk.quotes(&rfq_id).await?;
+    on(json!({"step": "quotes", "rfq": rfq_id, "quotes": quotes.iter().map(|(id, q)| json!({
+        "id": id, "from": q.from, "premium": q.body.premium, "valid_until": q.body.valid_until,
+    })).collect::<Vec<_>>()}));
+    let best = quotes
         .into_iter()
         .filter(|(_, q)| q.verify(desk::QUOTE_TAG).is_ok() && q.body.q_hedger == a.collateral_zat && q.body.valid_until > tip + 2)
         .min_by_key(|(_, q)| q.body.premium)
@@ -151,17 +166,21 @@ pub async fn run_taker(z: Arc<Zdlc>, desk: &DeskClient, id_key: &secp256k1::Secr
     };
     let id = z.offer(template, &quote.from).await?;
     println!("[taker] offered {id} on quote {qid} (premium {} zat, spot {spot} cents)", quote.body.premium);
-    log.push(json!({"step": "offered", "quote": qid, "contract": id, "premium": quote.body.premium, "spot_cents": spot}));
+    on(json!({"step": "offered", "quote": qid, "contract": id, "premium": quote.body.premium, "spot_cents": spot}));
     let mut cursor = 0;
     loop {
         for (seq, ev) in z.events_after(cursor, 100).await? {
             cursor = seq;
             println!("[taker] {}", serde_json::to_string(&ev).unwrap_or_default());
-            log.push(json!({"step": "event", "event": ev}));
+            // Only this contract's events: the node may hold earlier trades.
+            let ev = serde_json::to_value(&ev).unwrap_or_default();
+            if ev["id"] == json!(id) {
+                on(json!({"step": "event", "event": ev}));
+            }
         }
         if let Some(rec) = z.contract(&id).await? {
             match rec.state {
-                State::Settled => return Ok(log),
+                State::Settled => return Ok(()),
                 State::Failed | State::Declined => return Err(crate::Error::Usage(format!("contract {id} {:?}: {:?}", rec.state, rec.note))),
                 _ => {}
             }

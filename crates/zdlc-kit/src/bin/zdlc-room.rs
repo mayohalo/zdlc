@@ -36,6 +36,7 @@ use tokio::sync::Mutex;
 use zdlc_kit::{impls::*, templates::Template, Funding, Zdlc};
 
 const PAGE: &str = include_str!("../../room/index.html");
+const DESK_PAGE: &str = include_str!("../../room/desk.html");
 
 fn arg(args: &[String], name: &str, default: &str) -> String {
     args.iter().position(|a| a == name).and_then(|i| args.get(i + 1)).cloned().unwrap_or_else(|| default.to_string())
@@ -104,6 +105,61 @@ struct App {
     rooms: Mutex<HashMap<String, Room>>,
     rooms_file: String,
     cfg: Cfg,
+    desk: Arc<DeskDemo>,
+}
+
+/// The desk demo: a house maker agent always quoting on the desk, and a taker the
+/// visitor drives. One trade runs at a time, so every visitor watches the same one.
+struct DeskDemo {
+    maker: Arc<Zdlc>,
+    taker: Arc<Zdlc>,
+    taker_key: secp256k1::SecretKey,
+    desk: zdlc::desk::DeskClient,
+    oracle_keys: Vec<String>,
+    trade: std::sync::Mutex<Option<Trade>>,
+    file: String,
+    args: DeskArgs,
+}
+
+struct DeskArgs {
+    collateral_zat: u64,
+    premium_bps: u64,
+    maturity: u32,
+    refund: u32,
+    minute_offset: i64,
+}
+
+/// The current (or last) trade, as the taker reports it. Saved to `trade.json`.
+#[derive(Clone, Default, Serialize, Deserialize)]
+struct Trade {
+    started: u64,
+    steps: Vec<Value>,
+    contract: Option<String>,
+    rfq: Option<String>,
+    error: Option<String>,
+    done: bool,
+}
+
+impl DeskDemo {
+    fn save(&self, t: &Trade) {
+        if let Ok(b) = serde_json::to_vec(t) {
+            let _ = std::fs::write(&self.file, b);
+        }
+    }
+
+    fn record(&self, step: Value) {
+        let mut g = self.trade.lock().unwrap();
+        if let Some(t) = g.as_mut() {
+            if step["step"] == "rfq posted" {
+                t.rfq = step["rfq"].as_str().map(String::from);
+            }
+            if step["step"] == "offered" {
+                t.contract = step["contract"].as_str().map(String::from);
+            }
+            t.steps.push(json!({"t": now(), "step": step}));
+            self.save(t);
+        }
+    }
 }
 
 /// The app once both demo nodes are up. The page is served from the start; until the
@@ -426,6 +482,93 @@ async fn rule(Ready(a): Ready, Path((id, n)): Path<(String, usize)>, Json(r): Js
     }
 }
 
+async fn desk_page() -> Html<&'static str> {
+    Html(DESK_PAGE)
+}
+
+async fn desk_info(Ready(a): Ready) -> Response {
+    let d = &a.desk;
+    let tip = match d.taker.info().await {
+        Ok(i) => i["tip"].clone(),
+        Err(e) => return bad(e),
+    };
+    Json(json!({
+        "network": a.cfg.label, "tip": tip, "blockSecs": a.cfg.block_secs, "explorer": a.cfg.explorer,
+        "collateralZat": d.args.collateral_zat, "premiumBps": d.args.premium_bps, "refundBlocks": d.args.refund,
+        "maker": d.maker.identity(), "taker": d.taker.identity(), "oracles": d.oracle_keys.len(),
+        "makerZat": d.maker.treasury_zat().await.ok(), "takerZat": d.taker.treasury_zat().await.ok(),
+        "makerFund": d.maker.inbox_address(), "takerFund": d.taker.inbox_address(),
+    }))
+    .into_response()
+}
+
+/// The trade, both sides' view of its contract, and the desk's quotes on its request.
+async fn desk_state(Ready(a): Ready) -> Response {
+    let d = &a.desk;
+    let trade = d.trade.lock().unwrap().clone();
+    let Some(t) = trade else { return out(json!({"trade": null})) };
+    let (mut taker, mut maker) = (Value::Null, Value::Null);
+    if let Some(id) = &t.contract {
+        taker = d.taker.contract(id).await.ok().flatten().map(|r| r.view()).unwrap_or_default();
+        maker = d.maker.contract(id).await.ok().flatten().map(|r| r.view()).unwrap_or_default();
+    }
+    let tip = d.taker.info().await.ok().map(|i| i["tip"].clone()).unwrap_or_default();
+    out(json!({"trade": t, "taker": taker, "maker": maker, "tip": tip}))
+}
+
+/// The visitor's taker asks the desk for a hedge.
+async fn desk_trade(Ready(a): Ready) -> Response {
+    let d = a.desk.clone();
+    {
+        let mut g = d.trade.lock().unwrap();
+        if g.as_ref().is_some_and(|t| !t.done) {
+            return err(StatusCode::CONFLICT, "a trade is already running: watch it settle, then start the next");
+        }
+        let t = Trade { started: now(), ..Default::default() };
+        d.save(&t);
+        *g = Some(t);
+    }
+    tokio::spawn(async move {
+        let args = zdlc_kit::agent::TakerArgs {
+            collateral_zat: d.args.collateral_zat,
+            maturity_blocks: d.args.maturity,
+            refund_blocks: d.args.refund,
+            minute_offset: d.args.minute_offset,
+            quote_wait_s: 5,
+        };
+        let d2 = d.clone();
+        let r = zdlc_kit::agent::run_taker_with(d.taker.clone(), &d.desk, &d.taker_key, d.oracle_keys.clone(), &args, &move |step| d2.record(step)).await;
+        let mut g = d.trade.lock().unwrap();
+        if let Some(t) = g.as_mut() {
+            t.done = true;
+            t.error = r.err().map(|e| e.to_string());
+            d.save(t);
+        }
+    });
+    out(json!({"started": true}))
+}
+
+/// Sweeps a node's shielded inbox into treasury coins every minute. Scanning starts where
+/// the last empty pass ended, so it never rescans the chain.
+fn spawn_sweeper(z: Arc<Zdlc>, path: String) {
+    tokio::spawn(async move {
+        loop {
+            if let Ok(tip) = z.info().await.map(|i| i["tip"].as_u64().unwrap_or_default() as u32) {
+                let from = std::fs::read_to_string(&path).ok().and_then(|s| s.trim().parse().ok()).unwrap_or(tip.saturating_sub(100));
+                match z.sweep_inbox(from, 10).await {
+                    Ok(Some(txid)) => println!("zdlc-room: swept {} into treasury coins: {txid}", path),
+                    // Nothing unspent before this tip (less a margin for reorgs).
+                    Ok(None) => {
+                        let _ = std::fs::write(&path, tip.saturating_sub(5).max(from).to_string());
+                    }
+                    Err(e) => eprintln!("zdlc-room: sweep {path}: {e}"),
+                }
+            }
+            tokio::time::sleep(std::time::Duration::from_secs(60)).await;
+        }
+    });
+}
+
 /// One demo party. `records`: post recovery records (the contractor puts nothing in and
 /// has no treasury to pay for one).
 async fn node(args: &[String], dir: &str, name: &str, rpc: &str, cfg: &Cfg, records: bool) -> zdlc_kit::Result<Arc<Zdlc>> {
@@ -444,6 +587,103 @@ async fn node(args: &[String], dir: &str, name: &str, rpc: &str, cfg: &Cfg, reco
         b = b.oracle(Arc::new(HttpOracle::new(o)));
     }
     Ok(Arc::new(b.build().await?))
+}
+
+/// The desk demo's two agents, each a kit node with its own seed and funding inbox. The
+/// maker quotes and accepts on its own, forever; the taker waits for the visitor.
+async fn desk_demo(args: &[String], dir: &str, rpc: &str, cfg: &Cfg, oracles: &[String], bank: Arc<Zdlc>) -> Arc<DeskDemo> {
+    let (maker, taker) = loop {
+        match (node(args, dir, "maker", rpc, cfg, true).await, node(args, dir, "taker", rpc, cfg, true).await) {
+            (Ok(m), Ok(t)) => break (m, t),
+            (Err(e), _) | (_, Err(e)) => eprintln!("zdlc-room: desk agents waiting for the node: {e}"),
+        }
+        tokio::time::sleep(std::time::Duration::from_secs(10)).await;
+    };
+    for z in [&maker, &taker] {
+        tokio::spawn(z.clone().run(std::time::Duration::from_millis(1000)));
+    }
+    let mut oracle_keys = vec![];
+    for o in oracles {
+        let k = loop {
+            match zdlc::oracle_client::OracleClient::new(o).info().await {
+                Ok(i) => break i["pubkey"].as_str().unwrap_or_default().to_string(),
+                Err(e) => eprintln!("zdlc-room: oracle: {e}"),
+            }
+            tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+        };
+        oracle_keys.push(k);
+    }
+    let desk_url = arg(args, "--desk", "");
+    let num = |name: &str, default: &str| arg(args, name, default).parse::<i64>().unwrap_or_else(|_| die(name));
+    let d = Arc::new(DeskDemo {
+        taker_key: zdlc::wallet::Wallet::from_seed(secret(&format!("{dir}/taker.seed"))).identity_key(),
+        desk: zdlc::desk::DeskClient::new(&desk_url),
+        trade: std::sync::Mutex::new(std::fs::read(format!("{dir}/trade.json")).ok().and_then(|b| serde_json::from_slice(&b).ok())),
+        file: format!("{dir}/trade.json"),
+        args: DeskArgs {
+            collateral_zat: zat(&arg(args, "--desk-collateral", "0.001")),
+            premium_bps: num("--desk-premium-bps", "50") as u64,
+            maturity: num("--desk-maturity", "2") as u32,
+            refund: num("--desk-refund", "8") as u32,
+            minute_offset: num("--desk-minute-offset", "1"),
+        },
+        oracle_keys,
+        maker,
+        taker,
+    });
+    // A trade cut short by a restart is over: its contract still settles on its own.
+    if let Some(t) = d.trade.lock().unwrap().as_mut() {
+        if !t.done {
+            t.done = true;
+            t.error = Some("the server restarted during this trade".into());
+            d.save(t);
+        }
+    }
+    for (z, name) in [(&d.maker, "maker"), (&d.taker, "taker")] {
+        spawn_sweeper(z.clone(), format!("{dir}/{name}-inbox.from"));
+    }
+    // The demo wallet (`bank`, the escrow client's treasury) keeps both agents funded: when
+    // one runs low, it pays the agent's inbox, which the sweeper turns into coins.
+    {
+        let (d, low, top) = (d.clone(), 4 * d.args.collateral_zat + 1_000_000, 2_000_000u64);
+        // When each agent was last topped up: a top-up takes a block to arrive and a
+        // minute to be swept, so a restart must not send a second one meanwhile.
+        let path = format!("{dir}/topups.json");
+        tokio::spawn(async move {
+            loop {
+                let mut last: HashMap<String, u64> = std::fs::read(&path).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_default();
+                for z in [&d.maker, &d.taker] {
+                    let recent = last.get(&z.identity()).is_some_and(|t| now() < t + 1800);
+                    if !recent && z.treasury_zat().await.is_ok_and(|v| v < low) {
+                        match bank.pay_from_treasury(&z.inbox_address(), top).await {
+                            Ok(txid) => {
+                                println!("zdlc-room: topped up a desk agent from the demo wallet: {txid}");
+                                last.insert(z.identity(), now());
+                                let _ = std::fs::write(&path, serde_json::to_vec(&last).unwrap_or_default());
+                            }
+                            Err(e) => eprintln!("zdlc-room: desk top-up: {e}"),
+                        }
+                    }
+                }
+                // Long enough for a top-up to confirm and be swept before the next check.
+                tokio::time::sleep(std::time::Duration::from_secs(600)).await;
+            }
+        });
+    }
+    // The house maker quotes every request on the desk and accepts the matching offers.
+    {
+        let (z, desk, key, keys, bps) = (d.maker.clone(), zdlc::desk::DeskClient::new(&desk_url), zdlc::wallet::Wallet::from_seed(secret(&format!("{dir}/maker.seed"))).identity_key(), d.oracle_keys.clone(), d.args.premium_bps);
+        tokio::spawn(async move {
+            let a = zdlc_kit::agent::MakerArgs { premium_bps: bps, cap_zat: 10_000_000, ttl_blocks: 20, contracts: 0 };
+            loop {
+                if let Err(e) = zdlc_kit::agent::run_maker(z.clone(), &desk, &key, keys.clone(), &a).await {
+                    eprintln!("zdlc-room: maker: {e}");
+                }
+                tokio::time::sleep(std::time::Duration::from_secs(10)).await;
+            }
+        });
+    }
+    d
 }
 
 #[tokio::main]
@@ -495,30 +735,11 @@ async fn main() {
             // The client's node accepts nothing by itself: the visitor decides.
             println!("zdlc-room: contractor {} client {}", contractor.identity(), client.identity());
             println!("zdlc-room: fund the demo wallet at {} (shielded; swept into coins every minute)", client.inbox_address());
-            // Sweep the shielded inbox into treasury coins. Scanning starts where the last
-            // empty pass ended, so it never rescans the chain.
-            {
-                let (z, path) = (client.clone(), format!("{dir}/inbox.from"));
-                tokio::spawn(async move {
-                    loop {
-                        if let Ok(tip) = z.info().await.map(|i| i["tip"].as_u64().unwrap_or_default() as u32) {
-                            let from = std::fs::read_to_string(&path).ok().and_then(|s| s.trim().parse().ok()).unwrap_or(tip.saturating_sub(100));
-                            match z.sweep_inbox(from, 10).await {
-                                Ok(Some(txid)) => println!("zdlc-room: swept the inbox into treasury coins: {txid}"),
-                                // Nothing unspent before this tip (less a margin for reorgs).
-                                Ok(None) => {
-                                    let _ = std::fs::write(&path, tip.saturating_sub(5).max(from).to_string());
-                                }
-                                Err(e) => eprintln!("zdlc-room: inbox sweep: {e}"),
-                            }
-                        }
-                        tokio::time::sleep(std::time::Duration::from_secs(60)).await;
-                    }
-                });
-            }
+            spawn_sweeper(client.clone(), format!("{dir}/inbox.from"));
+            let desk = desk_demo(&args, &dir, &rpc, &cfg, &oracles, client.clone()).await;
             let rooms_file = format!("{dir}/rooms.json");
             let rooms: HashMap<String, Room> = std::fs::read(&rooms_file).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_default();
-            let app = Arc::new(App { contractor, client, oracles, oracle_token, http: reqwest::Client::new(), rooms: Mutex::new(rooms), rooms_file, cfg });
+            let app = Arc::new(App { contractor, client, oracles, oracle_token, http: reqwest::Client::new(), rooms: Mutex::new(rooms), rooms_file, cfg, desk });
             let _ = slot.0.set(app);
         });
     }
@@ -535,6 +756,10 @@ async fn main() {
         .route("/room/api/rooms/{id}/{who}/hold", post(hold))
         .route("/room/api/rooms/{id}/{who}/attempt", post(attempt))
         .route("/room/api/rooms/{id}/arbiters/{n}", post(rule))
+        .route("/desk", get(desk_page))
+        .route("/desk/api/info", get(desk_info))
+        .route("/desk/api/state", get(desk_state))
+        .route("/desk/api/trade", post(desk_trade))
         .with_state(slot);
     println!("zdlc-room: http://{listen}/room");
     let l = tokio::net::TcpListener::bind(&listen).await.unwrap_or_else(|e| die(e));
