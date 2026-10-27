@@ -38,6 +38,7 @@ systemctl reload caddy || systemctl restart caddy
 if grep -q PRIVATE-NODE-ADDRESS /etc/zdlc/zdlc.env; then
   echo "set ZDLC_RPC in /etc/zdlc/zdlc.env, then: systemctl restart zdlc-desk zdlc-room"
 else
-  systemctl restart zdlc-desk zdlc-room
+  # Every service runs the binaries just installed (the oracles' state is sealed on disk).
+  systemctl restart zdlc-desk zdlc-oracle@7801 zdlc-oracle@7802 zdlc-room
 fi
 echo "installed: https://$DOMAIN/"

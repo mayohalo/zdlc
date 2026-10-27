@@ -261,52 +261,80 @@ impl Enclave {
     }
 
     /// Attests an event once its data is final. `now` is unix seconds; `node` is needed
-    /// for payment events. Returns `Ok(None)` if the event is not yet due.
+    /// for payment events. Returns `Ok(None)` if the event is not yet due. A service that
+    /// shares the enclave should use [`Enclave::pending`], [`Enclave::observe`] and
+    /// [`Enclave::bind_and_sign`] instead, so the network fetch runs without the lock.
     pub async fn attest(&mut self, id: &str, now: i64, node: Option<&Node>) -> Result<Option<AttestationMsg>> {
-        let rec = self
-            .state
-            .events
-            .get(id)
-            .cloned()
-            .ok_or(Error::Build(format!("event {id} was never announced")))?;
-        let (outcomes, detail) = match &rec.attested {
-            Some(o) => (o.clone(), rec.detail.clone().unwrap_or_default()),
-            None => {
-                let (outcomes, detail) = match &rec.spec {
-                    EventSpec::ZecUsd { minute, unit_cents, nb_digits } => {
-                        // Wait for the minute to close and the exchanges to publish it.
-                        if now < minute + 60 + 15 {
-                            return Ok(None);
-                        }
-                        let (price, quotes) = feeds::zecusd_minute(*minute).await?;
-                        let max = (1u64 << nb_digits) - 1;
-                        let value = (price / unit_cents).min(max) as usize;
-                        let digits = dlc_trie::digit_decomposition::decompose_value(value, 2, *nb_digits);
-                        let detail = serde_json::json!({
-                            "price_cents": price, "value": value,
-                            "quotes": quotes.iter().map(|q| serde_json::json!({"source": q.source, "close_cents": q.close_cents})).collect::<Vec<_>>(),
-                        });
-                        (digits.iter().map(|d| d.to_string()).collect::<Vec<_>>(), detail)
-                    }
-                    EventSpec::Payment { ivk, min_zat, from_height, by_height } => {
-                        let node = node.ok_or(Error::Build("payment events need --node".into()))?;
-                        if node.height().await? < *by_height {
-                            return Ok(None);
-                        }
-                        let got = feeds::received(node, &parse_ivk(ivk)?, *from_height, *by_height).await?;
-                        let outcome = if got >= *min_zat { "paid" } else { "unpaid" };
-                        (vec![outcome.to_string()], serde_json::json!({"received_zat": got}))
-                    }
-                    // Not resolved yet.
-                    EventSpec::Arbiter { .. } => return Ok(None),
-                };
-                // Bind the event to this outcome before any signature exists.
+        match self.pending(id, now)? {
+            Pending::NotDue => Ok(None),
+            Pending::Attested => self.bind_and_sign(id, None).map(Some),
+            Pending::Observe(spec) => match Self::observe(&spec, now, node).await? {
+                Some(o) => self.bind_and_sign(id, Some(o)).map(Some),
+                None => Ok(None),
+            },
+        }
+    }
+
+    /// What attesting `id` needs: nothing (already bound), nothing yet (not due), or an
+    /// observation of the world. Quick; reads the state only.
+    pub fn pending(&self, id: &str, now: i64) -> Result<Pending> {
+        let rec = self.state.events.get(id).ok_or(Error::Build(format!("event {id} was never announced")))?;
+        if rec.attested.is_some() {
+            return Ok(Pending::Attested);
+        }
+        Ok(match &rec.spec {
+            // Wait for the minute to close and the exchanges to publish it.
+            EventSpec::ZecUsd { minute, .. } if now < minute + 60 + 15 => Pending::NotDue,
+            // Not resolved yet.
+            EventSpec::Arbiter { .. } => Pending::NotDue,
+            spec => Pending::Observe(spec.clone()),
+        })
+    }
+
+    /// Observes what an event attests: the exchanges' ZEC/USD close, or the payments a
+    /// viewing key received. Network only, no enclave state, so it runs without the
+    /// lock. `None` if the data is not final yet (a payment window still open).
+    pub async fn observe(spec: &EventSpec, _now: i64, node: Option<&Node>) -> Result<Option<(Vec<String>, serde_json::Value)>> {
+        Ok(Some(match spec {
+            EventSpec::ZecUsd { minute, unit_cents, nb_digits } => {
+                let (price, quotes) = feeds::zecusd_minute(*minute).await?;
+                let max = (1u64 << nb_digits) - 1;
+                let value = (price / unit_cents).min(max) as usize;
+                let digits = dlc_trie::digit_decomposition::decompose_value(value, 2, *nb_digits);
+                let detail = serde_json::json!({
+                    "price_cents": price, "value": value,
+                    "quotes": quotes.iter().map(|q| serde_json::json!({"source": q.source, "close_cents": q.close_cents})).collect::<Vec<_>>(),
+                });
+                (digits.iter().map(|d| d.to_string()).collect::<Vec<_>>(), detail)
+            }
+            EventSpec::Payment { ivk, min_zat, from_height, by_height } => {
+                let node = node.ok_or(Error::Build("payment events need --node".into()))?;
+                if node.height().await? < *by_height {
+                    return Ok(None);
+                }
+                let got = feeds::received(node, &parse_ivk(ivk)?, *from_height, *by_height).await?;
+                let outcome = if got >= *min_zat { "paid" } else { "unpaid" };
+                (vec![outcome.to_string()], serde_json::json!({"received_zat": got}))
+            }
+            EventSpec::Arbiter { .. } => return Ok(None),
+        }))
+    }
+
+    /// Binds the event to `observed` unless it is already bound (the first observation
+    /// wins, so two concurrent fetches cannot produce two outcomes), then signs the bound
+    /// outcome. The binding is sealed before any signature exists.
+    pub fn bind_and_sign(&mut self, id: &str, observed: Option<(Vec<String>, serde_json::Value)>) -> Result<AttestationMsg> {
+        let rec = self.state.events.get(id).cloned().ok_or(Error::Build(format!("event {id} was never announced")))?;
+        let (outcomes, detail) = match (&rec.attested, observed) {
+            (Some(o), _) => (o.clone(), rec.detail.clone().unwrap_or_default()),
+            (None, Some((outcomes, detail))) => {
                 let r = self.state.events.get_mut(id).expect("present");
                 r.attested = Some(outcomes.clone());
                 r.detail = Some(detail.clone());
                 self.save()?;
                 (outcomes, detail)
             }
+            (None, None) => return Err(Error::Build(format!("event {id} has no outcome to sign"))),
         };
         let kp = self.keypair();
         let mut signatures = vec![];
@@ -316,14 +344,21 @@ impl Enclave {
             let sig: schnorr::Signature = dlc::secp_utils::schnorrsig_sign_with_nonce(&self.secp, &msg, &kp, &nonce);
             signatures.push(hex::encode(sig.as_ref()));
         }
-        Ok(Some(AttestationMsg {
+        Ok(AttestationMsg {
             event_id: id.into(),
             pubkey: hex::encode(self.pubkey().serialize()),
             outcomes,
             signatures,
             detail,
-        }))
+        })
     }
+}
+
+/// What [`Enclave::pending`] says an attestation needs.
+pub enum Pending {
+    Attested,
+    NotDue,
+    Observe(EventSpec),
 }
 
 impl Enclave {
@@ -348,3 +383,28 @@ impl Enclave {
     }
 }
 
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_first_observation_binds_the_event() {
+        let dir = std::env::temp_dir().join(format!("zdlc-enclave-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = |f: &str| dir.join(f).to_string_lossy().into_owned();
+        let sealer = DevSealer::open(&path("k")).unwrap();
+        let mut e = Enclave::open(&path("s"), Box::new(sealer)).unwrap();
+        let minute = 1_800_000_000 - 1_800_000_000 % 60;
+        e.announce("p", EventSpec::ZecUsd { minute, unit_cents: 100, nb_digits: 4 }).unwrap();
+        assert!(matches!(e.pending("p", minute).unwrap(), Pending::NotDue), "the minute has not closed");
+        assert!(matches!(e.pending("p", minute + 75).unwrap(), Pending::Observe(_)));
+        // Two fetches raced; the first to bind wins and the second is ignored.
+        let first = e.bind_and_sign("p", Some((vec!["0".into(), "1".into(), "0".into(), "1".into()], serde_json::json!({"value": 5})))).unwrap();
+        let second = e.bind_and_sign("p", Some((vec!["1".into(), "1".into(), "1".into(), "1".into()], serde_json::json!({"value": 15})))).unwrap();
+        assert_eq!(first.outcomes, second.outcomes);
+        assert_eq!(first.signatures, second.signatures);
+        assert!(matches!(e.pending("p", minute + 75).unwrap(), Pending::Attested));
+        std::fs::remove_dir_all(&dir).ok();
+    }
+}

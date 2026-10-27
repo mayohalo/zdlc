@@ -26,7 +26,7 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 use tokio::sync::Mutex;
 use zdlc::{
-    enclave::{DevSealer, Enclave, EventSpec},
+    enclave::{DevSealer, Enclave, EventSpec, Pending},
     node::Node,
 };
 
@@ -80,9 +80,21 @@ async fn attest(State(app): State<Arc<App>>, Path(id): Path<String>) -> Reply {
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
         .as_secs() as i64;
-    match app.enclave.lock().await.attest(&id, now, app.node.as_ref()).await {
-        Ok(Some(a)) => (StatusCode::OK, Json(serde_json::to_value(a).unwrap())),
-        Ok(None) => (StatusCode::ACCEPTED, Json(json!({"status": "not yet due"}))),
+    // The lock is held only to read the state and to bind and sign; fetching prices or
+    // scanning the chain happens without it, so other requests are not kept waiting.
+    let pending = app.enclave.lock().await.pending(&id, now);
+    let observed = match pending {
+        Err(e) => return bad(e),
+        Ok(Pending::NotDue) => return (StatusCode::ACCEPTED, Json(json!({"status": "not yet due"}))),
+        Ok(Pending::Attested) => None,
+        Ok(Pending::Observe(spec)) => match Enclave::observe(&spec, now, app.node.as_ref()).await {
+            Ok(Some(o)) => Some(o),
+            Ok(None) => return (StatusCode::ACCEPTED, Json(json!({"status": "not yet due"}))),
+            Err(e) => return bad(e),
+        },
+    };
+    match app.enclave.lock().await.bind_and_sign(&id, observed) {
+        Ok(a) => (StatusCode::OK, Json(serde_json::to_value(a).unwrap())),
         Err(e) => bad(e),
     }
 }
