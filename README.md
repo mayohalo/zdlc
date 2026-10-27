@@ -2,6 +2,12 @@
 
 zdlc is oracle-settled contracts on Zcash, entered and exited through Ironwood. Two parties lock ZEC in a transparent 2-of-2 for the life of one contract, pre-sign one payout per outcome and a refund, and normally close straight back to Ironwood. Every transaction is v6, built through pczt.
 
+## Start here
+
+- **Try the private market demos**, live on Zcash testnet: [escrow room](demos/escrow) (settle a deal), [hedge desk](demos/hedge-desk) (trade a price), [auction](demos/auction) (discover a price). How they are built and run: [demos/](demos).
+- **Build an app:** [docs/first-app.md](docs/first-app.md) picks a way in (Rust kit, REST with `@zdlc/client`, Node or browser SDK) and a template, and walks through an escrow in about 100 lines ([`examples/first_app.rs`](crates/zdlc-kit/examples/first_app.rs)).
+- **Run everything locally:** `just dev` (regtest, the desk, two oracles, two nodes), then `just room` for the three demos at http://127.0.0.1:8080/escrow, /hedge and /auction.
+
 ## Docs
 
 | File | What it covers |
@@ -13,7 +19,9 @@ zdlc is oracle-settled contracts on Zcash, entered and exited through Ironwood. 
 | [docs/beneficiaries.md](docs/beneficiaries.md) | Multi-beneficiary payouts: splits, per-outcome overrides, multi-output CETs and closes |
 | [site/index.html](site/index.html) | The landing page: open it in a browser |
 | [docs/kit.md](docs/kit.md) | Developer kit: the `Zdlc` object, templates, `zdlc-node` REST API, `zdlc-cli`, `@zdlc/client` |
-| [docs/room.md](docs/room.md) | The escrow room: an interactive page where a visitor plays the client, the contractor and both arbiters, goes offline and tries to cheat (`just room`) |
+| [docs/first-app.md](docs/first-app.md) | Build your first zDLC app: ways in, templates, the flow in Rust and TypeScript, from demo to real app |
+| [demos/](demos) | The three private market demos: one README each, the code layout, running them |
+| [docs/room.md](docs/room.md) | Hosting the demos: the escrow room and auction in detail, the kit calls behind them, deploying to a server |
 | [docs/funding.md](docs/funding.md) | Shielded funding by QR: deposit links (path A), legs paid from any wallet (path B), auto-shield and withdraw |
 
 ## Demo
