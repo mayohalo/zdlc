@@ -1,6 +1,6 @@
 {
   "name": "@zdlc/sdk",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Self-custodial zDLC: a full node inside Node.js (native), and the stateless protocol core for browsers (WebAssembly)",
   "type": "module",
   "exports": {

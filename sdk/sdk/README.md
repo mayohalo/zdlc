@@ -3,7 +3,7 @@
 Install from the [GitHub release](https://github.com/mayohalo/zdlc/releases) (not on npm yet):
 
 ```sh
-npm install https://github.com/mayohalo/zdlc/releases/download/v0.1.0/zdlc-sdk-0.1.0.tgz
+npm install https://github.com/mayohalo/zdlc/releases/download/v0.1.1/zdlc-sdk-0.1.1.tgz
 ```
 
 Self-custodial zDLC for JavaScript, in two parts:

@@ -4,7 +4,7 @@ Depend on it from the repo, pinned to a release (not on crates.io yet; Rust 1.89
 
 ```toml
 [dependencies]
-zdlc-kit = { git = "https://github.com/mayohalo/zdlc", tag = "v0.1.0" }
+zdlc-kit = { git = "https://github.com/mayohalo/zdlc", tag = "v0.1.1" }
 ```
 
 The binaries (`zdlc-node`, `zdlc-cli`, `zdlc-agent`, and the demos' `zdlc-room` from [demos](../../demos)) are built for Linux x86_64 and macOS Apple Silicon on the [releases page](https://github.com/mayohalo/zdlc/releases).
