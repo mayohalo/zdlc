@@ -52,6 +52,10 @@ pub enum Template {
         /// Unix time of the ZEC/USD minute the oracles attest; the offerer fills it in.
         #[serde(default)]
         price_minute: Option<i64>,
+        /// Payouts rounded to this share of the collateral, in basis points (default 200,
+        /// 2%). Wider rounding, fewer CETs to sign: a demo uses 500.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        rounding_bps: Option<u64>,
     },
     /// The offerer (the contractor) is paid `amount_zat` when the arbiters resolve
     /// "delivered"; the accepter (the client) funds the escrow alone and gets it back on
@@ -227,6 +231,13 @@ impl Template {
 
     /// The stable-value curve of the price-settled templates: (owed cents, recipient's
     /// collateral, hedger's collateral, premium).
+    fn rounding_bps(&self) -> u64 {
+        match self {
+            Template::StablePayment { rounding_bps: Some(b), .. } => *b,
+            _ => 200,
+        }
+    }
+
     fn curve(&self) -> Option<(u64, u64, u64, u64)> {
         match self {
             Template::StablePayment { usd_cents, collateral_zat, premium_zat, .. } | Template::Payroll { usd_cents, collateral_zat, premium_zat, .. } => {
@@ -310,7 +321,7 @@ impl Template {
                     q_hedger,
                     unit_cents: 100,
                     nb_digits: 14,
-                    rounding: (2 * q_recipient / 100).max(1),
+                    rounding: (q_recipient * self.rounding_bps() / 10_000).max(1),
                     premium,
                 };
                 base(event, Payouts::StableValue(curve), q_recipient + premium, q_hedger, Splits::default())

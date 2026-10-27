@@ -588,6 +588,8 @@ async fn desk_trade(Ready(a): Ready) -> Response {
             refund_blocks: refund,
             minute_offset: d.args.minute_offset,
             quote_wait_s: 5,
+            // 5% payout rounding: about half the CETs of the default 2% to sign.
+            rounding_bps: Some(500),
         };
         let d2 = d.clone();
         let r = zdlc_kit::agent::run_taker_with(d.taker.clone(), &d.desk, &d.taker_key, d.oracle_keys.clone(), &args, &move |step| d2.record(step)).await;
@@ -624,7 +626,7 @@ fn spawn_sweeper(z: Arc<Zdlc>, path: String) {
 
 /// One demo party. `records`: post recovery records (the contractor puts nothing in and
 /// has no treasury to pay for one).
-async fn node(args: &[String], dir: &str, name: &str, rpc: &str, cfg: &Cfg, records: bool) -> zdlc_kit::Result<Arc<Zdlc>> {
+async fn node(args: &[String], dir: &str, name: &str, rpc: &str, cfg: &Cfg, records: bool, early_close: bool) -> zdlc_kit::Result<Arc<Zdlc>> {
     let seed = secret(&format!("{dir}/{name}.seed"));
     let wallet = zdlc::wallet::Wallet::from_seed(seed);
     let storage = Arc::new(SqliteStorage::open(&format!("{dir}/{name}.db")).unwrap_or_else(|e| die(e)));
@@ -635,7 +637,8 @@ async fn node(args: &[String], dir: &str, name: &str, rpc: &str, cfg: &Cfg, reco
         .transport(Arc::new(DeskTransport::new(&arg(args, "--desk", ""), wallet.identity_key())))
         .block_secs(cfg.block_secs)
         .close_wait(cfg.close_wait.0, cfg.close_wait.1)
-        .recovery_records(records);
+        .recovery_records(records)
+        .close_before_funded(early_close);
     for o in arg(args, "--oracles", "").split(',').filter(|s| !s.is_empty()) {
         b = b.oracle(Arc::new(HttpOracle::new(o)));
     }
@@ -646,7 +649,7 @@ async fn node(args: &[String], dir: &str, name: &str, rpc: &str, cfg: &Cfg, reco
 /// maker quotes and accepts on its own, forever; the taker waits for the visitor.
 async fn desk_demo(args: &[String], dir: &str, rpc: &str, cfg: &Cfg, oracles: &[String], bank: Arc<Zdlc>) -> Arc<DeskDemo> {
     let (maker, taker) = loop {
-        match (node(args, dir, "maker", rpc, cfg, true).await, node(args, dir, "taker", rpc, cfg, true).await) {
+        match (node(args, dir, "maker", rpc, cfg, true, true).await, node(args, dir, "taker", rpc, cfg, true, true).await) {
             (Ok(m), Ok(t)) => break (m, t),
             (Err(e), _) | (_, Err(e)) => eprintln!("zdlc-room: desk agents waiting for the node: {e}"),
         }
@@ -779,7 +782,7 @@ async fn main() {
         tokio::spawn(async move {
             // Both nodes need the chain to start; retry until it answers.
             let (contractor, client) = loop {
-                match (node(&args, &dir, "contractor", &rpc, &cfg, false).await, node(&args, &dir, "client", &rpc, &cfg, true).await) {
+                match (node(&args, &dir, "contractor", &rpc, &cfg, false, false).await, node(&args, &dir, "client", &rpc, &cfg, true, false).await) {
                     (Ok(k), Ok(c)) => break (k, c),
                     (Err(e), _) | (_, Err(e)) => eprintln!("zdlc-room: waiting for the node: {e}"),
                 }

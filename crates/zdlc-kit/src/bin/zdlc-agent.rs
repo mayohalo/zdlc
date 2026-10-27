@@ -97,6 +97,7 @@ async fn main() {
                 refund_blocks: arg(&args, "--refund", "300").parse().unwrap_or_else(|_| die("--refund")),
                 minute_offset: arg(&args, "--minute-offset", "2").parse().unwrap_or_else(|_| die("--minute-offset")),
                 quote_wait_s: arg(&args, "--quote-wait", "5").parse().unwrap_or_else(|_| die("--quote-wait")),
+                rounding_bps: None,
             };
             agent::run_taker(z, &desk, &wallet.identity_key(), keys, &a).await
         }

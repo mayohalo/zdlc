@@ -107,7 +107,10 @@ pub struct TakerArgs {
     pub refund_blocks: u32,
     /// Minutes from now of the ZEC/USD minute (negative: an already closed minute).
     pub minute_offset: i64,
+    /// The longest to wait for quotes; it offers a second after the first one arrives.
     pub quote_wait_s: u64,
+    /// Payout rounding in basis points of the collateral (`None`: the template's 2%).
+    pub rounding_bps: Option<u64>,
 }
 
 /// Asks the desk for a hedge on `collateral_zat`, offers on the cheapest quote and
@@ -141,15 +144,26 @@ pub async fn run_taker_with(
     let rfq_id = desk.post_rfq(&Signed::new(desk::RFQ_TAG, rfq, id_key)).await?;
     println!("[taker] rfq {rfq_id}");
     on(json!({"step": "rfq posted", "rfq": rfq_id}));
-    tokio::time::sleep(Duration::from_secs(a.quote_wait_s)).await;
     let tip = z.info().await?["tip"].as_u64().unwrap_or_default() as u32;
-    let quotes = desk.quotes(&rfq_id).await?;
+    let usable = |q: &Signed<QuoteBody>| q.verify(desk::QUOTE_TAG).is_ok() && q.body.q_hedger == a.collateral_zat && q.body.valid_until > tip + 2;
+    let deadline = std::time::Instant::now() + Duration::from_secs(a.quote_wait_s.max(1));
+    let mut quotes = vec![];
+    while std::time::Instant::now() < deadline {
+        tokio::time::sleep(Duration::from_millis(500)).await;
+        quotes = desk.quotes(&rfq_id).await?;
+        if quotes.iter().any(|(_, q)| usable(q)) {
+            // A moment for a competing quote, then take the best.
+            tokio::time::sleep(Duration::from_secs(1)).await;
+            quotes = desk.quotes(&rfq_id).await?;
+            break;
+        }
+    }
     on(json!({"step": "quotes", "rfq": rfq_id, "quotes": quotes.iter().map(|(id, q)| json!({
         "id": id, "from": q.from, "premium": q.body.premium, "valid_until": q.body.valid_until,
     })).collect::<Vec<_>>()}));
     let best = quotes
         .into_iter()
-        .filter(|(_, q)| q.verify(desk::QUOTE_TAG).is_ok() && q.body.q_hedger == a.collateral_zat && q.body.valid_until > tip + 2)
+        .filter(|(_, q)| usable(q))
         .min_by_key(|(_, q)| q.body.premium)
         .ok_or(crate::Error::Usage("no usable quote".into()))?;
     let (qid, quote) = best;
@@ -163,6 +177,7 @@ pub async fn run_taker_with(
         maturity_blocks: a.maturity_blocks,
         refund_blocks: a.refund_blocks,
         price_minute: Some((now / 60 + a.minute_offset) * 60),
+        rounding_bps: a.rounding_bps,
     };
     let id = z.offer(template, &quote.from).await?;
     println!("[taker] offered {id} on quote {qid} (premium {} zat, spot {spot} cents)", quote.body.premium);

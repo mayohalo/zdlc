@@ -195,6 +195,12 @@ pub struct Record {
     /// takes no step on it until released (demos, maintenance).
     #[serde(default)]
     pub held: bool,
+    /// Height the funding was mined at, once seen.
+    #[serde(default)]
+    pub funded_height: Option<u32>,
+    /// The node refused a close spending the funding before it was mined: wait for it.
+    #[serde(default)]
+    pub no_early_close: bool,
 }
 
 impl Record {
@@ -239,6 +245,7 @@ pub struct Builder {
     records: bool,
     block_secs: i64,
     close_wait: (u32, i64),
+    early_close: bool,
 }
 
 impl Builder {
@@ -281,6 +288,14 @@ impl Builder {
         self.close_wait = (blocks, secs);
         self
     }
+    /// Ask for the cooperative close as soon as the oracles attest, even while the
+    /// funding is unmined, so both can be mined in one block (default off). A node that
+    /// refuses a transaction spending an unmined output makes this side wait for the
+    /// funding and ask again, as without it.
+    pub fn close_before_funded(mut self, on: bool) -> Self {
+        self.early_close = on;
+        self
+    }
     /// Post a recovery record for every signed contract, paid from the treasury
     /// (default on): with it, the seed alone recovers the refund ([`Zdlc::recover`]).
     pub fn recovery_records(mut self, on: bool) -> Self {
@@ -308,6 +323,7 @@ impl Builder {
             records: self.records,
             block_secs: self.block_secs,
             close_wait: self.close_wait,
+            early_close: self.early_close,
             live: tokio::sync::Mutex::new(HashMap::new()),
             step: tokio::sync::Mutex::new(()),
             policy: std::sync::Mutex::new(None),
@@ -337,6 +353,7 @@ pub struct Zdlc {
     records: bool,
     block_secs: i64,
     close_wait: (u32, i64),
+    early_close: bool,
     live: tokio::sync::Mutex<HashMap<String, Contract>>,
     step: tokio::sync::Mutex<()>,
     policy: std::sync::Mutex<Option<Policy>>,
@@ -381,7 +398,7 @@ enum Attested {
 
 impl Zdlc {
     pub fn builder() -> Builder {
-        Builder { seed: None, transport: None, storage: None, oracles: vec![], chain: None, auto_shield: true, records: true, block_secs: 75, close_wait: (CLOSE_WAIT, CLOSE_WAIT_SECS) }
+        Builder { seed: None, transport: None, storage: None, oracles: vec![], chain: None, auto_shield: true, records: true, block_secs: 75, close_wait: (CLOSE_WAIT, CLOSE_WAIT_SECS), early_close: false }
     }
 
     pub fn identity(&self) -> String {
@@ -586,6 +603,8 @@ impl Zdlc {
             record_txid: None,
             note: None,
             held: false,
+            funded_height: None,
+            no_early_close: false,
         };
         self.send_offer(&mut rec).await?;
         self.emit(Event::Offered { id: id.clone(), incoming: false, counterparty: counterparty.into(), summary: rec.template.summary(Role::Offerer) })
@@ -663,6 +682,8 @@ impl Zdlc {
                     record_txid: None,
                     note: None,
                     held: false,
+            funded_height: None,
+            no_early_close: false,
                 };
                 self.storage.put(&rec).await?;
                 self.emit(Event::Offered { id: thread.into(), incoming: true, counterparty: from.into(), summary: template.summary(Role::Accepter) })
@@ -1071,13 +1092,46 @@ impl Zdlc {
         }
     }
 
+    /// A signed contract whose funding is not mined yet. If the oracles have attested,
+    /// record it (an app can show the outcome while the funding waits), and with
+    /// [`Builder::close_before_funded`] the offerer asks for the close right away.
+    async fn before_funded(&self, mut rec: Record, tip: u32) -> Result<()> {
+        if rec.attested.is_some() && !(self.early_close && rec.role == Role::Offerer && rec.state == State::Signed && !rec.no_early_close) {
+            return Ok(());
+        }
+        self.contract_of(&rec).await?;
+        let live = self.live.lock().await;
+        let c = live.get(&rec.id).expect("loaded");
+        let Some(a) = self.attested(&rec, c).await.ok().flatten() else { return Ok(()) };
+        if rec.attested.is_none() {
+            rec.attested = Some(Self::outcome_name(&a));
+            rec.attested_at = Some(now_unix());
+            self.storage.put(&rec).await?;
+            self.emit(Event::Attested { id: rec.id.clone(), outcome: Self::outcome_name(&a) }).await?;
+        }
+        if self.early_close && rec.role == Role::Offerer && rec.state == State::Signed && !rec.no_early_close {
+            let anchor = self.chain.ironwood_anchor(tip).await?;
+            let spec = self.close_spec(c, &a, tip, anchor)?;
+            let pczt = tx::build(&self.p, &spec)?;
+            drop(live);
+            rec.close_tip = Some(tip);
+            rec.state = State::Closing;
+            self.storage.put(&rec).await?;
+            return self.transport.send(&rec.counterparty, &rec.id, "close", json!({"tip": tip, "pczt": pczt_hex(&pczt)?})).await;
+        }
+        Ok(())
+    }
+
     async fn settle_step(&self, mut rec: Record) -> Result<()> {
         let tip = self.chain.height().await?;
         let ftxid = txid_from_hex(rec.funding_txid.as_deref().unwrap_or_default())?;
-        if rec.state == State::Signed {
+        if rec.funded_height.is_none() {
             match self.chain.mined_height(&ftxid).await? {
                 Some(h) => {
-                    rec.state = State::Funded;
+                    rec.funded_height = Some(h);
+                    if rec.state == State::Signed {
+                        rec.state = State::Funded;
+                    }
                     // Attested before the funding was mined: the wait before settling
                     // alone runs from now, when a close first became possible.
                     if rec.attested.is_some() && rec.attested_height.is_none() {
@@ -1087,25 +1141,8 @@ impl Zdlc {
                     self.storage.put(&rec).await?;
                     self.emit(Event::Funded { id: rec.id.clone(), txid: txid_hex(&ftxid), height: h }).await?;
                 }
-                None => {
-                    // Not mined yet. If the oracles have already attested, record it now,
-                    // so an app can show the outcome while the funding waits for a block.
-                    if rec.attested.is_none() {
-                        self.contract_of(&rec).await?;
-                        let a = {
-                            let live = self.live.lock().await;
-                            let c = live.get(&rec.id).expect("loaded");
-                            self.attested(&rec, c).await.ok().flatten()
-                        };
-                        if let Some(a) = a {
-                            rec.attested = Some(Self::outcome_name(&a));
-                            rec.attested_at = Some(now_unix());
-                            self.storage.put(&rec).await?;
-                            self.emit(Event::Attested { id: rec.id.clone(), outcome: Self::outcome_name(&a) }).await?;
-                        }
-                    }
-                    return Ok(());
-                }
+                // Not mined yet: nothing is spent (the output does not exist yet).
+                None => return self.before_funded(rec, tip).await,
             }
         }
         self.contract_of(&rec).await?;
@@ -1225,6 +1262,23 @@ impl Zdlc {
         c.check_close(&back, &spec)?;
         let f = tx::extract(c.sign_close(back)?)?;
         drop(live);
+        if rec.funded_height.is_none() {
+            // A close spending the unmined funding: if the node takes it, both can be
+            // mined in one block; if not, wait for the funding and ask again.
+            return match self.chain.send(&f.raw).await {
+                Ok(()) => {
+                    rec.pending = Some(Settlement { how: "close".into(), txid: Some(txid_hex(&f.txid)), height: None });
+                    self.storage.put(&rec).await
+                }
+                Err(e) => {
+                    rec.state = State::Signed;
+                    rec.close_tip = None;
+                    rec.no_early_close = true;
+                    self.storage.put(&rec).await?;
+                    self.note(&rec.id, &format!("the node refused the close before the funding was mined ({e}); closing once it is")).await
+                }
+            };
+        }
         self.broadcast(&mut rec, "close", &f).await
     }
 
