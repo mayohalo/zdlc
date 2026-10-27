@@ -1355,6 +1355,12 @@ impl Zdlc {
         Ok(out)
     }
 
+    /// The treasury alone: one UTXO lookup, without scanning any contract's shielded
+    /// receivers (which [`Zdlc::balance`] does, from each contract's height).
+    pub async fn treasury_zat(&self) -> Result<u64> {
+        Ok(self.chain.utxos(&self.wallet.coin_address(0), self.net).await?.iter().map(|u| u.2).sum())
+    }
+
     pub async fn balance(&self) -> Result<Balance> {
         let treasury = self.chain.utxos(&self.wallet.coin_address(0), self.net).await?.iter().map(|u| u.2).sum();
         let held = self.shielded().await?;

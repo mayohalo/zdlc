@@ -163,11 +163,11 @@ async fn info(State(a): State<Shared>) -> Response {
         Ok(i) => i,
         Err(e) => return bad(e),
     };
-    let bal = a.client.balance().await.ok();
+    let bal = a.client.treasury_zat().await.ok();
     Json(json!({
         "network": a.cfg.label, "tip": i["tip"], "amountZat": a.cfg.amount_zat, "maturityBlocks": a.cfg.maturity,
         "refundBlocks": a.cfg.refund, "closeWaitBlocks": a.cfg.close_wait.0, "closeWaitSecs": a.cfg.close_wait.1, "blockSecs": a.cfg.block_secs, "explorer": a.cfg.explorer, "arbiters": a.oracles.len(),
-        "demoWalletZat": bal.map(|b| b.treasury_zat),
+        "demoWalletZat": bal,
     }))
     .into_response()
 }
