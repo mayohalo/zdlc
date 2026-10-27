@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # Builds the escrow room's server binaries for Linux x86_64 here (cargo-zigbuild; a
 # 1 GB server cannot compile the proving stack) and installs them on a server:
-#   scripts/deploy.sh root@HOST DOMAIN [SSH_KEY]
+#   scripts/deploy.sh root@HOST DOMAIN [SSH_KEY] [REDIRECT_HOST ...]
 set -euo pipefail
-HOST="${1:?usage: deploy.sh root@HOST DOMAIN [SSH_KEY]}"; DOMAIN="${2:?domain}"; KEY="${3:-}"
+HOST="${1:?usage: deploy.sh root@HOST DOMAIN [SSH_KEY] [REDIRECT_HOST ...]}"; DOMAIN="${2:?domain}"; KEY="${3:-}"
+shift $(( $# < 3 ? $# : 3 )); REDIRECTS="$*"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SSH=(ssh); SCP=(scp -q); [ -n "$KEY" ] && SSH+=(-i "$KEY") && SCP+=(-i "$KEY")
 T=x86_64-unknown-linux-gnu
@@ -20,4 +21,4 @@ BIN="$ROOT/target/linux/$T/release"
 "${SSH[@]}" "$HOST" 'install -d /opt/zdlc/site'
 "${SCP[@]}" "$ROOT/site/index.html" "$HOST:/opt/zdlc/site/index.html"
 # Swap the binaries in while the services restart.
-"${SSH[@]}" "$HOST" 'chmod 755 /opt/zdlc/bin.new/* && mv /opt/zdlc/bin.new/* /opt/zdlc/bin/ && rmdir /opt/zdlc/bin.new && bash /opt/zdlc/deploy/install.sh '"$DOMAIN"
+"${SSH[@]}" "$HOST" 'chmod 755 /opt/zdlc/bin.new/* && mv /opt/zdlc/bin.new/* /opt/zdlc/bin/ && rmdir /opt/zdlc/bin.new && bash /opt/zdlc/deploy/install.sh '"$DOMAIN $REDIRECTS"

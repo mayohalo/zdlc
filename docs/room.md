@@ -18,7 +18,7 @@ Every transaction is real, and every refusal comes from the network, not the app
 | Client: "take my money back now" | The node refuses the refund: `transaction is locked until after block height H` | Refused |
 | Client pays the deposit link | The client's node funds the escrow from the shielded note once it is mined | Close, block 687 |
 
-On the hosted site the escrow room is at `/escrow` and the hedge desk (two agents trading a hedge over the RFQ quote board) at `/hedge`; `/room` and `/desk` redirect to them.
+On the hosted site (https://zdlc.cc) the escrow room is at `/escrow` and the hedge desk (two agents trading a hedge over the RFQ quote board) at `/hedge`; `/room` and `/desk` redirect to them.
 
 ## The sealed-bid auction (`/auction`)
 
@@ -43,7 +43,7 @@ just room   # http://127.0.0.1:8080/escrow and /hedge, with a funded demo wallet
 
 ## On testnet
 
-`scripts/deploy.sh root@HOST DOMAIN [SSH_KEY]` builds the server binaries here for Linux x86_64 (with cargo-zigbuild: a 1 GB server cannot compile the proving stack), copies them over and runs `deploy/install.sh`. The installer sets up the desk, two arbiter oracles and the room under systemd on localhost, Caddy for HTTPS, a firewall that allows only SSH and HTTPS, and swap. The node endpoint and the room's settings live in `/etc/zdlc/zdlc.env` on the server (`deploy/zdlc.env.example`), never in git. A 1 vCPU / 1 GB server is enough: one close proves in about 6 s on one thread and the room peaks near 100 MB.
+`scripts/deploy.sh root@HOST DOMAIN [SSH_KEY] [REDIRECT_HOST ...]` builds the server binaries here for Linux x86_64 (with cargo-zigbuild: a 1 GB server cannot compile the proving stack), copies them over and runs `deploy/install.sh`. The installer sets up the desk, two arbiter oracles and the room under systemd on localhost, Caddy for HTTPS, a firewall that allows only SSH and HTTPS, and swap. The node endpoint and the room's settings live in `/etc/zdlc/zdlc.env` on the server (`deploy/zdlc.env.example`), never in git. A 1 vCPU / 1 GB server is enough: one close proves in about 6 s on one thread and the room peaks near 100 MB.
 
 The flags, if running it by hand:
 

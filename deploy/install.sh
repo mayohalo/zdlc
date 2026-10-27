@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 # Installs or updates the escrow room on an Ubuntu server, as root:
-#   deploy/install.sh DOMAIN
+#   deploy/install.sh DOMAIN [REDIRECT_HOST ...]
+# REDIRECT_HOSTs (e.g. www.DOMAIN, an old address) redirect permanently to DOMAIN.
 # expects the binaries in /opt/zdlc/bin (scripts/deploy.sh copies them). Sets up a
 # zdlc user, swap, a firewall that allows only SSH and HTTPS, Caddy for TLS, and the
 # desk, two oracles and the room under systemd. Every service listens on localhost.
 set -euo pipefail
-DOMAIN="${1:?usage: install.sh DOMAIN}"
+DOMAIN="${1:?usage: install.sh DOMAIN [REDIRECT_HOST ...]}"; shift
 HERE="$(cd "$(dirname "$0")" && pwd)"
 
 id zdlc >/dev/null 2>&1 || useradd --system --home /var/lib/zdlc --shell /usr/sbin/nologin zdlc
@@ -29,6 +30,10 @@ if ! command -v caddy >/dev/null; then
   apt-get update -qq && apt-get install -y -qq caddy >/dev/null
 fi
 sed "s/^DOMAIN /$DOMAIN /" "$HERE/Caddyfile" >/etc/caddy/Caddyfile
+if [ "$#" -gt 0 ]; then
+  printf '\n%s {\n\tredir https://%s{uri} permanent\n}\n' "$(echo "$@" | sed 's/ /, /g')" "$DOMAIN" >>/etc/caddy/Caddyfile
+fi
+caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile >/dev/null
 
 install -m 644 "$HERE"/systemd/*.service /etc/systemd/system/
 systemctl daemon-reload

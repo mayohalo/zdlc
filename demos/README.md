@@ -1,6 +1,6 @@
 # Private market demos
 
-Three functions of a private market, one contract underneath, each live on Zcash testnet:
+Three functions of a private market, one contract underneath, each live on Zcash testnet at https://zdlc.cc:
 
 | Demo | Market function | Try it | What stays private | What is public |
 | --- | --- | --- | --- | --- |
