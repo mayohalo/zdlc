@@ -647,9 +647,11 @@ async fn node(args: &[String], dir: &str, name: &str, rpc: &str, cfg: &Cfg, reco
 
 /// The desk demo's two agents, each a kit node with its own seed and funding inbox. The
 /// maker quotes and accepts on its own, forever; the taker waits for the visitor.
+/// They post no recovery records: each would prove a shielded memo (seconds of CPU) at
+/// every signing, and their seeds live on this server anyway.
 async fn desk_demo(args: &[String], dir: &str, rpc: &str, cfg: &Cfg, oracles: &[String], bank: Arc<Zdlc>) -> Arc<DeskDemo> {
     let (maker, taker) = loop {
-        match (node(args, dir, "maker", rpc, cfg, true, true).await, node(args, dir, "taker", rpc, cfg, true, true).await) {
+        match (node(args, dir, "maker", rpc, cfg, false, true).await, node(args, dir, "taker", rpc, cfg, false, true).await) {
             (Ok(m), Ok(t)) => break (m, t),
             (Err(e), _) | (_, Err(e)) => eprintln!("zdlc-room: desk agents waiting for the node: {e}"),
         }
