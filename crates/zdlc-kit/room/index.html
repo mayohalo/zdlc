@@ -6,23 +6,37 @@
 <title>zDLC escrow room</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@500;700;800&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=JetBrains+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
 /* The landing page's palette: amber for what is public or acting, teal for shielded. */
 :root {
-  --paper: #f3f5f8; --sheet: #ffffff; --ink: #0f1a2b; --muted: #576274; --line: #d4dbe4;
-  --key: #a8720a; --key-soft: #f5e7c8; --shield: #0c6e63; --shield-soft: #d4ece7;
-  --bad: #b3261e; --bad-soft: #f9dedc; --locked: #8a95a6; --locked-soft: #e7ebf1;
-  --f-display: "Schibsted Grotesk", "Helvetica Neue", Arial, sans-serif;
-  --f-body: "Source Serif 4", Georgia, serif;
-  --f-mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
-}
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --paper: #0b111d; --sheet: #111a2a; --ink: #e5eaf2; --muted: #98a4b8; --line: #243149;
-    --key: #e3ae45; --key-soft: #3a2c10; --shield: #45c7ae; --shield-soft: #10302c;
-    --bad: #f2b8b5; --bad-soft: #3c1614; --locked: #7f8ba0; --locked-soft: #1b2638; color-scheme: dark;
-  }
+  /* Equilibrium: a near-black editorial canvas. Teal marks what you can act on or have
+     selected; Zcash gold is kept for network proof and transaction facts. */
+  --paper: #0b111d;
+  --sheet: #121b2b;
+  --ink: #e5eaf2;
+  --muted: #98a4b8;
+  --line: rgba(152, 164, 184, 0.22);
+  --key: #59c8b5;
+  --key-soft: rgba(89, 200, 181, 0.10);
+  --shield: #59c8b5;
+  --shield-soft: rgba(89, 200, 181, 0.10);
+  --gold: #f4c95d;
+  --gold-soft: rgba(244, 201, 93, 0.10);
+  --locked: #98a4b8;
+  --locked-soft: rgba(152, 164, 184, 0.08);
+  --bad: #98a4b8;
+  --bad-soft: rgba(152, 164, 184, 0.08);
+  --code-bg: #070c16;
+  --code-ink: #d3dcea;
+  --code-dim: #75849c;
+  --code-key: #f4c95d;
+  --code-str: #59c8b5;
+  --f-display: "DM Serif Display", Georgia, "Times New Roman", serif;
+  --f-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  --measure: 1140px;
+  color-scheme: dark;
 }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
@@ -37,6 +51,10 @@ code, .mono { font-family: var(--f-mono); font-size: 0.85em; }
 header { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; padding-block: 20px 12px; }
 .mark { font: 800 1.3rem var(--f-display); text-decoration: none; color: var(--ink); }
 .mark b { color: var(--key); }
+.nav { display: flex; gap: 16px; }
+.nav a { color: var(--muted); text-decoration: none; }
+.nav a.on { color: var(--ink); }
+.nav a:hover { color: var(--key); }
 .mark.page { font-weight: 700; margin-left: 8px; }
 .net { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; font: 500 0.85rem var(--f-display); color: var(--muted); }
 .net .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--shield); display: inline-block; margin-right: 6px; }
@@ -113,13 +131,62 @@ footer { margin-top: 28px; color: var(--muted); font-size: 0.88rem; display: gri
   .log li { grid-template-columns: 4rem minmax(0, 1fr); }
   .log .tm { grid-row: span 2; }
 }
+
+/* ---- Equilibrium layer: type, buttons, status, proof ---- */
+body { font-family: var(--f-body); }
+h1, h2, h3, .mark { font-family: var(--f-display) !important; font-weight: 400 !important; letter-spacing: -0.005em !important; }
+.label, .pill, .sub, .sub2 { font-family: var(--f-mono) !important; }
+button, .btn { font: 500 0.74rem/1.2 var(--f-mono) !important; letter-spacing: 0.1em; text-transform: uppercase; border-radius: 2px !important; padding: 13px 18px; border: 1px solid var(--ink); background: transparent; color: var(--ink); }
+button.primary, .btn.primary { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+button:hover:not(:disabled), .btn:hover { border-color: var(--key); color: var(--key); }
+button.primary:hover:not(:disabled), .btn.primary:hover { background: var(--key); border-color: var(--key); color: var(--paper); }
+button:disabled { border-color: var(--line); color: var(--muted); background: transparent; opacity: 0.6; }
+:focus-visible { outline: 1px dashed var(--key) !important; outline-offset: 3px; }
+.panel { border-radius: 4px !important; }
+.chip-status { display: inline-flex; align-items: center; gap: 9px; font: 500 0.68rem/1 var(--f-mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink); border: 1px solid var(--line); padding: 8px 12px; border-radius: 2px; white-space: nowrap; }
+.chip-status i { width: 7px; height: 7px; border-radius: 50%; background: var(--key); box-shadow: 0 0 0 3px rgba(89, 200, 181, 0.16); }
+.gold { color: var(--gold); }
+header .mark { font-size: 1.7rem; }
+.mark b { color: var(--ink); }
+.mark.page { font: 500 0.72rem var(--f-mono) !important; letter-spacing: 0.14em !important; text-transform: uppercase; color: var(--muted); margin-left: 14px; padding-left: 14px; border-left: 1px solid var(--line); vertical-align: 0.35em; }
+.net, .nav { font-family: var(--f-mono); font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; }
+.intro h1 { font-size: clamp(2.3rem, 5.2vw, 3.8rem); line-height: 1.02; }
+.next { border-left: 2px solid var(--key); border-radius: 0 4px 4px 0; }
+.next b { font-family: var(--f-body); font-weight: 600; }
+.ph h2 { font-size: 1.35rem; }
+.sub { border-top-color: var(--line); color: var(--muted); }
+.txs li { border-radius: 2px; }
+.txs .id { color: var(--gold); }
+.txs .t { font-family: var(--f-mono); font-size: 0.72rem; letter-spacing: 0.12em; text-transform: uppercase; font-weight: 500; }
+.txs li.no { background: transparent; border: 1px dashed var(--line); }
+.txs li.no .id { color: var(--muted); }
+.heights b, .facts dd, .card .price { color: var(--gold); }
+button.cheat { border-style: dashed; border-color: var(--muted); color: var(--muted); }
+.res, .res.win { background: var(--locked-soft); border-left: 2px solid var(--key); border-radius: 2px; }
+.res b, .res.win b { color: var(--ink); font-family: var(--f-body); }
+.pill { border-radius: 2px; }
+.pill.go { background: var(--key-soft); color: var(--key); }
+.pill.ok { background: var(--gold-soft); color: var(--gold); }
+.pill.no { background: transparent; color: var(--muted); border: 1px dashed var(--line); }
+.log .wh { font: 500 0.7rem var(--f-mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); padding-top: 3px; }
+.clock { border-radius: 4px; }
+.clock .ms b { font-family: var(--f-mono); font-weight: 500; }
+.clock .ms.done b { color: var(--gold); }
+.clock .bar { height: 4px; }
+.clock .bar i { background: var(--key); }
+.card { border-radius: 2px; }
+.quotes li { border-radius: 2px; }
+.quotes li.best { background: var(--key-soft); border-color: var(--key); }
+.quotes .p { color: var(--gold); font-family: var(--f-mono); font-weight: 500; }
+.qr img { border-radius: 2px; }
+footer { border-top: 1px solid var(--line); padding-top: 18px; }
 </style>
 </head>
 <body>
 <div class="wrap">
   <header>
-    <a class="mark" href="/">z<b>DLC</b></a><a class="mark page" href="/room">escrow room</a>
-    <div class="net"><a href="/desk" style="color:inherit;font-weight:600">Desk demo →</a><span><span class="dot"></span><span id="net">connecting…</span></span><span>block <b id="tip">–</b></span></div>
+    <div><a class="mark" href="/">z<b>DLC</b></a><a class="mark page" href="/room">escrow room</a></div>
+    <div class="net"><nav class="nav"><a class="on" href="/room">Escrow room</a><a href="/desk">Desk</a></nav><span class="chip-status"><i></i><span id="net">connecting…</span></span><span>block <b id="tip">–</b></span></div>
   </header>
 
   <div class="intro">
@@ -300,11 +367,11 @@ footer { margin-top: 28px; color: var(--muted); font-size: 0.88rem; display: gri
       contractor: s ? (paidOut ? ["win", "Received " + amt, s.how === "close" ? "Paid straight into a shielded address by the cooperative close." : "Took the pre-signed payout alone, then moved it into the shielded pool."]
                                : ["", "Nothing to collect", s.how === "refund" ? "The timed refund returned the escrow to the client." : "The arbiters ruled \u201cnot delivered\u201d."])
         : v === "delivered" ? ["win wait", "Collecting " + amt, "Both arbiters ruled \u201cdelivered\u201d: this node is settling now."]
-        : v === "not delivered" ? ["", "Ruled against", "Both arbiters ruled \u201cnot delivered\u201d: nothing to collect."]
+        : v === "not delivered" ? ["", "Escrow returns to the client", "Both arbiters ruled \u201cnot delivered\u201d."]
         : v === "split" ? ["", "No payout can unlock", "The arbiters disagree. Only the timed refund can spend the escrow now."] : null,
       client: s ? (paidOut ? ["", "Paid " + amt, "The escrow went to the contractor, as both arbiters ruled."]
                            : ["win", "Got " + amt + " back", s.how === "refund" ? "By the timed refund, then moved into the shielded pool." : s.how === "close" ? "Straight into a shielded address by the cooperative close." : "By the pre-signed payout, then moved into the shielded pool."])
-        : v === "delivered" ? ["", "Ruled against", "Both arbiters ruled \u201cdelivered\u201d: the escrow goes to the contractor."]
+        : v === "delivered" ? ["", "Escrow goes to the contractor", "Both arbiters ruled \u201cdelivered\u201d."]
         : v === "not delivered" ? ["win wait", "Getting " + amt + " back", "Both arbiters ruled \u201cnot delivered\u201d: settling now."]
         : v === "split" ? ["wait", "Waiting for the refund", "The arbiters disagree: the escrow comes back to you at block " + (k ? k.refundHeight : "?") + "."] : null
     };
@@ -434,7 +501,7 @@ footer { margin-top: 28px; color: var(--muted); font-size: 0.88rem; display: gri
     api("GET", BASE + "/api/info").then(function (i) {
       info = i;
       var name = i.network;
-      $("net").textContent = "Zcash " + name; $("net2").textContent = name; $("tip").textContent = i.tip; $("amt").textContent = zec(i.amountZat);
+      $("net").textContent = name + " · unaudited"; $("net2").textContent = name; $("tip").textContent = i.tip; $("amt").textContent = zec(i.amountZat);
       $("new").disabled = false;
       if (i.fundAddress && (i.demoWalletZat || 0) < 3 * i.amountZat) { $("fund").hidden = false; $("fund-addr").textContent = i.fundAddress; }
       refresh(); poll();

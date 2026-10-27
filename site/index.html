@@ -7,46 +7,39 @@
 <title>zDLC</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@500;700;800&family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600&family=JetBrains+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
 html { -webkit-text-size-adjust: 100%; }
 body { margin: 0; }
 /* Layout: a whitepaper set as a product page. Grotesk headlines, serif reading text, mono for txids and math. Proof comes right after the promise; the escrow figure carries the mechanism. */
 :root {
-  --paper: #f3f5f8;
-  --sheet: #ffffff;
-  --ink: #0f1a2b;
-  --muted: #576274;
-  --line: #d4dbe4;
-  --key: #a8720a;
-  --key-soft: #f5e7c8;
-  --shield: #0c6e63;
-  --shield-soft: #d4ece7;
-  --locked: #8a95a6;
-  --locked-soft: #e7ebf1;
-  --code-bg: #0f1a2b;
-  --code-ink: #d8e1ee;
-  --code-dim: #8494ab;
-  --code-key: #f0c46a;
-  --code-str: #7fd6c6;
-  --f-display: "Schibsted Grotesk", "Helvetica Neue", Arial, sans-serif;
-  --f-body: "Source Serif 4", Georgia, "Times New Roman", serif;
-  --f-mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+  /* Equilibrium: a near-black editorial canvas. Teal marks what you can act on or have
+     selected; Zcash gold is kept for network proof and transaction facts. */
+  --paper: #0b111d;
+  --sheet: #121b2b;
+  --ink: #e5eaf2;
+  --muted: #98a4b8;
+  --line: rgba(152, 164, 184, 0.22);
+  --key: #59c8b5;
+  --key-soft: rgba(89, 200, 181, 0.10);
+  --shield: #59c8b5;
+  --shield-soft: rgba(89, 200, 181, 0.10);
+  --gold: #f4c95d;
+  --gold-soft: rgba(244, 201, 93, 0.10);
+  --locked: #98a4b8;
+  --locked-soft: rgba(152, 164, 184, 0.08);
+  --bad: #98a4b8;
+  --bad-soft: rgba(152, 164, 184, 0.08);
+  --code-bg: #070c16;
+  --code-ink: #d3dcea;
+  --code-dim: #75849c;
+  --code-key: #f4c95d;
+  --code-str: #59c8b5;
+  --f-display: "DM Serif Display", Georgia, "Times New Roman", serif;
+  --f-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
   --measure: 1140px;
-}
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --paper: #0b111d; --sheet: #111a2a; --ink: #e5eaf2; --muted: #98a4b8; --line: #243149;
-    --key: #e3ae45; --key-soft: #3a2c10; --shield: #45c7ae; --shield-soft: #10302c;
-    --locked: #7f8ba0; --locked-soft: #1b2638; --code-bg: #070c16; --code-ink: #d3dcea; --code-dim: #75849c;
-    --code-key: #f0c46a; --code-str: #7fd6c6; color-scheme: dark;
-  }
-}
-:root[data-theme="dark"] {
-  --paper: #0b111d; --sheet: #111a2a; --ink: #e5eaf2; --muted: #98a4b8; --line: #243149;
-  --key: #e3ae45; --key-soft: #3a2c10; --shield: #45c7ae; --shield-soft: #10302c;
-  --locked: #7f8ba0; --locked-soft: #1b2638; --code-bg: #070c16; --code-ink: #d3dcea; --code-dim: #75849c;
-  --code-key: #f0c46a; --code-str: #7fd6c6; color-scheme: dark;
+  color-scheme: dark;
 }
 * { box-sizing: border-box; }
 body {
@@ -242,45 +235,121 @@ footer .row { display: flex; justify-content: space-between; gap: 16px; flex-wra
   .era { grid-template-columns: minmax(0, 1fr); gap: 2px; }
 }
 @media (prefers-reduced-motion: reduce) { .tx { transition: none; } }
+
+/* ---- Equilibrium layer: type, buttons, status, proof ---- */
+body { font-family: var(--f-body); }
+h1, h2, h3, .mark { font-family: var(--f-display) !important; font-weight: 400 !important; letter-spacing: -0.005em !important; }
+.label, .pill, .sub, .sub2 { font-family: var(--f-mono) !important; }
+button, .btn { font: 500 0.74rem/1.2 var(--f-mono) !important; letter-spacing: 0.1em; text-transform: uppercase; border-radius: 2px !important; padding: 13px 18px; border: 1px solid var(--ink); background: transparent; color: var(--ink); }
+button.primary, .btn.primary { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+button:hover:not(:disabled), .btn:hover { border-color: var(--key); color: var(--key); }
+button.primary:hover:not(:disabled), .btn.primary:hover { background: var(--key); border-color: var(--key); color: var(--paper); }
+button:disabled { border-color: var(--line); color: var(--muted); background: transparent; opacity: 0.6; }
+:focus-visible { outline: 1px dashed var(--key) !important; outline-offset: 3px; }
+.panel { border-radius: 4px !important; }
+.chip-status { display: inline-flex; align-items: center; gap: 9px; font: 500 0.68rem/1 var(--f-mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink); border: 1px solid var(--line); padding: 8px 12px; border-radius: 2px; white-space: nowrap; }
+.chip-status i { width: 7px; height: 7px; border-radius: 50%; background: var(--key); box-shadow: 0 0 0 3px rgba(89, 200, 181, 0.16); }
+.gold { color: var(--gold); }
+.top { padding-block: 26px; border-bottom: 1px solid var(--line); }
+.top .left { display: flex; align-items: center; gap: 28px; flex-wrap: wrap; }
+.mark { font-size: 1.9rem !important; }
+.mark b { color: var(--ink); font-weight: 400; }
+.nav { gap: 26px; padding-left: 28px; border-left: 1px solid var(--line); font: 500 0.72rem var(--f-mono); letter-spacing: 0.12em; text-transform: uppercase; }
+.nav a:hover { color: var(--key); }
+h2 { font-size: clamp(2rem, 3.8vw, 2.9rem); line-height: 1.06; }
+.pill.pub { background: var(--gold-soft); color: var(--gold); }
+.pill.priv { background: var(--key-soft); color: var(--key); }
+.proof td.h, .txid > span { color: var(--gold); font-family: var(--f-mono); }
+.eqn .s { color: var(--key); }
+.math dt { color: var(--key); }
+.term { border-radius: 4px; }
+.tx.open { border-color: var(--key); background: var(--key-soft); }
+.tx.open .state { color: var(--key); }
+.tx.open .state i { border-color: var(--key); background: var(--key); }
+.choose button[aria-pressed="true"] { border-color: var(--key); background: var(--key-soft); color: var(--key); }
+.era .yr.now { color: var(--key); }
+.st.next .label { color: var(--key); }
+/* Hero: the mark, the promise, and two equal parties around one oracle. */
+.hero2 { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr); gap: clamp(24px, 4vw, 56px); align-items: center; padding-block: clamp(40px, 7vw, 84px) clamp(28px, 4vw, 44px); }
+.h-mark { font-size: clamp(5rem, 13vw, 9.5rem); line-height: 0.86; margin-top: 18px !important; }
+.h-sub { font: 400 clamp(1.7rem, 3.6vw, 2.75rem)/1.04 var(--f-display); text-transform: uppercase; letter-spacing: 0.005em; margin-top: 18px; }
+.h-lead { font-size: clamp(1.1rem, 1.7vw, 1.3rem); margin-top: 18px; letter-spacing: 0.01em; }
+.h-lead + .h-lead { margin-top: 6px; color: var(--muted); }
+.hero2 .read { margin-top: 18px; font-size: 1rem; }
+.hero2 .cta { margin-top: 30px; }
+.h-fig { margin: 0; }
+.h-fig svg { width: 100%; height: auto; display: block; }
+.tenets { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); margin-bottom: clamp(48px, 7vw, 80px); }
+.tenets div { padding: 18px 20px; font: 500 0.72rem/1.6 var(--f-mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
+.tenets div + div { border-left: 1px solid var(--line); }
+.tenets b { display: block; color: var(--ink); font-weight: 500; }
+@media (max-width: 960px) { .hero2 { grid-template-columns: minmax(0, 1fr); } .nav { border-left: 0; padding-left: 0; } }
+@media (max-width: 640px) { .tenets { grid-template-columns: minmax(0, 1fr); } .tenets div + div { border-left: 0; border-top: 1px solid var(--line); } .top .chip-status { display: none; } }
 </style>
 </head>
 <body>
 <div class="wrap">
   <header class="top">
-    <a class="mark" href="#top" id="top">z<b>DLC</b></a>
-    <nav class="nav" aria-label="Sections">
-      <a href="#lineage">Origins</a>
-      <a href="#how">How it works</a>
-      <a href="#zcash">Why Zcash</a>
-      <a href="#build">Build</a>
-      <a href="#quickstart">Quickstart</a>
-      <a href="#proof">On chain</a>
-      <a href="#status">Status</a>
-      <a href="/room">Escrow room</a>
-      <a href="/desk">Desk</a>
-    </nav>
+    <div class="left">
+      <a class="mark" href="#top" id="top">zDLC</a>
+      <nav class="nav" aria-label="Sections">
+        <a href="#how">How it works</a>
+        <a href="#foundations">Technology</a>
+        <a href="#quickstart">Developers</a>
+        <a href="#lineage">About</a>
+        <a href="/room">Escrow room</a>
+        <a href="/desk">Desk</a>
+      </nav>
+    </div>
+    <span class="chip-status"><i></i>Testnet · unaudited</span>
   </header>
 
-  <div class="hero">
+  <div class="hero2">
     <div>
-      <p class="label">Contracts without contract code</p>
-      <h1 style="margin-top:16px">Native Zcash contracts. <span>Shielded in, shielded out.</span></h1>
-      <p class="read">Build escrows, hedges and payments that settle on real-world outcomes, on Zcash itself. Funds come in from the shielded pool and go back out to shielded recipients, while the agreement stays off chain. Only a temporary collateral output, and what settlement needs, is public.</p>
-      <div class="chips" aria-label="What it is"><span>Native Zcash transactions</span><span>Oracle-settled</span><span>Self-custodial</span></div>
+      <p class="label">A neutral contract protocol for Zcash</p>
+      <h1 class="h-mark">zDLC</h1>
+      <p class="h-sub">Contracts without contract code</p>
+      <p class="h-lead">Neutral by design. Enforced by signatures.</p>
+      <p class="h-lead">Private, oracle-settled payments on Zcash.</p>
+      <p class="read">Two parties lock funds, pre-sign every possible payout, and an oracle's signature makes exactly one of them valid. Money comes in from the shielded pool and goes back out to it; while a contract is open, only its collateral is visible on chain, never its terms.</p>
       <div class="cta">
-        <a class="btn primary" href="/room">Try the escrow room</a>
-        <a class="btn" href="#quickstart">Run one in five minutes</a>
+        <a class="btn primary" href="/room">Try the escrow room &rarr;</a>
+        <a class="btn" href="#quickstart">View quickstart</a>
       </div>
     </div>
-    <figure class="panel trail" style="margin:0" aria-label="What is public and what is private across one contract">
-      <div class="t-head"><span class="label">One contract, start to finish</span><span class="label">Cooperative path</span></div>
-      <ol>
-        <li><span class="dot"></span><div><div class="ttl">Funded from shielded notes <span class="pill priv">private</span></div><p>Scan a payment link from any Zcash wallet. Where the money came from stays in the shielded pool.</p></div></li>
-        <li class="pub"><span class="dot"></span><div><div class="ttl">Collateral in a 2-of-2 <span class="pill pub">public</span></div><p>Its existence and amount are visible while the contract is open. The terms are not on chain.</p></div></li>
-        <li><span class="dot"></span><div><div class="ttl">Closed to shielded recipients <span class="pill priv">private</span></div><p>One transaction pays every party; who received what, and what they do next, stays shielded.</p></div></li>
-      </ol>
-      <p class="foot">If a side walks away, the other settles with a pre-signed payout instead. That transaction's outputs are transparent until moved into the shielded pool.</p>
+    <figure class="h-fig">
+        <svg viewBox="0 0 540 440" role="img" aria-label="Party A and Party B, equal on either side of one oracle; the oracle signs the outcome and the escrow settles on Zcash">
+          <g fill="none" stroke="var(--line)">
+            <circle cx="270" cy="200" r="196"/><circle cx="270" cy="200" r="140" stroke-dasharray="2 6"/>
+            <path d="M270 0V430M30 200H510"/>
+          </g>
+          <g fill="none" stroke="var(--key)" stroke-width="1.4">
+            <circle cx="270" cy="40" r="8"/><circle cx="270" cy="372" r="8"/>
+            <path d="M270 48V146M270 326V364" stroke-dasharray="3 6"/>
+            <circle cx="98" cy="200" r="56"/><circle cx="442" cy="200" r="56"/>
+            <path d="M154 200H232M308 200H386" stroke-dasharray="2 7" stroke-linecap="round" stroke-width="2"/>
+          </g>
+          <g fill="var(--key)"><circle cx="160" cy="200" r="3"/><circle cx="228" cy="200" r="3"/><circle cx="312" cy="200" r="3"/><circle cx="380" cy="200" r="3"/></g>
+          <g transform="translate(-172 0)"><circle cx="270" cy="186" r="11" fill="none" stroke="var(--ink)" stroke-width="1.6"/><path d="M250 222c3-14 11-20 20-20s17 6 20 20" fill="none" stroke="var(--ink)" stroke-width="1.6"/></g><g transform="translate(172 0)"><circle cx="270" cy="186" r="11" fill="none" stroke="var(--ink)" stroke-width="1.6"/><path d="M250 222c3-14 11-20 20-20s17 6 20 20" fill="none" stroke="var(--ink)" stroke-width="1.6"/></g>
+          <path d="M240 150H288L304 166V250H240Z M288 150V166H304" fill="var(--sheet)" stroke="var(--ink)" stroke-width="1.6" stroke-linejoin="round"/>
+          <path d="M252 182H292M252 196H292M252 210H292M252 224H280" stroke="var(--ink)" stroke-width="1.4"/>
+          <g font-family="IBM Plex Mono, ui-monospace, monospace" font-size="12" letter-spacing="1.6" text-anchor="middle" fill="var(--ink)">
+            <text x="98" y="290">PARTY A</text><text x="442" y="290">PARTY B</text><text x="270" y="282">ORACLE</text>
+          </g>
+          <g font-family="IBM Plex Mono, ui-monospace, monospace" font-size="10" letter-spacing="1.4" text-anchor="middle" fill="var(--muted)">
+            <text x="98" y="307">ZCASH ADDRESS</text><text x="442" y="307">ZCASH ADDRESS</text>
+            <text x="270" y="299">TRUTH SOURCE</text><text x="270" y="314">SIGNS THE OUTCOME</text>
+          </g>
+          <g font-family="IBM Plex Mono, ui-monospace, monospace" font-size="10" letter-spacing="1.4" text-anchor="end" fill="var(--muted)">
+            <text x="536" y="392">SAME RULES, BOTH PARTIES</text><text x="536" y="408">NO CONTRACT CODE</text><text x="536" y="424">SETTLED ON ZCASH</text>
+          </g>
+        </svg>
     </figure>
+  </div>
+  <div class="tenets" aria-label="Principles">
+    <div><b>Private</b>by default</div>
+    <div><b>Oracle-settled</b>enforcement</div>
+    <div><b>Equal treatment</b>for both parties</div>
   </div>
 </div>
 
