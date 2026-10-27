@@ -310,6 +310,12 @@ h2 { font-size: clamp(2rem, 3.8vw, 2.9rem); line-height: 1.06; }
 .hx-steps { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
 .hx-steps button { padding: 9px 4px; white-space: nowrap; font-size: 0.66rem !important; border-color: var(--line); color: var(--muted); }
 .hx-steps button[aria-pressed="true"] { border-color: var(--key); color: var(--key); background: var(--key-soft); }
+.hx-steps button { position: relative; overflow: hidden; }
+.hx-steps button[aria-pressed="true"]::after { content: ""; position: absolute; left: 0; bottom: 0; height: 2px; width: 100%; background: var(--key); transform-origin: left; transform: scaleX(0); }
+.hx.playing .hx-steps button[aria-pressed="true"]::after { animation: hx-timer var(--hx-ms, 4200ms) linear forwards; }
+@keyframes hx-timer { to { transform: scaleX(1); } }
+.try { font: 500 0.72rem var(--f-mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--key); text-decoration: none; margin-top: 4px; }
+.try:hover { text-decoration: underline; text-underline-offset: 4px; }
 .hx-cap { font-size: 0.98rem; color: var(--ink); min-height: 4.8em; max-width: 52ch; }
 .hx-cap b { font: 500 0.7rem var(--f-mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--key); display: block; margin-bottom: 4px; }
 @media (prefers-reduced-motion: reduce) { .hx-flow { animation: none; } .hx svg * { transition: none !important; } }
@@ -337,7 +343,7 @@ h2 { font-size: clamp(2rem, 3.8vw, 2.9rem); line-height: 1.06; }
       <p class="label">Zcash native contracts</p>
       <h1 class="h-mark">zDLC</h1>
       <p class="h-sub">Contracts without contract code</p>
-      <p class="h-lead">Neutral by design. Enforced by signatures.</p>
+      <p class="h-lead">Discreet by design. Enforced by signatures.</p>
       <p class="h-lead">Private, oracle-settled payments on Zcash.</p>
       <p class="read">Two parties lock funds, pre-sign every possible payout, and an oracle's signature makes exactly one of them valid. Money comes in from the shielded pool and goes back out to it; while a contract is open, only its collateral is visible on chain, never its terms.</p>
       <div class="cta">
@@ -471,7 +477,7 @@ h2 { font-size: clamp(2rem, 3.8vw, 2.9rem); line-height: 1.06; }
   <div class="wrap">
     <div class="head">
       <p class="label">Why Zcash</p>
-      <h2>Bitcoin hides the contract. Zcash also hides where the money comes from and goes.</h2>
+      <h2>DLC hides the contract. Zcash shields money in and out.</h2>
       <p class="read">On Bitcoin, a DLC's funding traces back to your coins and its payouts land on addresses anyone can follow. On Zcash, money enters from the shielded pool and leaves to it. The temporary 2-of-2 in between stays public, and can still link a funding and its settlement to each other, but not to the people behind them.</p>
     </div>
     <div class="panel scroll vis">
@@ -504,9 +510,9 @@ h2 { font-size: clamp(2rem, 3.8vw, 2.9rem); line-height: 1.06; }
       <h2>Three places to start</h2>
     </div>
     <div class="three">
-      <div class="panel use"><span class="pill priv" style="justify-self:start">shipped</span><h3>Escrow</h3><p>The simplest conditional settlement: a client funds a job, arbiters rule, and a time-locked refund covers silence. Neither side holds the other's money.</p><p class="ex">Milestone payments, freelance jobs, a team paid by share on delivery.</p></div>
-      <div class="panel use"><span class="pill priv" style="justify-self:start">shipped</span><h3>Stable payments and hedges</h3><p>ZEC payouts set by a real-world price: owed dollars, paid in ZEC at the attested minute, with the other side earning a premium.</p><p class="ex">Invoices in dollars, a hedged salary, protecting a ZEC balance.</p></div>
-      <div class="panel use"><span class="pill dim" style="justify-self:start">proposed</span><h3>Agent agreements</h3><p>Agents that negotiate a price and get paid only if the outcome they promised is attested, settled without a platform holding funds.</p><p class="ex">Built from escrow and the desk's quote and mailbox flow today.</p></div>
+      <div class="panel use"><span class="pill priv" style="justify-self:start">shipped</span><h3>Escrow</h3><p>The simplest conditional settlement: a client funds a job, arbiters rule, and a time-locked refund covers silence. Neither side holds the other's money.</p><p class="ex">Milestone payments, freelance jobs, a team paid by share on delivery.</p><a class="try" href="/escrow">Try it in the escrow room &rarr;</a></div>
+      <div class="panel use"><span class="pill priv" style="justify-self:start">shipped</span><h3>Stable payments and hedges</h3><p>ZEC payouts set by a real-world price: owed dollars, paid in ZEC at the attested minute, with the other side earning a premium.</p><p class="ex">Invoices in dollars, a hedged salary, protecting a ZEC balance.</p><a class="try" href="/hedge">Watch agents trade one at the hedge desk &rarr;</a></div>
+      <div class="panel use"><span class="pill dim" style="justify-self:start">proposed</span><h3>Agent agreements</h3><p>Agents that negotiate a price and get paid only if the outcome they promised is attested, settled without a platform holding funds.</p><p class="ex">Built from escrow and the desk's quote and mailbox flow today.</p><a class="try" href="/hedge">See two agents at the hedge desk &rarr;</a></div>
     </div>
     <div class="gallery">
       <div><span class="label" style="color:var(--shield)">Shipped templates</span><ul><li><code>stable_payment</code> · <code>hedge</code> · <code>payroll</code></li><li><code>escrow</code> with up to 16 payees</li><li><code>pay_on_payment</code> · <code>bet</code></li></ul></div>
@@ -585,7 +591,7 @@ funded
   <div class="wrap">
     <div class="head">
       <p class="label">Architecture</p>
-      <h2>Not a smart-contract VM for Zcash</h2>
+      <h2>Native Zcash contracts</h2>
       <p class="read">zDLC compiles a conditional agreement into native Zcash transactions: a 2-of-2, one pre-signed payout per outcome, and a time-locked refund. The logic is settled before any money moves.</p>
     </div>
     <div class="found">
@@ -732,11 +738,14 @@ funded
   function next() {
     if (step === steps.length - 1) { win = win === "a" ? "b" : "a"; show(0); } else show(step + 1);
   }
-  function play() { clearInterval(timer); timer = setInterval(next, 4200); }
+  var MS = 5000;
+  fig.style.setProperty("--hx-ms", MS + "ms");
+  function play() { clearInterval(timer); fig.classList.add("playing"); timer = setInterval(next, MS); }
   btns.forEach(function (b) {
     b.addEventListener("click", function () {
-      clearInterval(timer); clearTimeout(resume); show(+b.dataset.s);
-      resume = setTimeout(play, 15000);
+      clearTimeout(resume); show(+b.dataset.s);
+      // Restart the clock from the chosen step: it stays on it a full interval, then plays on.
+      fig.classList.remove("playing"); void fig.offsetWidth; play();
     });
   });
   show(0); play();
