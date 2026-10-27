@@ -276,7 +276,9 @@ h2 { font-size: clamp(2rem, 3.8vw, 2.9rem); line-height: 1.06; }
 .h-lead { font-size: clamp(1.1rem, 1.7vw, 1.3rem); margin-top: 18px; letter-spacing: 0.01em; }
 .h-lead + .h-lead { margin-top: 6px; color: var(--muted); }
 .hero2 .read { margin-top: 18px; font-size: 1rem; }
-.hero2 .cta { margin-top: 30px; }
+.hero2 .cta { margin-top: 30px; align-items: center; }
+.btn.ghost { border-color: transparent; padding-inline: 0; color: var(--muted); text-decoration: underline; text-underline-offset: 5px; text-decoration-color: var(--line); }
+.btn.ghost:hover { border-color: transparent; color: var(--key); }
 .h-fig { margin: 0; }
 .h-fig svg { width: 100%; height: auto; display: block; }
 .tenets { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); margin-bottom: clamp(48px, 7vw, 80px); }
@@ -332,7 +334,7 @@ h2 { font-size: clamp(2rem, 3.8vw, 2.9rem); line-height: 1.06; }
 
   <div class="hero2">
     <div>
-      <p class="label">A neutral contract protocol for Zcash</p>
+      <p class="label">Zcash native contracts</p>
       <h1 class="h-mark">zDLC</h1>
       <p class="h-sub">Contracts without contract code</p>
       <p class="h-lead">Neutral by design. Enforced by signatures.</p>
@@ -340,7 +342,8 @@ h2 { font-size: clamp(2rem, 3.8vw, 2.9rem); line-height: 1.06; }
       <p class="read">Two parties lock funds, pre-sign every possible payout, and an oracle's signature makes exactly one of them valid. Money comes in from the shielded pool and goes back out to it; while a contract is open, only its collateral is visible on chain, never its terms.</p>
       <div class="cta">
         <a class="btn primary" href="/escrow">Try the escrow room &rarr;</a>
-        <a class="btn" href="#quickstart">View quickstart</a>
+        <a class="btn" href="/hedge">Try the hedge desk &rarr;</a>
+        <a class="btn ghost" href="#quickstart">View quickstart</a>
       </div>
     </div>
     <figure class="h-fig hx" id="hx">

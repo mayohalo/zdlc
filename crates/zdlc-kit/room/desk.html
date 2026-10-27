@@ -128,9 +128,10 @@ footer { margin-top: 28px; color: var(--muted); font-size: 0.88rem; display: gri
   .log .tm { grid-row: span 2; }
 }
 
-.nav { display: flex; gap: 16px; font: 600 0.9rem var(--f-display); }
+.nav { display: flex; gap: 16px; }
 .nav a { color: var(--muted); text-decoration: none; }
 .nav a.on { color: var(--ink); }
+.nav a:hover { color: var(--key); }
 .facts { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 0.92rem; margin: 0; }
 .facts dt { color: var(--muted); }
 .facts dd { margin: 0; font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; }
@@ -198,7 +199,7 @@ footer { border-top: 1px solid var(--line); padding-top: 18px; }
 <div class="wrap">
   <header>
     <div><a class="mark" href="/">z<b>DLC</b></a><a class="mark page" href="/hedge">hedge desk</a></div>
-    <nav class="nav"><a href="/escrow">Escrow room</a><a class="on" href="/hedge">Hedge desk</a><span class="net" style="margin-left:8px"><span class="chip-status"><i></i><span id="net">connecting…</span></span><span>block <b id="tip">–</b></span></span></nav>
+    <div class="net"><nav class="nav"><a href="/escrow">Escrow room</a><a class="on" href="/hedge">Hedge desk</a></nav><span class="chip-status"><i></i><span id="net">connecting…</span></span><span>block <b id="tip">–</b></span></div>
   </header>
 
   <div class="intro">
