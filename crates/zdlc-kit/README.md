@@ -7,7 +7,7 @@ Depend on it from the repo, pinned to a release (not on crates.io yet; Rust 1.89
 zdlc-kit = { git = "https://github.com/mayohalo/zdlc", tag = "v0.1.0" }
 ```
 
-The binaries (`zdlc-node`, `zdlc-cli`, `zdlc-agent`, `zdlc-room`) are built for Linux x86_64 and macOS Apple Silicon on the [releases page](https://github.com/mayohalo/zdlc/releases).
+The binaries (`zdlc-node`, `zdlc-cli`, `zdlc-agent`, and the demos' `zdlc-room` from [demos](../../demos)) are built for Linux x86_64 and macOS Apple Silicon on the [releases page](https://github.com/mayohalo/zdlc/releases).
 
 The zDLC developer kit: one `Zdlc` object runs contracts end to end. An app chooses four parts, describes a contract with a template, and reacts to events. The kit runs the rest:
 

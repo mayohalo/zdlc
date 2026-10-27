@@ -3,7 +3,8 @@
 //! - `escrow` (`/escrow`): the visitor plays a client, a contractor and both arbiters.
 //! - `hedge` (`/hedge`): two agents trade a ZEC/USD hedge over the RFQ desk.
 //! - `auction` (`/auction`): a sealed-bid auction; the price public, the bidders not.
-//! - `common`: what they share. The demos' READMEs are in `demos/` at the repo root.
+//! - `common`: what they share. Each demo is a folder here: its code (`mod.rs`), its page
+//!   (`page.html`) and its README.
 //!
 //! Every party of every demo runs as a kit node in this process, so a visitor can play
 //! them all; a real app gives each party its own node or SDK.

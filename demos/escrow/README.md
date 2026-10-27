@@ -6,18 +6,18 @@ Live at `/escrow` on the hosted site.
 
 ## Code
 
-One server file (about 270 lines) and one page. Read these first:
+Everything for this demo is in this folder: [`mod.rs`](mod.rs), the server side (about 270 lines), and [`page.html`](page.html), the visitor's page. Read these first:
 
 | Where | What it does |
 | --- | --- |
-| [`escrow.rs`](../../crates/zdlc-kit/src/bin/zdlc-room/escrow.rs) `open` | the contractor offers `Template::Escrow` to the client's identity (`contractor.offer`) |
+| [`mod.rs`](mod.rs) `open` | the contractor offers `Template::Escrow` to the client's identity (`contractor.offer`) |
 | `accept` | the client accepts, funded from the treasury or a deposit link (`client.accept(id, Funding::…)`) |
 | `rule` | an arbiter rules: a POST to its oracle's `/events/{event_id}/resolve` |
-| [`common.rs`](../../crates/zdlc-kit/src/bin/zdlc-room/common.rs) `node` | how each party is built: `Zdlc::builder()` with `close_before_funded`, then `run` in the background |
+| [`../common.rs`](../common.rs) `node` | how each party is built: `Zdlc::builder()` with `close_before_funded`, then `run` in the background |
 
 There is no settlement code in the demo: once both arbiters have ruled, the kit's `run` loop on each node closes the contract. `show` only reads the record (`contract(id)`) for the page. `hold` and `attempt` are the misbehave buttons, demo-only.
 
-- Page: [`pages/escrow.html`](../../crates/zdlc-kit/src/bin/zdlc-room/pages/escrow.html) polls `GET /escrow/api/rooms/{id}` and draws it
+- Page: [`page.html`](page.html) polls `GET /escrow/api/rooms/{id}` and draws it
 - API: `POST /escrow/api/rooms` (`{"team": true}` splits the payout 50/30/20 between three payees), `GET /escrow/api/rooms/{id}`, `POST …/accept`, `…/{who}/hold`, `…/{who}/attempt`, `…/arbiters/{n}`, `GET …/qr.svg`
 - The same flow without any demo machinery: [`examples/first_app.rs`](../../crates/zdlc-kit/examples/first_app.rs)
 

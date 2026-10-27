@@ -16,13 +16,13 @@ PORT="${ROOM_PORT:-8080}"
   --block-secs 2 --maturity 75 --refund 150 --close-wait 37 --close-wait-secs 30 >"$LOG" 2>&1 &
 PID=$!
 trap 'kill $PID 2>/dev/null' EXIT INT TERM
-for _ in $(seq 1 30); do grep -q "http://" "$LOG" && break; sleep 1; done
-ADDR=$(sed -n 's/.*demo wallet (the client.s treasury) at \(t[a-zA-Z0-9]*\).*/\1/p' "$LOG")
+for _ in $(seq 1 60); do grep -q "fund the demo wallet at" "$LOG" && break; sleep 1; done
+ADDR=$(sed -n 's/.*fund the demo wallet at \([a-z0-9]*\).*/\1/p' "$LOG")
 [ -n "$ADDR" ] || { cat "$LOG"; exit 1; }
-if [ "$(curl -s "http://127.0.0.1:$PORT/api/info" | sed -n 's/.*"demoWalletZat":\([0-9]*\).*/\1/p')" = 0 ]; then
-  # Several small coins, so several rooms can fund at once (regtest coinbases shrink
-  # every 150 blocks, so a long-running chain cannot pay much more).
-  "$ZDLC_BIN/zdlc-dev" fund --node "$ZDLC_NODE_URL" "$ADDR" 0.03 "$ADDR" 0.03 "$ADDR" 0.03 "$ADDR" 0.03 "$ADDR" 0.03 "$ADDR" 0.03
+if [ "$(curl -s "http://127.0.0.1:$PORT/escrow/api/info" | sed -n 's/.*"demoWalletZat":\([0-9]*\).*/\1/p')" = 0 ]; then
+  # The demo wallet's inbox is shielded: pay it from the dev wallet; the room sweeps it
+  # into treasury coins within a minute.
+  "$ZDLC_BIN/zdlc-dev" pay --node "$ZDLC_NODE_URL" "zcash:$ADDR?amount=0.02" || echo "could not fund the demo wallet; pay $ADDR from any regtest wallet"
 fi
-echo "escrow room: http://127.0.0.1:$PORT/escrow, hedge desk: http://127.0.0.1:$PORT/hedge (log: $LOG)"
+echo "demos: http://127.0.0.1:$PORT/escrow, /hedge and /auction (log: $LOG)"
 wait $PID

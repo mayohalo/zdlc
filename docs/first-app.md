@@ -49,7 +49,7 @@ Each release lists `SHA256SUMS` for its files. Building from source instead: `ca
 | Template | One side locks | Settles on | Demo |
 | --- | --- | --- | --- |
 | `escrow` | the client (the amount) | an arbiter's ruling; up to 16 payees | [/escrow](../demos/escrow) |
-| `stable_payment` | both | the ZEC/USD price at a minute | [/hedge](../demos/hedge-desk) |
+| `stable_payment` | both | the ZEC/USD price at a minute | [/hedge](../demos/hedge) |
 | `auction` | each bidder (the same deposit) | the auctioneer's ruling: "won at" a price or "lost" | [/auction](../demos/auction) |
 | `bet` | both | an arbiter's ruling among any outcomes | |
 | `payroll` | the employer | the price, period after period | |

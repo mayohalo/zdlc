@@ -26,7 +26,7 @@ wait_http() {
 
 up() {
   mkdir -p "$DEV"
-  (cd "$ROOT" && cargo build --release --bins -p zdlc -p zdlc-kit)
+  (cd "$ROOT" && cargo build --release --bins -p zdlc -p zdlc-kit -p zdlc-demos)
   "$ROOT/infra/zakura/scripts/up.sh" >/dev/null
   [ -f "$DEV/admin" ] || head -c 16 /dev/urandom | xxd -p >"$DEV/admin"
   start desk "$BIN/zdlc-desk" --listen 127.0.0.1:7900 --state "$DEV/desk.json" --node "$RPC"

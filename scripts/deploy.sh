@@ -9,7 +9,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SSH=(ssh); SCP=(scp -q); [ -n "$KEY" ] && SSH+=(-i "$KEY") && SCP+=(-i "$KEY")
 T=x86_64-unknown-linux-gnu
 (cd "$ROOT" && CARGO_TARGET_DIR=target/linux cargo zigbuild --release --target "$T.2.35" \
-  -p zdlc --bin zdlc-desk --bin zdlc-oracled -p zdlc-kit --bin zdlc-room)
+  -p zdlc --bin zdlc-desk --bin zdlc-oracled -p zdlc-demos --bin zdlc-room)
 BIN="$ROOT/target/linux/$T/release"
 "${SSH[@]}" "$HOST" 'install -d /opt/zdlc/bin /opt/zdlc/deploy'
 "${SCP[@]}" "$BIN/zdlc-desk" "$BIN/zdlc-oracled" "$BIN/zdlc-room" "$HOST:/opt/zdlc/bin.new/" 2>/dev/null || {

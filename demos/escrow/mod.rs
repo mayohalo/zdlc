@@ -1,5 +1,5 @@
 //! The escrow room (`/escrow`): a contractor and a client, the visitor playing both and
-//! both arbiters. See `demos/escrow/README.md`.
+//! both arbiters. See `README.md` in this folder.
 
 #![allow(unused_imports)]
 
@@ -19,7 +19,7 @@ use zdlc_kit::{impls::*, templates::Template, Funding, Zdlc};
 
 use crate::{auction::*, common::*, hedge::*};
 
-pub(crate) const PAGE: &str = include_str!("pages/escrow.html");
+pub(crate) const PAGE: &str = include_str!("page.html");
 
 /// What the page did in a room, beyond what the nodes record. Saved to `rooms.json`.
 #[derive(Default, Serialize, Deserialize)]

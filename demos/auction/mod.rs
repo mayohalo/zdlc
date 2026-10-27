@@ -1,5 +1,5 @@
 //! The sealed-bid auction (`/auction`): a seller, four bidders, the server as auctioneer.
-//! See `demos/auction/README.md`.
+//! See `README.md` in this folder.
 
 #![allow(unused_imports)]
 
@@ -19,7 +19,7 @@ use zdlc_kit::{impls::*, templates::Template, Funding, Zdlc};
 
 use crate::{common::*, escrow::*, hedge::*};
 
-pub(crate) const AUCTION_PAGE: &str = include_str!("pages/auction.html");
+pub(crate) const AUCTION_PAGE: &str = include_str!("page.html");
 
 /// The auction demo: a seller node offers one contract per bidder, a bidders' node plays
 /// the three house bidders and the visitor, and this server is the auctioneer: it holds

@@ -1,5 +1,5 @@
 //! The hedge desk (`/hedge`): a house maker agent quoting on the RFQ desk and a taker
-//! the visitor starts. See `demos/hedge-desk/README.md`.
+//! the visitor starts. See `README.md` in this folder.
 
 #![allow(unused_imports)]
 
@@ -19,7 +19,7 @@ use zdlc_kit::{impls::*, templates::Template, Funding, Zdlc};
 
 use crate::{auction::*, common::*, escrow::*};
 
-pub(crate) const DESK_PAGE: &str = include_str!("pages/hedge.html");
+pub(crate) const DESK_PAGE: &str = include_str!("page.html");
 
 /// The desk demo: a house maker agent always quoting on the desk, and a taker the
 /// visitor drives. One trade runs at a time, so every visitor watches the same one.

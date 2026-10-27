@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/zdlc", "crates/zdlc-kit", "crates/zdlc-wasm", "crates/zdlc-napi"]
+members = ["crates/zdlc", "crates/zdlc-kit", "crates/zdlc-wasm", "crates/zdlc-napi", "demos"]
 
 [workspace.package]
 version = "0.0.1"

@@ -6,16 +6,16 @@ Live at `/auction` on the hosted site.
 
 ## Code
 
-One server file (about 300 lines) and one page. Read these first:
+Everything for this demo is in this folder: [`mod.rs`](mod.rs), the server side (about 300 lines), and [`page.html`](page.html), the visitor's page. Read these first:
 
 | Where | What it does |
 | --- | --- |
-| [`auction.rs`](../../crates/zdlc-kit/src/bin/zdlc-room/auction.rs) `run_round` | the whole round, about 80 lines: offer each bidder a contract, wait until all four are signed, clear (second price), have both oracles rule each contract, wait for the closes |
+| [`mod.rs`](mod.rs) `run_round` | the whole round, about 80 lines: offer each bidder a contract, wait until all four are signed, clear (second price), have both oracles rule each contract, wait for the closes |
 | `auction_demo` | builds the seller and bidders nodes; the bidders' accept policy is one line (`set_policy`) |
 | `auction_bid` | the visitor's bid: draws three house bids and spawns `run_round` |
 | [`templates.rs`](../../crates/zdlc/src/templates.rs) `Template::Auction` | the contract: one outcome per price ("won at P") plus "lost" |
 
-- Page: [`pages/auction.html`](../../crates/zdlc-kit/src/bin/zdlc-room/pages/auction.html) polls `GET /auction/api/state` and draws the round
+- Page: [`page.html`](page.html) polls `GET /auction/api/state` and draws the round
 - API: `GET /auction/api/info`, `GET /auction/api/state`, `POST /auction/api/bid {"bid_zat": …}`
 
 ## How it works

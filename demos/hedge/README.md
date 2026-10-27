@@ -6,18 +6,18 @@ Live at `/hedge` on the hosted site.
 
 ## Code
 
-The trading logic is in the agents, not the demo; the demo file starts them and records their steps. Read these first:
+This folder holds the demo: [`mod.rs`](mod.rs), the server side, and [`page.html`](page.html), the visitor's page. The trading logic itself is in the kit's agents; `mod.rs` starts them and records their steps. Read these first:
 
 | Where | What it does |
 | --- | --- |
 | [`agent.rs`](../../crates/zdlc-kit/src/agent.rs) `run_maker` | the maker's loop: read requests on the desk, quote, accept offers that match a standing quote |
 | `run_taker_with` | the taker: post a request, wait for quotes, offer on the cheapest, follow it to settlement, reporting each step |
-| [`hedge.rs`](../../crates/zdlc-kit/src/bin/zdlc-room/hedge.rs) `desk_trade` | the visitor's click: sizes the windows in blocks and spawns `run_taker_with` |
+| [`mod.rs`](mod.rs) `desk_trade` | the visitor's click: sizes the windows in blocks and spawns `run_taker_with` |
 | `desk_demo` | builds the two nodes and starts `run_maker` forever |
 
 `desk_spot` and the top-ups in `desk_demo` are demo-only (the page's spot price, refilling the agents' wallets).
 
-- Page: [`pages/hedge.html`](../../crates/zdlc-kit/src/bin/zdlc-room/pages/hedge.html) polls `GET /hedge/api/state` and draws the trade
+- Page: [`page.html`](page.html) polls `GET /hedge/api/state` and draws the trade
 - API: `GET /hedge/api/info`, `GET /hedge/api/state`, `POST /hedge/api/trade`. One trade at a time; every visitor watches the same one.
 - The same agents as a program: `zdlc-agent maker | taker`
 

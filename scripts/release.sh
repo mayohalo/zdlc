@@ -13,7 +13,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 OUT="$ROOT/dist/v$V"
 LINUX=x86_64-unknown-linux-gnu
 BINS="zdlc-node zdlc-cli zdlc-agent zdlc-room zdlc-oracled zdlc-desk"
-BUILD=(-p zdlc --bin zdlc-oracled --bin zdlc-desk -p zdlc-kit --bin zdlc-node --bin zdlc-cli --bin zdlc-agent --bin zdlc-room)
+BUILD=(-p zdlc --bin zdlc-oracled --bin zdlc-desk -p zdlc-kit --bin zdlc-node --bin zdlc-cli --bin zdlc-agent -p zdlc-demos --bin zdlc-room)
 rm -rf "$OUT" && mkdir -p "$OUT"
 cd "$ROOT"
 
