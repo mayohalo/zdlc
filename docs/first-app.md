@@ -11,6 +11,30 @@ A zDLC app offers contracts, accepts them, and follows them to settlement. The k
 | Oracles | Two `zdlc-oracled`: the ZEC/USD price, or an arbiter's ruling | started by `just dev` |
 | A node per party | `zdlc-node` (REST), or the kit / SDK inside your app | your code |
 
+## Install
+
+Everything is on the [GitHub releases](https://github.com/mayohalo/zdlc/releases); nothing is on npm or crates.io yet. For v0.1.0:
+
+```sh
+# TypeScript client (any runtime, no dependencies)
+npm install https://github.com/mayohalo/zdlc/releases/download/v0.1.0/zdlc-client-0.1.0.tgz
+
+# The kit inside Node (native addon for macOS Apple Silicon and Linux x86_64) and the WebAssembly core
+npm install https://github.com/mayohalo/zdlc/releases/download/v0.1.0/zdlc-sdk-0.1.0.tgz
+
+# The binaries: zdlc-node, zdlc-cli, zdlc-agent, zdlc-room, zdlc-oracled, zdlc-desk
+curl -L https://github.com/mayohalo/zdlc/releases/download/v0.1.0/zdlc-0.1.0-x86_64-linux.tar.gz | tar -xz
+```
+
+Rust crates come straight from the repo, pinned to the release tag:
+
+```toml
+[dependencies]
+zdlc-kit = { git = "https://github.com/mayohalo/zdlc", tag = "v0.1.0" }
+```
+
+Each release lists `SHA256SUMS` for its files. Building from source instead: `cargo build --release`, and `scripts/release.sh VERSION` makes every asset of a release.
+
 ## Pick a way in
 
 | You are building | Use | Docs |

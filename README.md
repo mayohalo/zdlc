@@ -6,6 +6,7 @@ zdlc is oracle-settled contracts on Zcash, entered and exited through Ironwood. 
 
 - **Try the private market demos**, live on Zcash testnet: [escrow room](demos/escrow) (settle a deal), [hedge desk](demos/hedge-desk) (trade a price), [auction](demos/auction) (discover a price). How they are built and run: [demos/](demos).
 - **Build an app:** [docs/first-app.md](docs/first-app.md) picks a way in (Rust kit, REST with `@zdlc/client`, Node or browser SDK) and a template, and walks through an escrow in about 100 lines ([`examples/first_app.rs`](crates/zdlc-kit/examples/first_app.rs)).
+- **Install:** the packages and binaries are on the [releases page](https://github.com/mayohalo/zdlc/releases): `npm install https://github.com/mayohalo/zdlc/releases/download/v0.1.0/zdlc-client-0.1.0.tgz`, or `zdlc-kit = { git = "https://github.com/mayohalo/zdlc", tag = "v0.1.0" }` in Cargo.toml. See [docs/first-app.md](docs/first-app.md#install).
 - **Run everything locally:** `just dev` (regtest, the desk, two oracles, two nodes), then `just room` for the three demos at http://127.0.0.1:8080/escrow, /hedge and /auction.
 
 ## Docs

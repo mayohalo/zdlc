@@ -1,5 +1,11 @@
 # @zdlc/sdk
 
+Install from the [GitHub release](https://github.com/mayohalo/zdlc/releases) (not on npm yet):
+
+```sh
+npm install https://github.com/mayohalo/zdlc/releases/download/v0.1.0/zdlc-sdk-0.1.0.tgz
+```
+
 Self-custodial zDLC for JavaScript, in two parts:
 
 | Import | Runs | What it is |

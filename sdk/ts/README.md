@@ -1,5 +1,11 @@
 # @zdlc/client
 
+Install from the [GitHub release](https://github.com/mayohalo/zdlc/releases) (not on npm yet):
+
+```sh
+npm install https://github.com/mayohalo/zdlc/releases/download/v0.1.0/zdlc-client-0.1.0.tgz
+```
+
 A typed TypeScript client for `zdlc-node`: Discreet Log Contracts on Zcash from any JavaScript runtime (Node 18+, browsers, Deno, Bun). The node holds the keys and runs the protocol; the client offers and accepts contracts from templates and follows them through events. It has no dependencies.
 
 ```ts
