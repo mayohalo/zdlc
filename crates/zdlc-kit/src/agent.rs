@@ -53,7 +53,7 @@ pub async fn run_maker(z: Arc<Zdlc>, desk: &DeskClient, id_key: &secp256k1::Secr
     let mut cursor = 0;
     let mut settled = 0;
     loop {
-        let tip = z.info().await?["tip"].as_u64().unwrap_or_default() as u32;
+        let tip = z.tip().await?;
         for (rfq_id, rfq) in desk.rfqs().await? {
             if !seen.insert(rfq_id.clone()) {
                 continue;
@@ -144,7 +144,7 @@ pub async fn run_taker_with(
     let rfq_id = desk.post_rfq(&Signed::new(desk::RFQ_TAG, rfq, id_key)).await?;
     println!("[taker] rfq {rfq_id}");
     on(json!({"step": "rfq posted", "rfq": rfq_id}));
-    let tip = z.info().await?["tip"].as_u64().unwrap_or_default() as u32;
+    let tip = z.tip().await?;
     let usable = |q: &Signed<QuoteBody>| q.verify(desk::QUOTE_TAG).is_ok() && q.body.q_hedger == a.collateral_zat && q.body.valid_until > tip + 2;
     let deadline = std::time::Instant::now() + Duration::from_secs(a.quote_wait_s.max(1));
     let mut quotes = vec![];

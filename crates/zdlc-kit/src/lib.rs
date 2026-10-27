@@ -80,6 +80,16 @@ pub const CLOSE_WAIT_SECS: i64 = 60;
 
 pub use zdlc::templates::Role;
 
+/// Runs CPU-heavy work (proving, signing every CET) without stalling the runtime: on a
+/// multi-threaded runtime the worker hands its queued tasks to the others first. A
+/// current-thread runtime cannot do that, so the work just runs.
+fn cpu<R>(f: impl FnOnce() -> R) -> R {
+    match tokio::runtime::Handle::try_current() {
+        Ok(h) if h.runtime_flavor() == tokio::runtime::RuntimeFlavor::MultiThread => tokio::task::block_in_place(f),
+        _ => f(),
+    }
+}
+
 /// The wallet index of the treasury's shielded inbox ([`Zdlc::inbox_address`]): far
 /// above any contract's.
 const INBOX: u32 = u32::MAX;
@@ -433,6 +443,12 @@ impl Zdlc {
     /// Where to send transparent coins for treasury funding.
     pub fn treasury_address(&self) -> String {
         zdlc::keys::encode(&self.wallet.coin_address(0), self.net)
+    }
+
+    /// The chain's height. [`Zdlc::info`] also asks every oracle for its key; a loop that
+    /// only needs the height should not load the oracles every pass.
+    pub async fn tip(&self) -> Result<u32> {
+        self.chain.height().await
     }
 
     pub async fn info(&self) -> Result<Value> {
@@ -790,7 +806,7 @@ impl Zdlc {
             let (spends, anchor) = self.chain.spends(&fvk, &notes, tip).await?;
             me.ironwood = Some(IronwoodFunds { sk: self.wallet.deposit_sk(rec.index), spends, anchor, change: self.wallet.deposit_address(rec.index) });
         }
-        let (accept, txs) = me.accept(&self.p, tip, &offer)?;
+        let (accept, txs) = cpu(|| me.accept(&self.p, tip, &offer))?;
         if let Some(full) = txs.own_funding() {
             rec.own_funding = Some(pczt_hex(full)?);
         }
@@ -835,7 +851,7 @@ impl Zdlc {
         let offer = wire::offer_from_wire(rec.offer.as_ref().unwrap())?;
         let tip = self.chain.height().await?;
         let me = self.party_of(&rec)?;
-        let (sign, c) = match me.sign(&self.p, tip, &offer, &accept) {
+        let (sign, c) = match cpu(|| me.sign(&self.p, tip, &offer, &accept)) {
             Ok(x) => x,
             Err(e) if e.to_string().contains("sign height") || e.to_string().contains("tip < maturity") => {
                 // The accept came too late for these heights: offer again.
@@ -953,7 +969,7 @@ impl Zdlc {
             txs = txs.with_own_funding(pczt_parse(h)?)?;
         }
         let me = self.party_of(&rec)?;
-        let (funding, c) = me.finish(&offer, txs, &sign)?;
+        let (funding, c) = cpu(|| me.finish(&offer, txs, &sign))?;
         self.chain.send(&funding.raw).await?;
         rec.sign = Some(from_value(&body["sign"])?);
         rec.funding_txid = Some(txid_hex(&funding.txid));
@@ -974,7 +990,8 @@ impl Zdlc {
         let offer = wire::offer_from_wire(rec.offer.as_ref().ok_or(Error::Usage("no offer".into()))?)?;
         let accept = wire::accept_from_wire(rec.accept.as_ref().ok_or(Error::Usage("no accept".into()))?)?;
         let sign = wire::sign_from_wire(rec.sign.as_ref().ok_or(Error::Usage("no sign".into()))?)?;
-        let c = self.party_of(rec)?.restore(&self.p, rec.role == Role::Offerer, &offer, &accept, &sign)?;
+        let me = self.party_of(rec)?;
+        let c = cpu(|| me.restore(&self.p, rec.role == Role::Offerer, &offer, &accept, &sign))?;
         live.insert(rec.id.clone(), c);
         Ok(())
     }
@@ -1112,7 +1129,7 @@ impl Zdlc {
         if self.early_close && rec.role == Role::Offerer && rec.state == State::Signed && !rec.no_early_close {
             let anchor = self.chain.ironwood_anchor(tip).await?;
             let spec = self.close_spec(c, &a, tip, anchor)?;
-            let pczt = tx::build(&self.p, &spec)?;
+            let pczt = cpu(|| tx::build(&self.p, &spec))?;
             drop(live);
             rec.close_tip = Some(tip);
             rec.state = State::Closing;
@@ -1216,7 +1233,7 @@ impl Zdlc {
             // Ask for the cooperative close.
             let anchor = self.chain.ironwood_anchor(tip).await?;
             let spec = self.close_spec(c, &a, tip, anchor)?;
-            let pczt = tx::build(&self.p, &spec)?;
+            let pczt = cpu(|| tx::build(&self.p, &spec))?;
             drop(live);
             rec.close_tip = Some(tip);
             rec.state = State::Closing;
@@ -1243,7 +1260,7 @@ impl Zdlc {
         let pczt = pczt_parse(body["pczt"].as_str().unwrap_or_default())?;
         c.check_close(&pczt, &spec)?;
         let txid = tx::txid(&pczt)?;
-        let signed = c.sign_close(pczt)?;
+        let signed = cpu(|| c.sign_close(pczt))?;
         drop(live);
         rec.pending = Some(Settlement { how: "close".into(), txid: Some(txid_hex(&txid)), height: None });
         self.storage.put(&rec).await?;
@@ -1260,7 +1277,7 @@ impl Zdlc {
         let spec = self.close_spec(c, &a, tip, self.chain.ironwood_anchor(tip).await?)?;
         let back = pczt_parse(body["pczt"].as_str().unwrap_or_default())?;
         c.check_close(&back, &spec)?;
-        let f = tx::extract(c.sign_close(back)?)?;
+        let f = tx::extract(cpu(|| c.sign_close(back))?)?;
         drop(live);
         if rec.funded_height.is_none() {
             // A close spending the unmined funding: if the node takes it, both can be
@@ -1346,7 +1363,17 @@ impl Zdlc {
     /// contract are recorded on it and do not stop the others.
     pub async fn step(&self) -> Result<()> {
         let _g = self.step.lock().await;
-        for env in self.transport.receive().await? {
+        // ZDLC_TRACE also reports any part of a step that takes over a second.
+        let trace = std::env::var("ZDLC_TRACE").is_ok();
+        let slow = |what: &str, t: std::time::Instant| {
+            if trace && t.elapsed().as_millis() > 1000 {
+                eprintln!("zdlc: {} slow {what}: {} ms", &self.identity()[..8], t.elapsed().as_millis());
+            }
+        };
+        let t = std::time::Instant::now();
+        let mail = self.transport.receive().await?;
+        slow("mailbox read", t);
+        for env in mail {
             let (id, kind) = (env.thread.clone(), env.kind.clone());
             if std::env::var("ZDLC_TRACE").is_ok() {
                 eprintln!("zdlc: {} received {kind} on {id}", &self.identity()[..8]);
@@ -1360,6 +1387,7 @@ impl Zdlc {
                 continue;
             }
             let id = rec.id.clone();
+            let (t, state) = (std::time::Instant::now(), rec.state);
             let r = match rec.state {
                 State::AwaitingDeposit => self.poll_deposit(rec).await,
                 State::Signed | State::Funded | State::Closing => {
@@ -1378,6 +1406,7 @@ impl Zdlc {
                 }
                 _ => Ok(()),
             };
+            slow(&format!("step of {id} ({state:?})"), t);
             if let Err(e) = r {
                 self.note(&id, &e.to_string()).await?;
             }
@@ -1502,7 +1531,7 @@ impl Zdlc {
             }
             n /= 2;
         };
-        let (pczt, _) = tx::sign_ironwood(tx::build(&self.p, &spec)?, &orchard::keys::SpendAuthorizingKey::from(&self.wallet.deposit_sk(INBOX)))?;
+        let (pczt, _) = cpu(|| tx::sign_ironwood(tx::build(&self.p, &spec)?, &orchard::keys::SpendAuthorizingKey::from(&self.wallet.deposit_sk(INBOX))))?;
         let f = tx::extract(pczt)?;
         self.chain.send(&f.raw).await?;
         Ok(Some(txid_hex(&f.txid)))
@@ -1554,7 +1583,7 @@ impl Zdlc {
             };
             let fee = tx::fee(&self.p, &spec)?;
             spec.outputs = vec![Pay::Ironwood(to, have.checked_sub(fee).ok_or(Error::Usage("notes below the fee".into()))?)];
-            let (pczt, _) = tx::sign_ironwood(tx::build(&self.p, &spec)?, &orchard::keys::SpendAuthorizingKey::from(&sk))?;
+            let (pczt, _) = cpu(|| tx::sign_ironwood(tx::build(&self.p, &spec)?, &orchard::keys::SpendAuthorizingKey::from(&sk)))?;
             let f = tx::extract(pczt)?;
             self.chain.send(&f.raw).await?;
             out.push(txid_hex(&f.txid));

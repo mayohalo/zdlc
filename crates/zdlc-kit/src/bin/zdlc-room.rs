@@ -334,13 +334,13 @@ async fn page() -> Html<&'static str> {
 }
 
 async fn info(Ready(a): Ready) -> Response {
-    let i = match a.contractor.info().await {
-        Ok(i) => i,
+    let tip = match a.contractor.tip().await {
+        Ok(t) => t,
         Err(e) => return bad(e),
     };
     let bal = a.client.treasury_zat().await.ok();
     Json(json!({
-        "network": a.cfg.label, "tip": i["tip"], "amountZat": a.cfg.amount_zat, "maturityBlocks": a.cfg.maturity,
+        "network": a.cfg.label, "tip": tip, "amountZat": a.cfg.amount_zat, "maturityBlocks": a.cfg.maturity,
         "refundBlocks": a.blocks(a.cfg.refund as i64 * a.cfg.block_secs, 4).await, "closeWaitBlocks": a.cfg.close_wait.0, "closeWaitSecs": a.cfg.close_wait.1, "blockSecs": a.block_secs().await.round(), "explorer": a.cfg.explorer, "arbiters": a.oracles.len(),
         "demoWalletZat": bal, "fundAddress": a.client.inbox_address(),
     }))
@@ -382,7 +382,7 @@ async fn show(Ready(a): Ready, Path(id): Path<String>) -> Response {
     if let Err(r) = a.known(&id).await {
         return r;
     }
-    let tip = a.contractor.info().await.ok().map(|i| i["tip"].clone()).unwrap_or(Value::Null);
+    let tip = a.contractor.tip().await.ok();
     let contractor = a.contractor.contract(&id).await.ok().flatten().map(|r| r.view());
     let client = a.client.contract(&id).await.ok().flatten().map(|r| r.view());
     let rooms = a.rooms.lock().await;
@@ -525,8 +525,8 @@ async fn desk_page() -> Html<&'static str> {
 
 async fn desk_info(Ready(a): Ready) -> Response {
     let d = &a.desk;
-    let tip = match d.taker.info().await {
-        Ok(i) => i["tip"].clone(),
+    let tip = match d.taker.tip().await {
+        Ok(t) => t,
         Err(e) => return bad(e),
     };
     Json(json!({
@@ -563,7 +563,7 @@ async fn desk_state(Ready(a): Ready) -> Response {
         taker = d.taker.contract(id).await.ok().flatten().map(|r| r.view()).unwrap_or_default();
         maker = d.maker.contract(id).await.ok().flatten().map(|r| r.view()).unwrap_or_default();
     }
-    let tip = d.taker.info().await.ok().map(|i| i["tip"].clone()).unwrap_or_default();
+    let tip = d.taker.tip().await.ok();
     out(json!({"trade": t, "taker": taker, "maker": maker, "tip": tip}))
 }
 
@@ -608,7 +608,7 @@ async fn desk_trade(Ready(a): Ready) -> Response {
 fn spawn_sweeper(z: Arc<Zdlc>, path: String) {
     tokio::spawn(async move {
         loop {
-            if let Ok(tip) = z.info().await.map(|i| i["tip"].as_u64().unwrap_or_default() as u32) {
+            if let Ok(tip) = z.tip().await {
                 let from = std::fs::read_to_string(&path).ok().and_then(|s| s.trim().parse().ok()).unwrap_or(tip.saturating_sub(100));
                 match z.sweep_inbox(from, 10).await {
                     Ok(Some(txid)) => println!("zdlc-room: swept {} into treasury coins: {txid}", path),
@@ -747,7 +747,10 @@ async fn desk_demo(args: &[String], dir: &str, rpc: &str, cfg: &Cfg, oracles: &[
     d
 }
 
-#[tokio::main]
+// More workers than cores: proving a close or signing a hedge's CETs is CPU work done
+// inside a task, and with one worker per core (one, on a small server) it would stall
+// every other task meanwhile: the other agent, the event stream, the pages.
+#[tokio::main(flavor = "multi_thread", worker_threads = 6)]
 async fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let rpc = match arg(&args, "--node", "").as_str() {
