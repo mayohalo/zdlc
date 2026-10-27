@@ -119,6 +119,8 @@ struct DeskDemo {
     trade: std::sync::Mutex<Option<Trade>>,
     file: String,
     args: DeskArgs,
+    /// The last ZEC/USD spot fetched for the page's example, in cents, and when.
+    spot: std::sync::Mutex<(u64, u64)>,
 }
 
 struct DeskArgs {
@@ -498,8 +500,22 @@ async fn desk_info(Ready(a): Ready) -> Response {
         "maker": d.maker.identity(), "taker": d.taker.identity(), "oracles": d.oracle_keys.len(),
         "makerZat": d.maker.treasury_zat().await.ok(), "takerZat": d.taker.treasury_zat().await.ok(),
         "makerFund": d.maker.inbox_address(), "takerFund": d.taker.inbox_address(),
+        "spotCents": desk_spot(d).await,
     }))
     .into_response()
+}
+
+/// A recent ZEC/USD price for the page's worked example: the median of the exchanges
+/// for a closed minute, fetched at most every two minutes.
+async fn desk_spot(d: &DeskDemo) -> Option<u64> {
+    let (at, cents) = *d.spot.lock().unwrap();
+    if now() < at + 120 && cents > 0 {
+        return Some(cents);
+    }
+    let minute = (now() as i64 / 60 - 2) * 60;
+    let (cents, _) = zdlc::feeds::zecusd_minute(minute).await.ok()?;
+    *d.spot.lock().unwrap() = (now(), cents);
+    Some(cents)
 }
 
 /// The trade, both sides' view of its contract, and the desk's quotes on its request.
@@ -625,11 +641,14 @@ async fn desk_demo(args: &[String], dir: &str, rpc: &str, cfg: &Cfg, oracles: &[
             premium_bps: num("--desk-premium-bps", "50") as u64,
             maturity: num("--desk-maturity", "2") as u32,
             refund: num("--desk-refund", "8") as u32,
-            minute_offset: num("--desk-minute-offset", "1"),
+            // The minute in progress: it closes while the funding is being mined, so the
+            // price is attested by the time the contract is funded.
+            minute_offset: num("--desk-minute-offset", "0"),
         },
         oracle_keys,
         maker,
         taker,
+        spot: std::sync::Mutex::new((0, 0)),
     });
     // A trade cut short by a restart is over: its contract still settles on its own.
     if let Some(t) = d.trade.lock().unwrap().as_mut() {

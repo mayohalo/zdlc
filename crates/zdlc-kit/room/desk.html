@@ -144,6 +144,21 @@ footer { margin-top: 28px; color: var(--muted); font-size: 0.88rem; display: gri
 .card b { font: 700 0.95rem var(--f-display); }
 .card span { color: var(--muted); }
 .price { font: 800 2rem/1.1 var(--f-display); font-variant-numeric: tabular-nums; }
+.example { margin-top: 14px; padding: 12px 16px; border: 1px solid var(--line); border-radius: 2px; font-size: 0.95rem; color: var(--ink); max-width: 70ch; }
+.example b { color: var(--gold); font-weight: 500; }
+.track { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; margin-bottom: 10px; }
+.track span { font: 500 0.66rem var(--f-mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); padding: 9px 4px 0; border-top: 2px solid var(--line); text-align: center; white-space: nowrap; }
+.track span.done { color: var(--ink); border-top-color: var(--key); }
+.track span.now { color: var(--key); border-top-color: var(--key); animation: pulse 1.6s ease-in-out infinite; }
+@keyframes pulse { 50% { border-top-color: rgba(89, 200, 181, 0.35); } }
+@media (prefers-reduced-motion: reduce) { .track span.now { animation: none; } }
+.payoff { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border: 1px solid var(--line); border-radius: 4px; margin-bottom: 18px; background: var(--sheet); }
+.payoff > div { padding: 16px 18px; display: grid; gap: 4px; }
+.payoff > div + div { border-left: 1px solid var(--line); }
+.payoff b { font: 400 clamp(1.6rem, 3vw, 2.2rem)/1.1 var(--f-display); color: var(--gold); }
+.payoff span { color: var(--muted); font-size: 0.9rem; }
+.joined { font-size: 0.9rem; color: var(--muted); margin: -6px 0 16px; }
+@media (max-width: 760px) { .track { grid-template-columns: repeat(4, minmax(0, 1fr)); } .payoff { grid-template-columns: minmax(0, 1fr); } .payoff > div + div { border-left: 0; border-top: 1px solid var(--line); } }
 
 /* ---- Equilibrium layer: type, buttons, status, proof ---- */
 body { font-family: var(--f-body); }
@@ -205,13 +220,21 @@ footer { border-top: 1px solid var(--line); padding-top: 18px; }
   <div class="intro">
     <div>
       <h1>Watch two agents trade a hedge.</h1>
-      <p>You are the taker: you want today's dollar value of <b id="amt">…</b>, whatever ZEC does next. A house maker agent quotes a premium to take the other side. Nobody presses a button after yours: the request, the quote, a sealed offer, both agents funding the contract, two oracles attesting the ZEC/USD price, and the settlement all happen on their own. Every transaction is real, on Zcash <span id="net2">testnet</span>.</p>
+      <p>You are the taker: you want today's dollar value of <b id="amt">…</b>, whatever ZEC does next. A house maker agent takes the other side of that price risk for a small premium. After your click nobody presses anything: the agents quote, offer, sign, fund and settle on their own, and two oracles supply the price. Every transaction is real, on Zcash <span id="net2">testnet</span>, and a trade takes about two minutes.</p>
+      <p class="example" id="example"></p>
     </div>
     <button class="primary ib" id="trade" type="button" disabled><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17l6-6 4 4 8-8M15 7h6v6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Request a hedge</button>
   </div>
 
+  <div class="track" id="track" hidden aria-label="Where the trade is"><span>Request</span><span>Quote</span><span>Offer</span><span>Accept</span><span>Fund</span><span>Price</span><span>Settle</span></div>
   <div class="next" id="next" aria-live="polite"><b>Request a hedge to start.</b><p>One trade runs at a time; everyone watching this page sees the same one.</p></div>
 
+  <p class="joined" id="joined" hidden>You joined a trade that was already running: watch it settle, then request your own.</p>
+  <div class="payoff" id="payoff" hidden>
+    <div><span>ZEC/USD moved</span><b id="po-move">–</b><span id="po-move-n"></span></div>
+    <div><span>You were owed</span><b id="po-owed">–</b><span>fixed when you asked</span></div>
+    <div><span>You received</span><b id="po-got">–</b><span id="po-got-n"></span></div>
+  </div>
   <div class="clock" id="clock" hidden>
     <div class="bar" aria-hidden="true"><i id="c-fill"></i></div>
     <div class="ms" id="c-ref"><span class="label" id="c-label">Price minute</span><b>–</b><span class="sub2">–</span></div>
@@ -276,7 +299,7 @@ footer { border-top: 1px solid var(--line); padding-top: 18px; }
   function link(txid) { return info && info.explorer && txid ? info.explorer.replace("{txid}", txid) : null; }
   function short(s) { return s ? s.slice(0, 8) + "…" + s.slice(-6) : ""; }
   function clockText(sec) { var m = Math.floor(sec / 60), s = sec % 60; return m + ":" + (s < 10 ? "0" : "") + s; }
-  function dollars(c) { return "$" + (c / 100).toFixed(2); }
+  function dollars(c) { return "$" + (c / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
 
   function stepText(e) {
     var s = e.step;
@@ -299,19 +322,24 @@ footer { border-top: 1px solid var(--line); padding-top: 18px; }
 
   function tpl(v) { return v && v.template && v.template.template === "stable_payment" ? v.template : null; }
 
-  function next(r) {
-    var t = r.trade, k = r.taker || {}, m = r.maker || {};
-    if (!t) return ["Request a hedge to start.", "One trade runs at a time; everyone watching this page sees the same one."];
+  // Where the trade is (0-6 on the tracker, 7 when settled) and what it waits for.
+  function stage(r) {
+    var t = r.trade, k = r.taker || {}, m = r.maker || {}, T = tpl(k) || tpl(m);
+    if (!t) return { n: -1, b: "Request a hedge to start.", p: "One trade runs at a time; everyone on this page watches the same one." };
     var s = k.settlement || m.settlement;
-    if (s) return ["Settled" + (s.height ? " in block " + s.height : "") + ".", "Request another hedge to watch the agents trade again."];
-    if (t.error) return ["This trade stopped: " + t.error, "Request another hedge to try again."];
-    if (!t.rfq) return ["Posting the request…", ""];
-    if (!t.contract) return ["The maker is quoting…", "The taker waits a few seconds for quotes, then offers on the cheapest."];
-    if (!k.fundingTxid || k.state === "accepted" || k.state === "offered") return ["The agents are setting up the contract.", "The maker checks the offer against its quote, then both sign every payout and the refund."];
-    if (k.state === "signed") return ["The contract is funded; waiting for a block (~75 s).", ""];
-    if (!k.attested) return ["Funded. Waiting for the price minute.", "Then two oracles attest ZEC/USD and the payout follows from it."];
-    return ["The oracles attested $" + k.attested + ".", "The agents close cooperatively; the payout splits at that price."];
+    if (s) return { n: 7, b: "Settled in block " + s.height + ".", p: "Request another hedge to watch the agents trade again." };
+    if (t.error) return { n: -1, b: "This trade stopped: " + t.error, p: "Request another hedge to try again." };
+    var steps = t.steps || [], has = function (x) { return steps.some(function (e) { return e.step.step === x; }); };
+    if (!has("rfq posted")) return { n: 0, b: "Posting your request…", p: "A signed request for quotes goes on the desk's board." };
+    if (!has("quotes")) return { n: 1, b: "Waiting for quotes.", p: "The maker reads the board and prices the request; quotes arrive in a few seconds." };
+    if (!t.contract) return { n: 2, b: "Picking the cheapest quote.", p: "The taker offers on it through the desk's sealed mailbox." };
+    var minute = T && T.price_minute ? new Date((T.price_minute + 60) * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : null;
+    if (!k.state || k.state === "offered") return { n: 3, b: "Waiting for the maker to accept.", p: "Its rule checks the offer against its quote; both then sign every payout and the refund before any money moves." };
+    if (!k.fundingTxid || k.state === "accepted" || k.state === "signed") return { n: 4, b: "Waiting for the next block to mine the funding.", p: "Both agents' coins go into one 2-of-2. Blocks come about every 75 seconds" + (k.attested ? "; the price is already attested." : (minute ? "; meanwhile the price minute closes at " + minute + "." : ".")) };
+    if (!k.attested) return { n: 5, b: "Waiting for the price.", p: (minute ? "The minute closes at " + minute + "; then " : "Then ") + "two oracles attest the ZEC/USD median of four exchanges." };
+    return { n: 6, b: "Settling at $" + Number(k.attested).toLocaleString("en-US") + ".", p: "The agents close cooperatively into shielded notes; waiting for the next block." };
   }
+  function next(r) { var g = stage(r); return [g.b, g.p]; }
 
   function render(r) {
     st = r;
@@ -322,6 +350,12 @@ footer { border-top: 1px solid var(--line); padding-top: 18px; }
     $("trade").disabled = !info || running;
     $("trade").lastChild.textContent = running ? "Trade running…" : "Request a hedge";
     $("board").hidden = !t;
+    var g = stage(r);
+    $("track").hidden = !t;
+    Array.prototype.forEach.call($("track").children, function (el, i) {
+      el.className = i < g.n || g.n === 7 ? "done" : i === g.n ? "now" : "";
+    });
+    $("joined").hidden = !(t && !t.done && !mine);
     var n = next(r);
     $("next").innerHTML = "<b>" + esc(n[0]) + "</b>" + (n[1] ? "<p>" + esc(n[1]) + "</p>" : "");
     if (!t) return;
@@ -346,6 +380,16 @@ footer { border-top: 1px solid var(--line); padding-top: 18px; }
     $("price").textContent = k.attested ? "$" + Number(k.attested).toLocaleString("en-US") : "–";
     $("price-note").textContent = k.attested ? "The median of four exchanges, attested by both oracles." : T && T.price_minute ? "Attested for the minute at " + new Date(T.price_minute * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) + "." : "Two oracles attest the median of four exchanges.";
     var s = k.settlement || m.settlement;
+    var spotC = (steps.filter(function (e) { return e.step.step === "offered"; })[0] || { step: {} }).step.spot_cents;
+    $("payoff").hidden = !(s && T && k.attested);
+    if (s && T && k.attested) {
+      var p = Number(k.attested) * 100, owed = T.usd_cents, gotZ = Math.min(owed / p, 2 * T.collateral_zat / 1e8);
+      $("po-move").textContent = spotC ? dollars(spotC) + " \u2192 " + dollars(p) : dollars(p);
+      $("po-move-n").textContent = spotC ? (p > spotC ? "ZEC rose " : p < spotC ? "ZEC fell " : "Unchanged ") + (spotC ? Math.abs(100 * (p - spotC) / spotC).toFixed(2) + "%" : "") : "";
+      $("po-owed").textContent = dollars(owed);
+      $("po-got").textContent = gotZ.toFixed(6) + " ZEC";
+      $("po-got-n").textContent = "worth " + dollars(Math.round(gotZ * p)) + " at the attested price";
+    }
     if (s && T && k.attested) {
       var got = Math.min(T.usd_cents / 100 / Number(k.attested), 2 * T.collateral_zat / 1e8);
       res("taker", "win", "Received ~" + got.toFixed(6) + " ZEC", "Worth " + dollars(T.usd_cents) + " at $" + k.attested + ", as hedged.");
@@ -394,8 +438,12 @@ footer { border-top: 1px solid var(--line); padding-top: 18px; }
   }
 
   function refresh() { return api("GET", "/api/state").then(render).catch(function (e) { toast(e.message); }); }
+  var mine = false;
+  try { mine = sessionStorage.getItem("zdlc-hedge-started") === "1"; } catch (e) {}
   $("trade").addEventListener("click", function () {
     $("trade").disabled = true;
+    mine = true;
+    try { sessionStorage.setItem("zdlc-hedge-started", "1"); } catch (e) {}
     api("POST", "/api/trade").then(refresh).catch(function (e) { toast(e.message); refresh(); });
   });
   function start() {
@@ -403,6 +451,10 @@ footer { border-top: 1px solid var(--line); padding-top: 18px; }
       info = i;
       $("net").textContent = i.network + " · unaudited"; $("net2").textContent = i.network; $("tip").textContent = i.tip;
       $("amt").textContent = zec(i.collateralZat); $("bps").textContent = (i.premiumBps / 100) + "%";
+      var z = i.collateralZat / 1e8, sp = i.spotCents;
+      $("example").innerHTML = sp
+        ? "Example: ZEC is about <b>" + dollars(sp) + "</b>, so " + zec(i.collateralZat) + " is worth <b>" + dollars(Math.round(sp * z)) + "</b>. You are owed exactly that when the current minute closes: more ZEC if the price fell, less if it rose. The maker carries the difference and keeps a " + (i.premiumBps / 100) + "% premium."
+        : "Example: if " + zec(i.collateralZat) + " is worth $1.24 now, you are owed $1.24 of ZEC when the current minute closes: more ZEC if the price fell, less if it rose. The maker carries the difference for a small premium.";
       var low = 4 * i.collateralZat + 400000;
       if ((i.makerZat || 0) < low || (i.takerZat || 0) < low) { $("fund").hidden = false; $("fund-m").textContent = i.makerFund; $("fund-t").textContent = i.takerFund; }
       refresh();
