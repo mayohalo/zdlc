@@ -6,11 +6,12 @@ Wants=network-online.target
 [Service]
 User=zdlc
 EnvironmentFile=/etc/zdlc/zdlc.env
-# A room lasts about 5 minutes at 75 s blocks: the refund unlocks 4 blocks after the invoice.
+# Windows are in blocks at 75 s; the room converts them to the chain's measured rate.
+# A room's refund unlocks about 10 minutes after the invoice.
 ExecStart=/opt/zdlc/bin/zdlc-room --node ${ZDLC_RPC} --desk http://127.0.0.1:7900 \
   --oracles http://127.0.0.1:7801,http://127.0.0.1:7802 --oracle-token-file /var/lib/zdlc/admin.token \
   --dir /var/lib/zdlc/room --listen 127.0.0.1:8080 --label ${ROOM_LABEL} --amount ${ROOM_AMOUNT} \
-  --maturity 2 --refund 4 --close-wait 1 --close-wait-secs 30 --block-secs 75 --max-rooms ${ROOM_MAX} $ROOM_ARGS
+  --maturity 2 --refund 8 --close-wait 1 --close-wait-secs 30 --block-secs 75 --max-rooms ${ROOM_MAX} $ROOM_ARGS
 Restart=always
 RestartSec=5
 

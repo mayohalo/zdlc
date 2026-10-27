@@ -220,7 +220,7 @@ footer { border-top: 1px solid var(--line); padding-top: 18px; }
   <div class="intro">
     <div>
       <h1>Watch two agents trade a hedge.</h1>
-      <p>You are the taker: you want today's dollar value of <b id="amt">…</b>, whatever ZEC does next. A house maker agent takes the other side of that price risk for a small premium. After your click nobody presses anything: the agents quote, offer, sign, fund and settle on their own, and two oracles supply the price. Every transaction is real, on Zcash <span id="net2">testnet</span>, and a trade takes about two minutes.</p>
+      <p>You are the taker: you want today's dollar value of <b id="amt">…</b>, whatever ZEC does next. A house maker agent takes the other side of that price risk for a small premium. After your click nobody presses anything: the agents quote, offer, sign, fund and settle on their own, and two oracles supply the price. Every transaction is real, on Zcash <span id="net2">testnet</span>, and a trade usually takes two to four minutes.</p>
       <p class="example" id="example"></p>
     </div>
     <button class="primary ib" id="trade" type="button" disabled><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17l6-6 4 4 8-8M15 7h6v6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Request a hedge</button>
@@ -335,7 +335,7 @@ footer { border-top: 1px solid var(--line); padding-top: 18px; }
     if (!t.contract) return { n: 2, b: "Picking the cheapest quote.", p: "The taker offers on it through the desk's sealed mailbox." };
     var minute = T && T.price_minute ? new Date((T.price_minute + 60) * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : null;
     if (!k.state || k.state === "offered") return { n: 3, b: "Waiting for the maker to accept.", p: "Its rule checks the offer against its quote; both then sign every payout and the refund before any money moves." };
-    if (!k.fundingTxid || k.state === "accepted" || k.state === "signed") return { n: 4, b: "Waiting for the next block to mine the funding.", p: "Both agents' coins go into one 2-of-2. Blocks come about every 75 seconds" + (k.attested ? "; the price is already attested." : (minute ? "; meanwhile the price minute closes at " + minute + "." : ".")) };
+    if (!k.fundingTxid || k.state === "accepted" || k.state === "signed") return { n: 4, b: "Waiting for the next block to mine the funding.", p: "Both agents' coins go into one 2-of-2. Blocks come about every " + Math.round(info.blockSecs) + " seconds, and not every block takes transactions" + (k.attested ? "; the price is already attested." : (minute ? "; meanwhile the price minute closes at " + minute + "." : ".")) };
     if (!k.attested) return { n: 5, b: "Waiting for the price.", p: (minute ? "The minute closes at " + minute + "; then " : "Then ") + "two oracles attest the ZEC/USD median of four exchanges." };
     return { n: 6, b: "Settling at $" + Number(k.attested).toLocaleString("en-US") + ".", p: "The agents close cooperatively into shielded notes; waiting for the next block." };
   }
@@ -430,7 +430,7 @@ footer { border-top: 1px solid var(--line); padding-top: 18px; }
       $("c-fill").style.width = Math.min(100, 100 * (1 - left / Math.max(60, T.price_minute + 60 - r.trade.started))) + "%";
     } else {
       var n = k.refundHeight - r.tip, sec = Math.max(0, Math.round(n * info.blockSecs - (Date.now() - tipSeen.at) / 1000));
-      $("c-label").textContent = "Refund unlocks if unsettled";
+      $("c-label").textContent = "Deadline · refund if not settled";
       el.querySelector("b").textContent = n > 0 ? "~" + clockText(sec) : "reached";
       el.querySelector(".sub2").textContent = "block " + k.refundHeight + (n > 0 ? " · " + n + " to go" : "");
       $("c-fill").style.width = "100%";

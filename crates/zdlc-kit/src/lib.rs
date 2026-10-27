@@ -1078,10 +1078,34 @@ impl Zdlc {
             match self.chain.mined_height(&ftxid).await? {
                 Some(h) => {
                     rec.state = State::Funded;
+                    // Attested before the funding was mined: the wait before settling
+                    // alone runs from now, when a close first became possible.
+                    if rec.attested.is_some() && rec.attested_height.is_none() {
+                        rec.attested_height = Some(h);
+                        rec.attested_at = Some(now_unix());
+                    }
                     self.storage.put(&rec).await?;
                     self.emit(Event::Funded { id: rec.id.clone(), txid: txid_hex(&ftxid), height: h }).await?;
                 }
-                None => return Ok(()),
+                None => {
+                    // Not mined yet. If the oracles have already attested, record it now,
+                    // so an app can show the outcome while the funding waits for a block.
+                    if rec.attested.is_none() {
+                        self.contract_of(&rec).await?;
+                        let a = {
+                            let live = self.live.lock().await;
+                            let c = live.get(&rec.id).expect("loaded");
+                            self.attested(&rec, c).await.ok().flatten()
+                        };
+                        if let Some(a) = a {
+                            rec.attested = Some(Self::outcome_name(&a));
+                            rec.attested_at = Some(now_unix());
+                            self.storage.put(&rec).await?;
+                            self.emit(Event::Attested { id: rec.id.clone(), outcome: Self::outcome_name(&a) }).await?;
+                        }
+                    }
+                    return Ok(());
+                }
             }
         }
         self.contract_of(&rec).await?;

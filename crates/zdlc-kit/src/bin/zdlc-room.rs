@@ -106,6 +106,9 @@ struct App {
     rooms_file: String,
     cfg: Cfg,
     desk: Arc<DeskDemo>,
+    node: zdlc::node::Node,
+    /// The measured block interval in seconds, and when it was measured.
+    block_time: std::sync::Mutex<(u64, f64)>,
 }
 
 /// The desk demo: a house maker agent always quoting on the desk, and a taker the
@@ -261,6 +264,34 @@ fn bad(e: impl ToString) -> Response {
 }
 
 impl App {
+    /// The recent average block interval, from the last 30 blocks' timestamps (cached
+    /// five minutes). Testnet can run far from its 75 s target, and windows sized in
+    /// blocks would then be far shorter or longer than meant.
+    async fn block_secs(&self) -> f64 {
+        let (at, secs) = *self.block_time.lock().unwrap();
+        if now() < at + 300 && secs > 0.0 {
+            return secs;
+        }
+        let measured = async {
+            let tip = self.node.height().await.ok()?;
+            let time = |h: u32| async move {
+                let hash = self.node.call("getblockhash", json!([h])).await.ok()?;
+                self.node.call("getblock", json!([hash, 1])).await.ok()?["time"].as_u64()
+            };
+            let (a, b) = (time(tip - 30).await?, time(tip).await?);
+            Some(((b.saturating_sub(a)) as f64 / 30.0).clamp(10.0, 300.0))
+        }
+        .await;
+        let secs = measured.unwrap_or(self.cfg.block_secs as f64);
+        *self.block_time.lock().unwrap() = (now(), secs);
+        secs
+    }
+
+    /// `secs` of wall time as blocks at the measured rate, at least `min`.
+    async fn blocks(&self, secs: i64, min: u32) -> u32 {
+        ((secs as f64 / self.block_secs().await).ceil() as u32).max(min)
+    }
+
     fn side(&self, who: &str) -> Option<&Arc<Zdlc>> {
         match who {
             "contractor" => Some(&self.contractor),
@@ -310,7 +341,7 @@ async fn info(Ready(a): Ready) -> Response {
     let bal = a.client.treasury_zat().await.ok();
     Json(json!({
         "network": a.cfg.label, "tip": i["tip"], "amountZat": a.cfg.amount_zat, "maturityBlocks": a.cfg.maturity,
-        "refundBlocks": a.cfg.refund, "closeWaitBlocks": a.cfg.close_wait.0, "closeWaitSecs": a.cfg.close_wait.1, "blockSecs": a.cfg.block_secs, "explorer": a.cfg.explorer, "arbiters": a.oracles.len(),
+        "refundBlocks": a.blocks(a.cfg.refund as i64 * a.cfg.block_secs, 4).await, "closeWaitBlocks": a.cfg.close_wait.0, "closeWaitSecs": a.cfg.close_wait.1, "blockSecs": a.block_secs().await.round(), "explorer": a.cfg.explorer, "arbiters": a.oracles.len(),
         "demoWalletZat": bal, "fundAddress": a.client.inbox_address(),
     }))
     .into_response()
@@ -332,7 +363,11 @@ async fn open(Ready(a): Ready, Json(r): Json<OpenReq>) -> Response {
         return err(StatusCode::TOO_MANY_REQUESTS, format!("{open} rooms are open; try again when one settles"));
     }
     let question: String = r.question.unwrap_or_else(|| "Milestone 1 delivered?".into()).chars().take(80).collect();
-    let t = Template::Escrow { amount_zat: a.cfg.amount_zat, question: question.clone(), payees: vec![], maturity_blocks: a.cfg.maturity, refund_blocks: a.cfg.refund };
+    // The windows are meant in time (the flags count blocks at --block-secs); size them
+    // in blocks at the rate the chain is running now.
+    let maturity = a.blocks(a.cfg.maturity as i64 * a.cfg.block_secs, 2).await;
+    let refund = a.blocks(a.cfg.refund as i64 * a.cfg.block_secs, maturity + 2).await;
+    let t = Template::Escrow { amount_zat: a.cfg.amount_zat, question: question.clone(), payees: vec![], maturity_blocks: maturity, refund_blocks: refund };
     match a.contractor.offer(t, &a.client.identity()).await {
         Ok(id) => {
             a.rooms.lock().await.insert(id.clone(), Room { arbiters: vec![None; a.oracles.len()], log: vec![] });
@@ -495,7 +530,7 @@ async fn desk_info(Ready(a): Ready) -> Response {
         Err(e) => return bad(e),
     };
     Json(json!({
-        "network": a.cfg.label, "tip": tip, "blockSecs": a.cfg.block_secs, "explorer": a.cfg.explorer,
+        "network": a.cfg.label, "tip": tip, "blockSecs": a.block_secs().await.round(), "explorer": a.cfg.explorer,
         "collateralZat": d.args.collateral_zat, "premiumBps": d.args.premium_bps, "refundBlocks": d.args.refund,
         "maker": d.maker.identity(), "taker": d.taker.identity(), "oracles": d.oracle_keys.len(),
         "makerZat": d.maker.treasury_zat().await.ok(), "takerZat": d.taker.treasury_zat().await.ok(),
@@ -535,6 +570,8 @@ async fn desk_state(Ready(a): Ready) -> Response {
 /// The visitor's taker asks the desk for a hedge.
 async fn desk_trade(Ready(a): Ready) -> Response {
     let d = a.desk.clone();
+    let maturity = a.blocks(d.args.maturity as i64 * a.cfg.block_secs, 2).await;
+    let refund = a.blocks(d.args.refund as i64 * a.cfg.block_secs, maturity + 2).await;
     {
         let mut g = d.trade.lock().unwrap();
         if g.as_ref().is_some_and(|t| !t.done) {
@@ -547,8 +584,8 @@ async fn desk_trade(Ready(a): Ready) -> Response {
     tokio::spawn(async move {
         let args = zdlc_kit::agent::TakerArgs {
             collateral_zat: d.args.collateral_zat,
-            maturity_blocks: d.args.maturity,
-            refund_blocks: d.args.refund,
+            maturity_blocks: maturity,
+            refund_blocks: refund,
             minute_offset: d.args.minute_offset,
             quote_wait_s: 5,
         };
@@ -758,7 +795,7 @@ async fn main() {
             let desk = desk_demo(&args, &dir, &rpc, &cfg, &oracles, client.clone()).await;
             let rooms_file = format!("{dir}/rooms.json");
             let rooms: HashMap<String, Room> = std::fs::read(&rooms_file).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_default();
-            let app = Arc::new(App { contractor, client, oracles, oracle_token, http: reqwest::Client::new(), rooms: Mutex::new(rooms), rooms_file, cfg, desk });
+            let app = Arc::new(App { contractor, client, oracles, oracle_token, http: reqwest::Client::new(), rooms: Mutex::new(rooms), rooms_file, cfg, desk, node: zdlc::node::Node::new(rpc.clone()), block_time: std::sync::Mutex::new((0, 0.0)) });
             let _ = slot.0.set(app);
         });
     }
