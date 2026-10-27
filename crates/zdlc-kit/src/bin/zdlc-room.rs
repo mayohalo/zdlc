@@ -663,11 +663,15 @@ async fn auction_page() -> Html<&'static str> {
 async fn auction_info(Ready(a): Ready) -> Response {
     let d = &a.auction;
     let tip = a.contractor.tip().await.ok();
-    out(json!({
-        "network": a.cfg.label, "tip": tip, "blockSecs": a.block_secs().await.round(), "explorer": a.cfg.explorer,
+    // The explorer link is ours to show; everything else goes through the scrub.
+    let mut v = json!({
+        "network": a.cfg.label, "tip": tip, "blockSecs": a.block_secs().await.round(),
         "lot": LOT, "bidders": BIDDERS, "depositZat": AUCTION_DEPOSIT, "pricesZat": auction_prices(),
         "biddersZat": d.bidders.treasury_zat().await.ok(), "tape": d.tape.lock().unwrap().clone(),
-    }))
+    });
+    scrub_json(&mut v);
+    v["explorer"] = json!(a.cfg.explorer);
+    Json(v).into_response()
 }
 
 /// The round and each contract as the bidders' node sees it.
