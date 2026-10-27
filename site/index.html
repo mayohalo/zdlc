@@ -329,6 +329,7 @@ h2 { font-size: clamp(2rem, 3.8vw, 2.9rem); line-height: 1.06; }
 .hx-steps button[aria-pressed="true"]::after { content: ""; position: absolute; left: 0; bottom: 0; height: 2px; width: 100%; background: var(--key); transform-origin: left; transform: scaleX(0); }
 .hx.playing .hx-steps button[aria-pressed="true"]::after { animation: hx-timer var(--hx-ms, 4200ms) linear forwards; }
 @keyframes hx-timer { to { transform: scaleX(1); } }
+.use .fn { color: var(--key); }
 .try { font: 500 0.72rem var(--f-mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--key); text-decoration: none; margin-top: 4px; }
 .try:hover { text-decoration: underline; text-underline-offset: 4px; }
 .hx-cap { font-size: 0.98rem; color: var(--ink); min-height: 4.8em; max-width: 52ch; }
@@ -524,13 +525,14 @@ h2 { font-size: clamp(2rem, 3.8vw, 2.9rem); line-height: 1.06; }
   <div class="wrap">
     <div class="head">
       <p class="label">What developers can build</p>
-      <h2>Four places to start</h2>
+      <h2>Private markets on zDLC</h2>
+      <p class="read">Settle a deal, trade a price, discover a price: three functions of a market, one contract underneath. Each has a live demo on testnet.</p>
     </div>
     <div class="three">
-      <div class="panel use"><span class="pill priv" style="justify-self:start">shipped</span><h3>Escrow</h3><p>The simplest conditional settlement: a client funds a job, arbiters rule, and a time-locked refund covers silence. Neither side holds the other's money.</p><p class="ex">Milestone payments, freelance jobs, a team paid by share on delivery.</p><a class="try" href="/escrow">Try it in the escrow room &rarr;</a></div>
-      <div class="panel use"><span class="pill priv" style="justify-self:start">shipped</span><h3>Stable payments and hedges</h3><p>ZEC payouts set by a real-world price: owed dollars, paid in ZEC at the attested minute, with the other side earning a premium.</p><p class="ex">Invoices in dollars, a hedged salary, protecting a ZEC balance.</p><a class="try" href="/hedge">Watch agents trade one at the hedge desk &rarr;</a></div>
-      <div class="panel use"><span class="pill priv" style="justify-self:start">demo</span><h3>Private markets</h3><p>The dark-pool thesis: the price is public, the participants are not. In a sealed-bid auction every bidder locks the same deposit and bids privately; the oracles publish the clearing price, and every contract settles into shielded notes, winner and losers alike.</p><p class="ex">Sealed-bid auctions, block trades, settlement of private order flow.</p><a class="try" href="/auction">Bid in the live auction &rarr;</a></div>
-      <div class="panel use"><span class="pill dim" style="justify-self:start">proposed</span><h3>Agent agreements</h3><p>Agents that negotiate a price and get paid only if the outcome they promised is attested, settled without a platform holding funds.</p><p class="ex">Built from escrow and the desk's quote and mailbox flow today.</p><a class="try" href="/hedge">See two agents at the hedge desk &rarr;</a></div>
+      <div class="panel use"><span class="pill priv" style="justify-self:start">shipped</span><span class="label fn">Settle a deal</span><h3>Escrow</h3><p>The simplest conditional settlement: a client funds a job, arbiters rule, and a time-locked refund covers silence. Neither side holds the other's money.</p><p class="ex">Milestone payments, freelance jobs, a team paid by share on delivery.</p><a class="try" href="/escrow">Try it in the escrow room &rarr;</a></div>
+      <div class="panel use"><span class="pill priv" style="justify-self:start">shipped</span><span class="label fn">Trade a price</span><h3>Stable payments and hedges</h3><p>ZEC payouts set by a real-world price: owed dollars, paid in ZEC at the attested minute, with the other side earning a premium.</p><p class="ex">Invoices in dollars, a hedged salary, protecting a ZEC balance.</p><a class="try" href="/hedge">Watch agents trade one at the hedge desk &rarr;</a></div>
+      <div class="panel use"><span class="pill priv" style="justify-self:start">demo</span><span class="label fn">Discover a price</span><h3>Sealed-bid auctions</h3><p>The dark-pool thesis: the price is public, the participants are not. Every bidder locks the same deposit and bids under seal; the oracles publish only the clearing price, and every contract settles into shielded notes, winner and losers alike.</p><p class="ex">Sealed-bid auctions, block trades, settlement of private order flow.</p><a class="try" href="/auction">Bid in the live auction &rarr;</a></div>
+      <div class="panel use"><span class="pill dim" style="justify-self:start">proposed</span><span class="label fn">Automate it</span><h3>Agent agreements</h3><p>Agents that negotiate a price and get paid only if the outcome they promised is attested, settled without a platform holding funds.</p><p class="ex">Built from escrow and the desk's quote and mailbox flow today.</p><a class="try" href="/hedge">See two agents at the hedge desk &rarr;</a></div>
     </div>
     <div class="gallery">
       <div><span class="label" style="color:var(--shield)">Shipped templates</span><ul><li><code>stable_payment</code> · <code>hedge</code> · <code>payroll</code></li><li><code>escrow</code> with up to 16 payees</li><li><code>pay_on_payment</code> · <code>bet</code></li></ul></div>
