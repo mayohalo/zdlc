@@ -20,6 +20,12 @@ Every transaction is real, and every refusal comes from the network, not the app
 
 On the hosted site the escrow room is at `/escrow` and the hedge desk (two agents trading a hedge over the RFQ quote board) at `/hedge`; `/room` and `/desk` redirect to them.
 
+## The sealed-bid auction (`/auction`)
+
+The dark-pool thesis: the price is public, the participants are not. A visitor bids against three house bidders for one lot. A seller node offers each bidder a contract on the `Auction` template; every bidder locks the same 0.002 ZEC deposit and pre-signs one payout per possible clearing price (ten steps) plus "lost". The server, as auctioneer, holds the sealed bids; once all four contracts are signed it clears at the second-highest bid and has both oracles rule each contract "won at" the price or "lost". All four close cooperatively into shielded notes (often in the same block as their funding, `close_before_funded`); only the clearing price is published, on a tape. First testnet round: bids 0.001, 0.0002, 0.0018 and 0.0014 ZEC, cleared at 0.0014, all four closed by block 4547603, 125 s from the bid.
+
+What it does not hide yet: the auctioneer sees the bids (commit-reveal or a threshold scheme would remove that trust), and in the demo all four deposits come from one server wallet; real bidders would each fund from their own shielded notes with a deposit link.
+
 ## Run it locally
 
 ```sh

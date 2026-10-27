@@ -3,7 +3,7 @@
 # /room and /desk are their old addresses: the server redirects them.
 DOMAIN {
 	encode gzip
-	@app path /escrow /escrow/* /hedge /hedge/* /room /room/* /desk
+	@app path /escrow /escrow/* /hedge /hedge/* /auction /auction/* /room /room/* /desk
 	handle @app {
 		reverse_proxy 127.0.0.1:8080
 	}

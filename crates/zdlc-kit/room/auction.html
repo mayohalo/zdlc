@@ -1,0 +1,396 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>zDLC auction</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* The landing page's palette: amber for what is public or acting, teal for shielded. */
+:root {
+  /* Equilibrium: a near-black editorial canvas. Teal marks what you can act on or have
+     selected; Zcash gold is kept for network proof and transaction facts. */
+  --paper: #0b111d;
+  --sheet: #121b2b;
+  --ink: #e5eaf2;
+  --muted: #98a4b8;
+  --line: rgba(152, 164, 184, 0.22);
+  --key: #59c8b5;
+  --key-soft: rgba(89, 200, 181, 0.10);
+  --shield: #59c8b5;
+  --shield-soft: rgba(89, 200, 181, 0.10);
+  --gold: #f4c95d;
+  --gold-soft: rgba(244, 201, 93, 0.10);
+  --locked: #98a4b8;
+  --locked-soft: rgba(152, 164, 184, 0.08);
+  --bad: #98a4b8;
+  --bad-soft: rgba(152, 164, 184, 0.08);
+  --code-bg: #070c16;
+  --code-ink: #d3dcea;
+  --code-dim: #75849c;
+  --code-key: #f4c95d;
+  --code-str: #59c8b5;
+  --f-display: "DM Serif Display", Georgia, "Times New Roman", serif;
+  --f-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  --measure: 1140px;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--paper); color: var(--ink); font: 400 17px/1.55 var(--f-body); padding: 0 16px 48px; -webkit-font-smoothing: antialiased; }
+.wrap { max-width: 1180px; margin: 0 auto; }
+h1, h2, h3 { font-family: var(--f-display); margin: 0; letter-spacing: -0.015em; }
+p { margin: 0; }
+a { color: var(--shield); }
+code, .mono { font-family: var(--f-mono); font-size: 0.85em; }
+.label { font: 500 0.7rem var(--f-mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+header { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; padding-block: 20px 12px; }
+.mark { font: 800 1.3rem var(--f-display); text-decoration: none; color: var(--ink); }
+.mark b { color: var(--key); }
+.mark.page { font-weight: 700; margin-left: 8px; }
+.net { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; font: 500 0.85rem var(--f-display); color: var(--muted); }
+.net .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--shield); display: inline-block; margin-right: 6px; }
+.intro { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 24px; align-items: end; padding-block: 12px 24px; }
+.intro h1 { font-size: clamp(1.8rem, 4vw, 2.6rem); line-height: 1.05; font-weight: 800; }
+.intro p { color: var(--muted); max-width: 70ch; margin-top: 10px; }
+button { font: 600 0.9rem var(--f-display); padding: 9px 14px; border-radius: 10px; border: 1px solid var(--line); background: var(--sheet); color: var(--ink); cursor: pointer; }
+button:hover:not(:disabled) { border-color: var(--ink); }
+button:disabled { opacity: 0.4; cursor: not-allowed; }
+button.ib { display: inline-flex; align-items: center; gap: 8px; }
+button .ic { width: 18px; height: 18px; flex: none; }
+button.primary { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+button.cheat { border-color: var(--bad); color: var(--bad); background: transparent; }
+button.on { background: var(--key-soft); border-color: var(--key); }
+button:focus-visible { outline: 2px solid var(--key); outline-offset: 2px; }
+.next { border-left: 4px solid var(--key); background: var(--sheet); border-radius: 0 12px 12px 0; padding: 14px 18px; margin-bottom: 18px; }
+.next b { font: 700 1rem var(--f-display); display: block; }
+.next p { color: var(--muted); font-size: 0.95rem; margin-top: 2px; }
+.clock { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 20px; align-items: center; background: var(--sheet); border: 1px solid var(--line); border-radius: 14px; padding: 14px 18px; margin-bottom: 18px; }
+.clock .ms { display: grid; gap: 2px; }
+.clock .ms:last-child { text-align: right; }
+.clock .ms b { font: 800 1.7rem/1.1 var(--f-display); font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+.clock .ms.done b { color: var(--shield); font-size: 1.1rem; }
+.clock .sub2 { font: 400 0.75rem var(--f-mono); color: var(--muted); }
+.clock .bar { position: relative; height: 8px; border-radius: 999px; background: var(--locked-soft); }
+.clock .bar i { position: absolute; inset: 0 auto 0 0; width: 0; border-radius: 999px; background: var(--key); transition: width 1s linear; }
+@media (max-width: 640px) { .clock { grid-template-columns: minmax(0, 1fr); } .clock .ms:last-child { text-align: left; } }
+.grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.panel { background: var(--sheet); border: 1px solid var(--line); border-radius: 16px; padding: 18px; display: grid; gap: 12px; align-content: start; min-width: 0; }
+.panel.off { border-style: dashed; opacity: 0.85; }
+.ph { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.ph h2 { font-size: 1.15rem; }
+.pill { font: 500 0.68rem var(--f-mono); letter-spacing: 0.06em; text-transform: uppercase; padding: 2px 8px; border-radius: 4px; background: var(--locked-soft); color: var(--muted); white-space: nowrap; }
+.pill.go { background: var(--key-soft); color: var(--key); }
+.pill.ok { background: var(--shield-soft); color: var(--shield); }
+.pill.no { background: var(--bad-soft); color: var(--bad); }
+.who { font-size: 0.92rem; color: var(--muted); }
+.acts { display: flex; flex-wrap: wrap; gap: 8px; }
+.bad { display: grid; gap: 12px; }
+.res { border-radius: 12px; padding: 12px 14px; background: var(--locked-soft); display: grid; gap: 4px; }
+.res b { font: 700 1.05rem var(--f-display); }
+.res span { color: var(--muted); font-size: 0.92rem; }
+.res.win { background: var(--shield-soft); }
+.res.win b { color: var(--shield); }
+.res.wait b::after { content: ""; display: inline-block; width: 0.9em; text-align: left; animation: dots 1.2s steps(4) infinite; }
+@keyframes dots { 0% { content: ""; } 25% { content: "."; } 50% { content: ".."; } 75% { content: "..."; } }
+@media (prefers-reduced-motion: reduce) { .res.wait b::after { animation: none; content: "…"; } }
+.sub { font: 600 0.72rem var(--f-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); border-top: 1px dashed var(--line); padding-top: 10px; }
+.qr { display: grid; gap: 8px; justify-items: start; }
+.qr img { width: 100%; max-width: 220px; background: #fff; padding: 8px; border-radius: 8px; }
+.uri { font: 400 0.72rem var(--f-mono); overflow-wrap: anywhere; color: var(--muted); }
+.arb { display: grid; gap: 8px; padding-block: 10px; border-top: 1px solid var(--line); }
+.arb:first-of-type { border-top: 0; padding-top: 0; }
+.arb .ph h3 { font-size: 1rem; }
+.chain { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 24px; }
+.heights { display: flex; gap: 24px; flex-wrap: wrap; }
+.heights div { display: grid; }
+.heights b { font: 700 1.3rem var(--f-display); font-variant-numeric: tabular-nums; }
+.txs { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.txs li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; font-size: 0.92rem; }
+.txs li.no { border-color: var(--bad); background: var(--bad-soft); }
+.txs .t { font: 600 0.95rem var(--f-display); }
+.txs .seen { grid-column: 1 / -1; color: var(--muted); font-size: 0.88rem; }
+.txs .id { font: 400 0.72rem var(--f-mono); color: var(--muted); overflow-wrap: anywhere; grid-column: 1 / -1; }
+.log { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; font-size: 0.9rem; max-height: 320px; overflow: auto; }
+.log li { display: grid; grid-template-columns: 6rem 6.5rem minmax(0, 1fr); gap: 8px; }
+.log .tm { font: 400 0.75rem var(--f-mono); color: var(--muted); padding-top: 3px; }
+.log .wh { font: 600 0.85rem var(--f-display); }
+.empty { color: var(--muted); font-size: 0.92rem; }
+.toast { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); background: var(--ink); color: var(--paper); padding: 10px 16px; border-radius: 10px; font: 500 0.9rem var(--f-display); max-width: calc(100% - 32px); display: none; }
+footer { margin-top: 28px; color: var(--muted); font-size: 0.88rem; display: grid; gap: 6px; }
+@media (max-width: 900px) {
+  .grid, .chain, .intro { grid-template-columns: minmax(0, 1fr); }
+  .log li { grid-template-columns: 4rem minmax(0, 1fr); }
+  .log .tm { grid-row: span 2; }
+}
+
+.nav { display: flex; gap: 16px; }
+.nav a { color: var(--muted); text-decoration: none; }
+.nav a.on { color: var(--ink); }
+.nav a:hover { color: var(--key); }
+.facts { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 0.92rem; margin: 0; }
+.facts dt { color: var(--muted); }
+.facts dd { margin: 0; font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; }
+.quotes { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.quotes li { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; font-size: 0.9rem; }
+.quotes li.best { border-color: var(--key); background: var(--key-soft); }
+.quotes .p { font: 700 1rem var(--f-display); }
+.quotes .m { color: var(--muted); font: 400 0.75rem var(--f-mono); grid-column: 1 / -1; overflow-wrap: anywhere; }
+.card { border: 1px dashed var(--line); border-radius: 10px; padding: 10px 12px; font-size: 0.9rem; display: grid; gap: 2px; }
+.card b { font: 700 0.95rem var(--f-display); }
+.card span { color: var(--muted); }
+.price { font: 800 2rem/1.1 var(--f-display); font-variant-numeric: tabular-nums; }
+.example { margin-top: 14px; padding: 12px 16px; border: 1px solid var(--line); border-radius: 2px; font-size: 0.95rem; color: var(--ink); max-width: 70ch; }
+.example b { color: var(--gold); font-weight: 500; }
+.track { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; margin-bottom: 10px; }
+.track span { font: 500 0.66rem var(--f-mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); padding: 9px 4px 0; border-top: 2px solid var(--line); text-align: center; white-space: nowrap; }
+.track span.done { color: var(--ink); border-top-color: var(--key); }
+.track span.now { color: var(--key); border-top-color: var(--key); animation: pulse 1.6s ease-in-out infinite; }
+@keyframes pulse { 50% { border-top-color: rgba(89, 200, 181, 0.35); } }
+@media (prefers-reduced-motion: reduce) { .track span.now { animation: none; } }
+.payoff { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border: 1px solid var(--line); border-radius: 4px; margin-bottom: 18px; background: var(--sheet); }
+.payoff > div { padding: 16px 18px; display: grid; gap: 4px; }
+.payoff > div + div { border-left: 1px solid var(--line); }
+.payoff b { font: 400 clamp(1.6rem, 3vw, 2.2rem)/1.1 var(--f-display); color: var(--gold); }
+.payoff span { color: var(--muted); font-size: 0.9rem; }
+.joined { font-size: 0.9rem; color: var(--muted); margin: -6px 0 16px; }
+@media (max-width: 760px) { .track { grid-template-columns: repeat(4, minmax(0, 1fr)); } .payoff { grid-template-columns: minmax(0, 1fr); } .payoff > div + div { border-left: 0; border-top: 1px solid var(--line); } }
+
+/* ---- Equilibrium layer: type, buttons, status, proof ---- */
+body { font-family: var(--f-body); }
+h1, h2, h3, .mark { font-family: var(--f-display) !important; font-weight: 400 !important; letter-spacing: -0.005em !important; }
+.label, .pill, .sub, .sub2 { font-family: var(--f-mono) !important; }
+button, .btn { font: 500 0.74rem/1.2 var(--f-mono) !important; letter-spacing: 0.1em; text-transform: uppercase; border-radius: 2px !important; padding: 13px 18px; border: 1px solid var(--ink); background: transparent; color: var(--ink); }
+button.primary, .btn.primary { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+button:hover:not(:disabled), .btn:hover { border-color: var(--key); color: var(--key); }
+button.primary:hover:not(:disabled), .btn.primary:hover { background: var(--key); border-color: var(--key); color: var(--paper); }
+button:disabled { border-color: var(--line); color: var(--muted); background: transparent; opacity: 0.6; }
+:focus-visible { outline: 1px dashed var(--key) !important; outline-offset: 3px; }
+.panel { border-radius: 4px !important; }
+.chip-status { display: inline-flex; align-items: center; gap: 9px; font: 500 0.68rem/1 var(--f-mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink); border: 1px solid var(--line); padding: 8px 12px; border-radius: 2px; white-space: nowrap; }
+.chip-status i { width: 7px; height: 7px; border-radius: 50%; background: var(--key); box-shadow: 0 0 0 3px rgba(89, 200, 181, 0.16); }
+.gold { color: var(--gold); }
+header .mark { font-size: 1.7rem; }
+.mark b { color: var(--ink); }
+.mark.page { font: 500 0.72rem var(--f-mono) !important; letter-spacing: 0.14em !important; text-transform: uppercase; color: var(--muted); margin-left: 14px; padding-left: 14px; border-left: 1px solid var(--line); vertical-align: 0.35em; }
+.net, .nav { font-family: var(--f-mono); font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; }
+.intro h1 { font-size: clamp(2.3rem, 5.2vw, 3.8rem); line-height: 1.02; }
+.next { border-left: 2px solid var(--key); border-radius: 0 4px 4px 0; }
+.next b { font-family: var(--f-body); font-weight: 600; }
+.ph h2 { font-size: 1.35rem; }
+.sub { border-top-color: var(--line); color: var(--muted); }
+.txs li { border-radius: 2px; }
+.txs .id { color: var(--gold); }
+.txs .t { font-family: var(--f-mono); font-size: 0.72rem; letter-spacing: 0.12em; text-transform: uppercase; font-weight: 500; }
+.txs li.no { background: transparent; border: 1px dashed var(--line); }
+.txs li.no .id { color: var(--muted); }
+.heights b, .facts dd, .card .price { color: var(--gold); }
+button.cheat { border-style: dashed; border-color: var(--muted); color: var(--muted); }
+.res, .res.win { background: var(--locked-soft); border-left: 2px solid var(--key); border-radius: 2px; }
+.res b, .res.win b { color: var(--ink); font-family: var(--f-body); }
+.pill { border-radius: 2px; }
+.pill.go { background: var(--key-soft); color: var(--key); }
+.pill.ok { background: var(--gold-soft); color: var(--gold); }
+.pill.no { background: transparent; color: var(--muted); border: 1px dashed var(--line); }
+.log .wh { font: 500 0.7rem var(--f-mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); padding-top: 3px; }
+.clock { border-radius: 4px; }
+.clock .ms b { font-family: var(--f-mono); font-weight: 500; }
+.clock .ms.done b { color: var(--gold); }
+.clock .bar { height: 4px; }
+.clock .bar i { background: var(--key); }
+.card { border-radius: 2px; }
+.quotes li { border-radius: 2px; }
+.quotes li.best { background: var(--key-soft); border-color: var(--key); }
+.quotes .p { color: var(--gold); font-family: var(--f-mono); font-weight: 500; }
+.qr img { border-radius: 2px; }
+footer { border-top: 1px solid var(--line); padding-top: 18px; }
+
+.ladder { display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 6px; margin-top: 14px; }
+.ladder button { padding: 10px 2px; font-size: 0.66rem !important; letter-spacing: 0.04em; }
+.ladder button[aria-pressed="true"] { border-color: var(--key); color: var(--key); background: var(--key-soft); }
+.lot { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 18px; align-items: end; margin-bottom: 18px; padding: 18px; border: 1px solid var(--line); border-radius: 4px; background: var(--sheet); }
+.lot h2 { font-size: 1.5rem; }
+.lot p { color: var(--muted); font-size: 0.92rem; }
+.two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-bottom: 16px; }
+.bids { width: 100%; border-collapse: collapse; font-size: 0.93rem; }
+.bids th, .bids td { text-align: left; padding: 9px 4px; border-top: 1px solid var(--line); }
+.bids th { font: 500 0.68rem var(--f-mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); border-top: 0; }
+.bids td.z { font-family: var(--f-mono); color: var(--gold); text-align: right; }
+.bids tr.you td:first-child { color: var(--key); }
+.sealed { font: 500 0.68rem var(--f-mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+.public b.big { font: 400 2.4rem/1 var(--f-display); color: var(--gold); display: block; margin: 6px 0; }
+.tape { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font: 400 0.8rem var(--f-mono); color: var(--muted); }
+.tape b { color: var(--gold); font-weight: 500; }
+.track5 { grid-template-columns: repeat(5, minmax(0, 1fr)) !important; }
+@media (max-width: 760px) { .two, .lot { grid-template-columns: minmax(0, 1fr); } .ladder { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div><a class="mark" href="/">z<b>DLC</b></a><a class="mark page" href="/auction">auction</a></div>
+    <div class="net"><nav class="nav"><a href="/escrow">Escrow room</a><a href="/hedge">Hedge desk</a><a class="on" href="/auction">Auction</a></nav><span class="chip-status"><i></i><span id="net">connecting…</span></span><span>block <b id="tip">–</b></span></div>
+  </header>
+
+  <div class="intro">
+    <div>
+      <h1>A sealed-bid auction. The price is public, the bidders are not.</h1>
+      <p>Four bidders, you and three house bidders, each lock the same deposit in a contract with the seller and send a sealed bid to the auctioneer. The highest bid wins and pays the second-highest. Two oracles rule each contract "won at" the price or "lost", and every contract closes into shielded notes. The world learns the clearing price; not who bid what, and not who won. Every transaction is real, on Zcash <span id="net2">testnet</span>.</p>
+    </div>
+  </div>
+
+  <div class="lot">
+    <div>
+      <span class="label">The lot</span>
+      <h2 id="lot">–</h2>
+      <p>Deposit <b class="gold" id="dep">–</b> per bidder, the same for everyone. Second-price: the winner pays the second-highest bid and gets the rest of the deposit back; every other bidder gets all of it back.</p>
+      <div class="ladder" id="ladder" role="group" aria-label="Your bid"></div>
+    </div>
+    <button class="primary ib" id="bid" type="button" disabled><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="4" y="10" width="16" height="10" rx="1"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></g></svg>Place sealed bid</button>
+  </div>
+
+  <div class="track track5" id="track" hidden><span>Bid</span><span>Lock</span><span>Clear</span><span>Rule</span><span>Settle</span></div>
+  <div class="next" id="next" aria-live="polite"><b>Pick a bid and place it.</b><p>One round runs at a time; everyone on this page watches the same one.</p></div>
+
+  <div class="two" id="views" hidden>
+    <section class="panel">
+      <div class="ph"><h2>What the auctioneer knows</h2><span class="pill">private</span></div>
+      <table class="bids"><thead><tr><th>Bidder</th><th>Contract</th><th style="text-align:right">Sealed bid</th></tr></thead><tbody id="bids"></tbody></table>
+      <div class="res" id="you" hidden></div>
+    </section>
+    <section class="panel public">
+      <div class="ph"><h2>What the public sees</h2><span class="pill go">public</span></div>
+      <span class="label">Clearing price</span><b class="big" id="price">–</b>
+      <p class="who" id="pub-chain">Four identical deposits, then four shielded closes. Nothing ties a transaction to a bidder or a bid.</p>
+      <ul class="txs" id="txs"></ul>
+    </section>
+  </div>
+
+  <section class="panel chain" id="logp" hidden>
+    <div style="display:grid;gap:10px;align-content:start">
+      <div class="ph"><h2>Price tape</h2><span class="label">public</span></div>
+      <ul class="tape" id="tape"></ul>
+    </div>
+    <div style="display:grid;gap:10px;align-content:start">
+      <div class="ph"><h2>What happened</h2></div>
+      <ol class="log" id="log"></ol>
+    </div>
+  </section>
+
+  <footer>
+    <p>The auctioneer sees the bids (a commit-reveal or threshold scheme would remove that trust) but never touches the funds: the deposits sit in 2-of-2s with the seller, and only the oracles' rulings choose which pre-signed payout completes. The bidders and the seller run as zDLC nodes on this server so you can play the round, so here all four deposits come from one wallet's transparent coins; real bidders would each fund theirs from their own shielded notes with a deposit link (as in the escrow room), leaving nothing to connect them. Demo funds are testnet coins. Not audited; do not use zDLC for real money yet.</p>
+  </footer>
+</div>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var BASE = "/auction", info = null, choice = null;
+  function zec(z) { return (z / 1e8).toFixed(8).replace(/0+$/, "").replace(/\.$/, "") + " ZEC"; }
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+  function toast(m) { var t = $("toast"); t.textContent = m; t.style.display = "block"; clearTimeout(t._h); t._h = setTimeout(function () { t.style.display = "none"; }, 5000); }
+  function api(method, path, body) {
+    return fetch(BASE + path, { method: method, headers: body ? { "content-type": "application/json" } : {}, body: body ? JSON.stringify(body) : undefined })
+      .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || r.statusText); return j; }); });
+  }
+  function link(txid) { return info && info.explorer && txid ? info.explorer.replace("{txid}", txid) : null; }
+  var live = { signed: 1, funded: 1, closing: 1, settled: 1 };
+
+  function stage(r, cs) {
+    if (!r) return { n: -1, b: "Pick a bid and place it.", p: "One round runs at a time; everyone on this page watches the same one." };
+    if (r.error) return { n: -1, b: "This round stopped: " + r.error, p: "Place a bid to start another." };
+    var settled = cs.filter(function (c) { return c && c.state === "settled"; }).length;
+    if (r.done) return { n: 5, b: "Settled: the lot cleared at " + zec(r.price) + ".", p: "Place another bid for the next round." };
+    if (r.winner != null) return { n: settled ? 4 : 3, b: "Ruled. Closing every contract" + (settled ? " (" + settled + " of 4 settled)" : "") + ".", p: "Each contract closes cooperatively into shielded notes, often in the same block as its funding." };
+    var locked = cs.filter(function (c) { return c && live[c.state]; }).length;
+    if (locked < 4) return { n: 1, b: "Locking deposits: " + locked + " of 4.", p: "The seller offers each bidder a contract; each bidder locks the same deposit and pre-signs every possible payout." };
+    return { n: 2, b: "Clearing.", p: "The auctioneer opens the sealed bids: the highest wins and pays the second-highest." };
+  }
+
+  function render(s) {
+    $("tip").textContent = s.tip;
+    var r = s.round, cs = s.contracts || [];
+    var g = stage(r, cs);
+    $("next").innerHTML = "<b>" + esc(g.b) + "</b>" + (g.p ? "<p>" + esc(g.p) + "</p>" : "");
+    $("track").hidden = !r;
+    Array.prototype.forEach.call($("track").children, function (el, i) { el.className = i < g.n || g.n === 5 ? "done" : i === g.n ? "now" : ""; });
+    var running = r && !r.done;
+    $("bid").disabled = !info || running || choice == null;
+    $("bid").lastChild.textContent = running ? "Round running…" : "Place sealed bid";
+    $("views").hidden = !r; $("logp").hidden = !r && !(s.tape || []).length;
+    if (r) {
+      var cleared = r.winner != null;
+      $("bids").innerHTML = info.bidders.map(function (name, i) {
+        var c = cs[i] || {};
+        var st = c.state ? c.state.replace("_", " ") : "offered";
+        var bid = cleared ? zec(r.bids[i]) + (i === r.winner ? " · won" : "") : '<span class="sealed">sealed</span>';
+        return '<tr class="' + (i === 3 ? "you" : "") + '"><td>' + esc(name) + "</td><td>" + esc(st) + '</td><td class="z">' + bid + "</td></tr>";
+      }).join("");
+      var you = $("you");
+      you.hidden = !cleared;
+      if (cleared) {
+        var won = r.winner === 3;
+        you.className = "res";
+        you.innerHTML = won ? "<b>You won at " + zec(r.price) + "</b><span>You bid " + zec(r.bids[3]) + " and pay the second-highest bid; " + zec(info.depositZat - r.price) + " of your deposit comes back.</span>"
+                            : "<b>You did not win</b><span>Your whole deposit comes back. You bid " + zec(r.bids[3]) + "; the winning bid paid " + zec(r.price) + ".</span>";
+      }
+      $("price").textContent = cleared ? zec(r.price) : "–";
+      // Transactions sorted by txid, not by bidder: the public cannot tell whose is whose.
+      var txs = [];
+      cs.forEach(function (c) {
+        if (!c) return;
+        if (c.fundingTxid && live[c.state]) txs.push({ t: "Deposit", txid: c.fundingTxid, seen: "A 2-of-2 output of " + zec(info.depositZat) + ", the same for every bidder" });
+        if (c.settlement && c.settlement.txid) txs.push({ t: "Close", txid: c.settlement.txid, seen: "Spends a 2-of-2 into shielded outputs" });
+      });
+      txs.sort(function (x, y) { return x.txid < y.txid ? -1 : 1; });
+      $("txs").innerHTML = txs.map(function (x) {
+        var l = link(x.txid);
+        return '<li><span class="t">' + x.t + "</span>" + (l ? '<a href="' + l + '" target="_blank" rel="noopener">explorer</a>' : "<span></span>") + '<span class="seen">' + esc(x.seen) + '</span><span class="id">' + x.txid + "</span></li>";
+      }).join("") || '<li class="empty" style="border:0;padding:0">Nothing yet.</li>';
+      $("log").innerHTML = (r.steps || []).slice().reverse().map(function (e) {
+        var d = new Date(e.t * 1000);
+        return '<li><span class="tm">' + d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }) + '</span><span class="wh">' + esc(e.who) + "</span><span>" + esc(e.what) + "</span></li>";
+      }).join("");
+    }
+    $("tape").innerHTML = (s.tape || []).map(function (e) {
+      var d = new Date(e.t * 1000);
+      return "<li>" + d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) + " · " + esc(e.lot) + " · cleared at <b>" + zec(e.price_zat) + "</b> · " + e.bidders + " bidders</li>";
+    }).join("") || '<li>No rounds yet.</li>';
+  }
+
+  function refresh() { return api("GET", "/api/state").then(render).catch(function (e) { toast(e.message); }); }
+  $("bid").addEventListener("click", function () {
+    $("bid").disabled = true;
+    api("POST", "/api/bid", { bid_zat: choice }).then(refresh).catch(function (e) { toast(e.message); refresh(); });
+  });
+  function start() {
+    api("GET", "/api/info").then(function (i) {
+      info = i;
+      $("net").textContent = i.network + " · unaudited"; $("net2").textContent = i.network;
+      $("lot").textContent = i.lot; $("dep").textContent = zec(i.depositZat);
+      $("ladder").innerHTML = i.pricesZat.map(function (p) { return '<button type="button" data-p="' + p + '" aria-pressed="false">' + zec(p).replace(" ZEC", "") + "</button>"; }).join("");
+      Array.prototype.forEach.call($("ladder").children, function (b) {
+        b.addEventListener("click", function () {
+          choice = +b.dataset.p;
+          Array.prototype.forEach.call($("ladder").children, function (x) { x.setAttribute("aria-pressed", String(x === b)); });
+          refresh();
+        });
+      });
+      refresh();
+      setInterval(function () { if (!document.hidden) refresh(); }, 3000);
+    }).catch(function () {
+      $("net").textContent = "connecting…";
+      $("next").innerHTML = "<b>Connecting to the Zcash node…</b><p>The auction starts as soon as the node answers. This page retries on its own.</p>";
+      setTimeout(start, 5000);
+    });
+  }
+  start();
+})();
+</script>
+</body>
+</html>

@@ -68,6 +68,18 @@ pub enum Template {
         maturity_blocks: u32,
         refund_blocks: u32,
     },
+    /// One bidder's contract in a sealed-bid auction. The offerer (the seller) is paid the
+    /// clearing price when the auctioneer rules this bidder "won at" a price; the accepter
+    /// (the bidder) locks `deposit_zat` and gets the rest back, all of it on "lost" or by
+    /// the refund. Every bidder locks the same deposit, so the chain cannot tell their
+    /// bids apart. `prices_zat` are the possible clearing prices, rising.
+    Auction {
+        item: String,
+        deposit_zat: u64,
+        prices_zat: Vec<u64>,
+        maturity_blocks: u32,
+        refund_blocks: u32,
+    },
     /// The offerer protects `amount_zat` of ZEC at `price_cents` (USD per ZEC): it is
     /// owed that dollar value in ZEC at the price minute. The accepter hedges with the
     /// same amount and earns the premium.
@@ -136,6 +148,13 @@ fn one() -> u32 {
 }
 
 const DELIVERED: &str = "delivered";
+/// An auction bidder's ruling when it did not win.
+pub const LOST: &str = "lost";
+
+/// An auction bidder's ruling when it won at `price_zat`.
+pub fn won_at(price_zat: u64) -> String {
+    format!("won at {} ZEC", paylink::zec(price_zat))
+}
 const NOT_DELIVERED: &str = "not delivered";
 
 fn bad(m: impl Into<String>) -> Error {
@@ -158,6 +177,15 @@ impl Template {
                 }
                 if !payees.is_empty() && payees.iter().map(|p| p.bps as u64).sum::<u64>() != 10_000 {
                     return Err(bad("payee shares must sum to 10,000 bps"));
+                }
+                blocks(*maturity_blocks, *refund_blocks)
+            }
+            Template::Auction { deposit_zat, prices_zat, maturity_blocks, refund_blocks, .. } => {
+                if *deposit_zat == 0 || prices_zat.is_empty() || prices_zat.len() > 32 {
+                    return Err(bad("an auction needs a deposit and 1 to 32 prices"));
+                }
+                if prices_zat.iter().any(|p| *p == 0 || p > deposit_zat) || prices_zat.windows(2).any(|w| w[0] >= w[1]) {
+                    return Err(bad("auction prices must rise, each above zero and within the deposit"));
                 }
                 blocks(*maturity_blocks, *refund_blocks)
             }
@@ -273,6 +301,10 @@ impl Template {
                 outcomes: vec![DELIVERED.into(), NOT_DELIVERED.into()],
             },
             Template::Bet { question, outcomes, .. } => EventSpec::Arbiter { question: question.clone(), outcomes: outcomes.clone() },
+            Template::Auction { item, prices_zat, .. } => EventSpec::Arbiter {
+                question: item.clone(),
+                outcomes: std::iter::once(LOST.to_string()).chain(prices_zat.iter().map(|p| won_at(*p))).collect(),
+            },
         })
     }
 
@@ -281,7 +313,8 @@ impl Template {
             Template::StablePayment { maturity_blocks, refund_blocks, .. }
             | Template::Hedge { maturity_blocks, refund_blocks, .. }
             | Template::Escrow { maturity_blocks, refund_blocks, .. }
-            | Template::Bet { maturity_blocks, refund_blocks, .. } => (*maturity_blocks, *refund_blocks),
+            | Template::Bet { maturity_blocks, refund_blocks, .. }
+            | Template::Auction { maturity_blocks, refund_blocks, .. } => (*maturity_blocks, *refund_blocks),
             Template::Payroll { period_blocks, refund_margin_blocks, .. } => (*period_blocks, period_blocks + refund_margin_blocks),
             Template::PayOnPayment { by_blocks, refund_blocks, .. } => (by_blocks + 1, *refund_blocks),
         }
@@ -335,6 +368,11 @@ impl Template {
                 let payouts = Payouts::Enumerated(vec![(DELIVERED.into(), *amount_zat), (NOT_DELIVERED.into(), 0)]);
                 base(enumerated()?, payouts, 0, *amount_zat, splits(payees)?)
             }
+            Template::Auction { deposit_zat, prices_zat, .. } => {
+                // The seller's payout per ruling: nothing on "lost", the price on "won at".
+                let payouts = Payouts::Enumerated(std::iter::once((LOST.to_string(), 0)).chain(prices_zat.iter().map(|p| (won_at(*p), *p))).collect());
+                base(enumerated()?, payouts, 0, *deposit_zat, Splits::default())
+            }
             Template::Bet { outcomes, offerer_wins, stake_zat, .. } => {
                 let payouts = Payouts::Enumerated(
                     outcomes.iter().map(|o| (o.clone(), if offerer_wins.contains(o) { 2 * stake_zat } else { 0 })).collect(),
@@ -356,6 +394,8 @@ impl Template {
             (Template::Escrow { .. }, Role::Offerer) => 0,
             (Template::Escrow { amount_zat, .. }, Role::Accepter) => *amount_zat,
             (Template::Bet { stake_zat, .. }, _) => *stake_zat,
+            (Template::Auction { .. }, Role::Offerer) => 0,
+            (Template::Auction { deposit_zat, .. }, Role::Accepter) => *deposit_zat,
         }
     }
 
@@ -403,6 +443,14 @@ impl Template {
                 "you": if role == Role::Offerer { "contractor: paid on \"delivered\"" } else { "client: funds the escrow, refunded on \"not delivered\"" },
                 "amount_zec": paylink::zec(*amount_zat),
                 "payees": payees.iter().map(|p| json!({"label": p.label, "address": p.address, "bps": p.bps})).collect::<Vec<_>>(),
+                "you_put_in_zec": paylink::zec(mine),
+            }),
+            Template::Auction { item, deposit_zat, prices_zat, .. } => json!({
+                "template": "auction",
+                "item": item,
+                "you": if role == Role::Offerer { "seller: paid the clearing price if this bidder wins" } else { "bidder: locks the deposit, pays the clearing price only if it wins" },
+                "deposit_zec": paylink::zec(*deposit_zat),
+                "prices_zec": prices_zat.iter().map(|p| paylink::zec(*p)).collect::<Vec<_>>(),
                 "you_put_in_zec": paylink::zec(mine),
             }),
             Template::Bet { question, outcomes, offerer_wins, stake_zat, .. } => json!({
@@ -475,5 +523,18 @@ mod tests {
     fn bad_templates_are_refused() {
         assert!(Template::Bet { question: "q".into(), outcomes: vec!["a".into()], offerer_wins: vec![], stake_zat: 1, maturity_blocks: 1, refund_blocks: 2 }.validate().is_err());
         assert!(Template::Escrow { amount_zat: 1, question: "q".into(), payees: vec![], maturity_blocks: 5, refund_blocks: 5 }.validate().is_err());
+    }
+
+    #[test]
+    fn auction_pays_the_seller_the_clearing_price_only() {
+        let lot = |prices: Vec<u64>| Template::Auction { item: "lot".into(), deposit_zat: 1000, prices_zat: prices, maturity_blocks: 5, refund_blocks: 50 };
+        assert!(lot(vec![]).validate().is_err(), "no prices");
+        assert!(lot(vec![500, 400]).validate().is_err(), "falling prices");
+        assert!(lot(vec![500, 1500]).validate().is_err(), "a price above the deposit");
+        let ok = lot(vec![250, 500, 1000]);
+        ok.validate().unwrap();
+        let EventSpec::Arbiter { outcomes, .. } = ok.event().unwrap() else { panic!("an arbiter event") };
+        assert_eq!(outcomes, vec![LOST.to_string(), won_at(250), won_at(500), won_at(1000)]);
+        assert_eq!((ok.collateral(Role::Offerer), ok.collateral(Role::Accepter)), (0, 1000), "only the bidder locks");
     }
 }

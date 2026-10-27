@@ -159,7 +159,7 @@ td.muted { color: var(--muted); }
 .adv p { color: var(--muted); font-size: 0.97rem; }
 
 /* ---- Build ---- */
-.three { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+.three { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
 .use { padding: 24px; display: grid; gap: 10px; align-content: start; min-width: 0; }
 .use p { color: var(--muted); font-size: 0.97rem; }
 .use .ex { font-size: 0.9rem; color: var(--ink); border-top: 1px dashed var(--line); padding-top: 10px; }
@@ -333,6 +333,7 @@ h2 { font-size: clamp(2rem, 3.8vw, 2.9rem); line-height: 1.06; }
         <a href="#lineage">About</a>
         <a href="/escrow">Escrow room</a>
         <a href="/hedge">Hedge desk</a>
+        <a href="/auction">Auction</a>
       </nav>
     </div>
     <span class="chip-status"><i></i>Testnet · unaudited</span>
@@ -507,11 +508,12 @@ h2 { font-size: clamp(2rem, 3.8vw, 2.9rem); line-height: 1.06; }
   <div class="wrap">
     <div class="head">
       <p class="label">What developers can build</p>
-      <h2>Three places to start</h2>
+      <h2>Four places to start</h2>
     </div>
     <div class="three">
       <div class="panel use"><span class="pill priv" style="justify-self:start">shipped</span><h3>Escrow</h3><p>The simplest conditional settlement: a client funds a job, arbiters rule, and a time-locked refund covers silence. Neither side holds the other's money.</p><p class="ex">Milestone payments, freelance jobs, a team paid by share on delivery.</p><a class="try" href="/escrow">Try it in the escrow room &rarr;</a></div>
       <div class="panel use"><span class="pill priv" style="justify-self:start">shipped</span><h3>Stable payments and hedges</h3><p>ZEC payouts set by a real-world price: owed dollars, paid in ZEC at the attested minute, with the other side earning a premium.</p><p class="ex">Invoices in dollars, a hedged salary, protecting a ZEC balance.</p><a class="try" href="/hedge">Watch agents trade one at the hedge desk &rarr;</a></div>
+      <div class="panel use"><span class="pill priv" style="justify-self:start">demo</span><h3>Private markets</h3><p>The dark-pool thesis: the price is public, the participants are not. In a sealed-bid auction every bidder locks the same deposit and bids privately; the oracles publish the clearing price, and every contract settles into shielded notes, winner and losers alike.</p><p class="ex">Sealed-bid auctions, block trades, settlement of private order flow.</p><a class="try" href="/auction">Bid in the live auction &rarr;</a></div>
       <div class="panel use"><span class="pill dim" style="justify-self:start">proposed</span><h3>Agent agreements</h3><p>Agents that negotiate a price and get paid only if the outcome they promised is attested, settled without a platform holding funds.</p><p class="ex">Built from escrow and the desk's quote and mailbox flow today.</p><a class="try" href="/hedge">See two agents at the hedge desk &rarr;</a></div>
     </div>
     <div class="gallery">
@@ -620,6 +622,7 @@ funded
         <tbody>
           <tr><th>Escrow room: both arbiters ruled before the funding was mined</th><td><span class="pill pub">testnet</span></td><td class="muted">Funding and cooperative close mined in the same block</td><td class="h">4,547,229</td><td><span class="txid"><span>5baa0dec…97de08</span><button type="button" data-copy="5baa0dec4e4f6f7f8f46ae7e45091b19d27364907535a351b6912064f397de08">Copy</button></span></td></tr>
           <tr><th>Hedge desk: two agents, ZEC/USD attested at $1,265</th><td><span class="pill pub">testnet</span></td><td class="muted">Funding and cooperative close mined in the same block</td><td class="h">4,547,436</td><td><span class="txid"><span>b8902db6…a4e54d</span><button type="button" data-copy="b8902db686b39a6ae37a87e4901423ed80182373385d5bfe1dc2699195a4e54d">Copy</button></span></td></tr>
+          <tr><th>Auction: four bidders, cleared at 0.0014 ZEC (second price)</th><td><span class="pill pub">testnet</span></td><td class="muted">Four cooperative closes into shielded notes; winner and losers look alike</td><td class="h">4,547,603</td><td><span class="txid"><span>a6aae738…2f3f19</span><button type="button" data-copy="a6aae7382f5c53227b116c6cde8b29e5ebb3be803c41b5042446d417a82f3f19">Copy</button></span></td></tr>
           <tr><th>Escrow room: the contractor forges the arbiters' signatures</th><td><span class="pill pub">testnet</span></td><td class="muted">Refused by the network: script verification failed</td><td class="h">–</td><td class="muted">never on chain</td></tr>
           <tr><th>ZEC/USD payment, two oracles agreeing</th><td><span class="pill pub">testnet</span></td><td class="muted">Pre-signed payout, unlocked by both attestations</td><td class="h">4,522,041</td><td><span class="txid"><span>612ba745…5822fe</span><button type="button" data-copy="612ba745f15539691117b2264335d0da24872bfa9fab8b0c10bfab49f45822fe">Copy</button></span></td></tr>
           <tr><th>Hedge traded through the desk by two agents</th><td><span class="pill pub">testnet</span></td><td class="muted">Cooperative close to shielded addresses</td><td class="h">4,522,155</td><td><span class="txid"><span>cd366082…17756f</span><button type="button" data-copy="cd366082561c922720b58cad77a4770fe5b30fa64869b37aa08e0c465917756f">Copy</button></span></td></tr>
@@ -638,7 +641,7 @@ funded
   <div class="wrap">
     <div class="head"><p class="label">Status and security</p><h2>Where zDLC is today</h2></div>
     <div class="status">
-      <div class="panel st"><span class="label">Working</span><ul><li>Live on testnet: the escrow room and the hedge desk, with hosted oracles and desk</li><li>Contracts settle in one block when the outcome is known before funding</li><li>Funding by QR and multi-payee payouts</li><li>Developer kit, REST node, TypeScript and WebAssembly SDKs</li></ul></div>
+      <div class="panel st"><span class="label">Working</span><ul><li>Live on testnet: the escrow room, the hedge desk and a sealed-bid auction, with hosted oracles and desk</li><li>Contracts settle in one block when the outcome is known before funding</li><li>Funding by QR and multi-payee payouts</li><li>Developer kit, REST node, TypeScript and WebAssembly SDKs</li></ul></div>
       <div class="panel st next"><span class="label">Next</span><ul><li>Testnet contracts paid from phone wallets</li><li>A fully shielded escrow: adaptor signatures over RedPallas (research)</li><li>Two-of-three arbiter panels</li></ul></div>
       <div class="panel st not"><span class="label">Not yet</span><ul><li>Mainnet (capped at 0.01 ZEC a side when it starts)</li><li>Oracles inside hardware enclaves</li><li>An external security review</li></ul></div>
     </div>
