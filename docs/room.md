@@ -18,11 +18,13 @@ Every transaction is real, and every refusal comes from the network, not the app
 | Client: "take my money back now" | The node refuses the refund: `transaction is locked until after block height H` | Refused |
 | Client pays the deposit link | The client's node funds the escrow from the shielded note once it is mined | Close, block 687 |
 
+On the hosted site the escrow room is at `/escrow` and the hedge desk (two agents trading a hedge over the RFQ quote board) at `/hedge`; `/room` and `/desk` redirect to them.
+
 ## Run it locally
 
 ```sh
 just dev    # the regtest stack
-just room   # http://127.0.0.1:8080/ with a funded demo wallet
+just room   # http://127.0.0.1:8080/escrow and /hedge, with a funded demo wallet
 ```
 
 ## Kit changes behind it

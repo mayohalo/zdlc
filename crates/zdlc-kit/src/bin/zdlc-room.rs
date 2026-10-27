@@ -744,24 +744,28 @@ async fn main() {
         });
     }
     let r = Router::new()
-        // Everything under /room, so a site can serve its own pages beside it.
-        .route("/", get(|| async { axum::response::Redirect::temporary("/room") }))
-        .route("/room", get(page))
-        .route("/room/r/{id}", get(page))
-        .route("/room/api/info", get(info))
-        .route("/room/api/rooms", post(open))
-        .route("/room/api/rooms/{id}", get(show))
-        .route("/room/api/rooms/{id}/accept", post(accept))
-        .route("/room/api/rooms/{id}/qr.svg", get(qr))
-        .route("/room/api/rooms/{id}/{who}/hold", post(hold))
-        .route("/room/api/rooms/{id}/{who}/attempt", post(attempt))
-        .route("/room/api/rooms/{id}/arbiters/{n}", post(rule))
-        .route("/desk", get(desk_page))
-        .route("/desk/api/info", get(desk_info))
-        .route("/desk/api/state", get(desk_state))
-        .route("/desk/api/trade", post(desk_trade))
+        // Everything under /escrow and /hedge, so a site can serve its own pages beside
+        // them. The old /room and /desk addresses redirect, so shared links keep working.
+        .route("/", get(|| async { axum::response::Redirect::temporary("/escrow") }))
+        .route("/room", get(|| async { axum::response::Redirect::permanent("/escrow") }))
+        .route("/room/r/{id}", get(|Path(id): Path<String>| async move { axum::response::Redirect::permanent(&format!("/escrow/r/{id}")) }))
+        .route("/desk", get(|| async { axum::response::Redirect::permanent("/hedge") }))
+        .route("/escrow", get(page))
+        .route("/escrow/r/{id}", get(page))
+        .route("/escrow/api/info", get(info))
+        .route("/escrow/api/rooms", post(open))
+        .route("/escrow/api/rooms/{id}", get(show))
+        .route("/escrow/api/rooms/{id}/accept", post(accept))
+        .route("/escrow/api/rooms/{id}/qr.svg", get(qr))
+        .route("/escrow/api/rooms/{id}/{who}/hold", post(hold))
+        .route("/escrow/api/rooms/{id}/{who}/attempt", post(attempt))
+        .route("/escrow/api/rooms/{id}/arbiters/{n}", post(rule))
+        .route("/hedge", get(desk_page))
+        .route("/hedge/api/info", get(desk_info))
+        .route("/hedge/api/state", get(desk_state))
+        .route("/hedge/api/trade", post(desk_trade))
         .with_state(slot);
-    println!("zdlc-room: http://{listen}/room");
+    println!("zdlc-room: http://{listen}/escrow and http://{listen}/hedge");
     let l = tokio::net::TcpListener::bind(&listen).await.unwrap_or_else(|e| die(e));
     axum::serve(l, r).await.unwrap_or_else(|e| die(e));
 }

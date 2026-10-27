@@ -185,8 +185,8 @@ footer { border-top: 1px solid var(--line); padding-top: 18px; }
 <body>
 <div class="wrap">
   <header>
-    <div><a class="mark" href="/">z<b>DLC</b></a><a class="mark page" href="/room">escrow room</a></div>
-    <div class="net"><nav class="nav"><a class="on" href="/room">Escrow room</a><a href="/desk">Hedge desk</a></nav><span class="chip-status"><i></i><span id="net">connecting…</span></span><span>block <b id="tip">–</b></span></div>
+    <div><a class="mark" href="/">z<b>DLC</b></a><a class="mark page" href="/escrow">escrow room</a></div>
+    <div class="net"><nav class="nav"><a class="on" href="/escrow">Escrow room</a><a href="/hedge">Hedge desk</a></nav><span class="chip-status"><i></i><span id="net">connecting…</span></span><span>block <b id="tip">–</b></span></div>
   </header>
 
   <div class="intro">
@@ -279,9 +279,9 @@ footer { border-top: 1px solid var(--line); padding-top: 18px; }
 <script>
 (function () {
   var $ = function (id) { return document.getElementById(id); };
-  // The page and its API live under /room; the site's landing page is at /.
-  var BASE = "/room";
-  function idFromPath() { return (location.pathname.match(/^\/room\/r\/([0-9a-f]+)/) || [])[1] || null; }
+  // The page and its API live under /escrow; the site's landing page is at /.
+  var BASE = "/escrow";
+  function idFromPath() { return (location.pathname.match(/^\/escrow\/r\/([0-9a-f]+)/) || [])[1] || null; }
   var info = null, room = null, id = idFromPath();
   var timer = null;
 

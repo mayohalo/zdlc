@@ -197,8 +197,8 @@ footer { border-top: 1px solid var(--line); padding-top: 18px; }
 <body>
 <div class="wrap">
   <header>
-    <div><a class="mark" href="/">z<b>DLC</b></a><a class="mark page" href="/desk">hedge desk</a></div>
-    <nav class="nav"><a href="/room">Escrow room</a><a class="on" href="/desk">Hedge desk</a><span class="net" style="margin-left:8px"><span class="chip-status"><i></i><span id="net">connecting…</span></span><span>block <b id="tip">–</b></span></span></nav>
+    <div><a class="mark" href="/">z<b>DLC</b></a><a class="mark page" href="/hedge">hedge desk</a></div>
+    <nav class="nav"><a href="/escrow">Escrow room</a><a class="on" href="/hedge">Hedge desk</a><span class="net" style="margin-left:8px"><span class="chip-status"><i></i><span id="net">connecting…</span></span><span>block <b id="tip">–</b></span></span></nav>
   </header>
 
   <div class="intro">
@@ -265,7 +265,7 @@ footer { border-top: 1px solid var(--line); padding-top: 18px; }
 <script>
 (function () {
   var $ = function (id) { return document.getElementById(id); };
-  var BASE = "/desk", info = null, st = null, tipSeen = { tip: null, at: 0 };
+  var BASE = "/hedge", info = null, st = null, tipSeen = { tip: null, at: 0 };
   function zec(z) { return (z / 1e8).toFixed(8).replace(/0+$/, "").replace(/\.$/, "") + " ZEC"; }
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
   function toast(m) { var t = $("toast"); t.textContent = m; t.style.display = "block"; clearTimeout(t._h); t._h = setTimeout(function () { t.style.display = "none"; }, 5000); }

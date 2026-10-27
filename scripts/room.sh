@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # The escrow room on the dev stack (scripts/dev.sh up first): starts zdlc-room on
-# http://127.0.0.1:$ROOM_PORT/ (default 8080), funds its demo wallet from the regtest miner, and stays in
+# http://127.0.0.1:$ROOM_PORT/escrow (default port 8080), funds its demo wallet from the regtest miner, and stays in
 # the foreground. Regtest blocks come every 2 s, so the heights are 37.5 times testnet's
 # to keep testnet's timing: rulings count after ~2.5 min, the refund unlocks at ~5 min.
 set -euo pipefail
@@ -24,5 +24,5 @@ if [ "$(curl -s "http://127.0.0.1:$PORT/api/info" | sed -n 's/.*"demoWalletZat":
   # every 150 blocks, so a long-running chain cannot pay much more).
   "$ZDLC_BIN/zdlc-dev" fund --node "$ZDLC_NODE_URL" "$ADDR" 0.03 "$ADDR" 0.03 "$ADDR" 0.03 "$ADDR" 0.03 "$ADDR" 0.03 "$ADDR" 0.03
 fi
-echo "escrow room: http://127.0.0.1:$PORT/ (log: $LOG)"
+echo "escrow room: http://127.0.0.1:$PORT/escrow, hedge desk: http://127.0.0.1:$PORT/hedge (log: $LOG)"
 wait $PID
