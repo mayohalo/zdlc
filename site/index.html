@@ -535,9 +535,9 @@ h2 { font-size: clamp(2rem, 3.8vw, 2.9rem); line-height: 1.06; }
       <div class="panel use"><span class="pill dim" style="justify-self:start">proposed</span><span class="label fn">Automate it</span><h3>Agent agreements</h3><p>Agents that negotiate a price and get paid only if the outcome they promised is attested, settled without a platform holding funds.</p><p class="ex">Built from escrow and the desk's quote and mailbox flow today.</p><a class="try" href="/hedge">See two agents at the hedge desk &rarr;</a></div>
     </div>
     <div class="gallery">
-      <div><span class="label" style="color:var(--shield)">Shipped templates</span><ul><li><code>stable_payment</code> · <code>hedge</code> · <code>payroll</code></li><li><code>escrow</code> with up to 16 payees</li><li><code>pay_on_payment</code> · <code>bet</code></li><li><code>auction</code>: sealed bids, one contract per bidder</li></ul></div>
-      <div><span class="label" style="color:var(--key)">Experimental</span><ul><li>Quote desk and maker / taker agents</li><li>Paying a contract's own address from any wallet</li><li>Browser contracts in WebAssembly</li></ul></div>
-      <div><span class="label">Proposed</span><ul><li>Agent agreements</li><li>Parametric insurance</li><li>Two-of-three arbiter panels</li></ul></div>
+      <div><span class="label" style="color:var(--shield)">Shipped</span><ul><li><code>escrow</code> with up to 16 payees · <code>auction</code> (sealed bids)</li><li><code>stable_payment</code> · <code>payroll</code> · <code>bet</code> · <code>pay_on_payment</code></li><li>RFQ desk with maker and taker agents (live as the hedge desk)</li></ul></div>
+      <div><span class="label" style="color:var(--key)">Experimental</span><ul><li><code>hedge</code> template (offline tests so far)</li><li>Settling in one block: the close sent before the funding is mined</li><li>Paying a contract's address from any wallet (phone wallets on testnet next)</li><li>Contracts in the browser, in WebAssembly</li></ul></div>
+      <div><span class="label">Proposed</span><ul><li>Commit-reveal auctions</li><li>Two-of-three arbiter panels</li><li>Agent agreements · parametric insurance</li><li>A fully shielded escrow (research)</li></ul></div>
     </div>
   </div>
 </section>
